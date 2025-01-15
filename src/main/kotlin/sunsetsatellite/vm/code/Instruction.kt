@@ -391,11 +391,13 @@ class arraylength() : Instruction(){
 
 class iastore() : Instruction() {
 	override fun execute(thread: VmThread, frame: VmFrame) {
-		//TODO: cast inside the vm instead of using 'as' here
 		val ref = frame.stack.pop() as RefType<*>
-		val index = (frame.stack.pop() as IntType).getTypeValue()
+		val indexType = (frame.stack.pop() as IntType)
+		val index = indexType.getTypeValue()
 		val value = (frame.stack.pop() as IntType)
 		VmRuntime.vm.checkCast(ref,Descriptor(VmTypes.ARRAY,"I"))
+		VmRuntime.vm.checkCast(indexType,Descriptor(VmTypes.INT,"int"))
+		VmRuntime.vm.checkCast(value,Descriptor(VmTypes.INT,"int"))
 		val array = (ref as RefType<ArrayRef>).getTypeValue().getRef()
 		if(index < 0 || index >= array.size){
 			throw VmOutOfBoundsException("index $index out of bounds for array of length ${array.size}")
@@ -407,9 +409,12 @@ class iastore() : Instruction() {
 class fastore() : Instruction() {
 	override fun execute(thread: VmThread, frame: VmFrame) {
 		val ref = frame.stack.pop() as RefType<*>
-		val index = (frame.stack.pop() as IntType).getTypeValue()
+		val indexType = (frame.stack.pop() as IntType)
+		val index = indexType.getTypeValue()
 		val value = (frame.stack.pop() as FloatType)
 		VmRuntime.vm.checkCast(ref,Descriptor(VmTypes.ARRAY,"F"))
+		VmRuntime.vm.checkCast(indexType,Descriptor(VmTypes.INT,"int"))
+		VmRuntime.vm.checkCast(value,Descriptor(VmTypes.INT,"int"))
 		val array = (ref as RefType<ArrayRef>).getTypeValue().getRef()
 		if(index < 0 || index >= array.size){
 			throw VmOutOfBoundsException("index $index out of bounds for array of length ${array.size}")
@@ -421,9 +426,12 @@ class fastore() : Instruction() {
 class castore() : Instruction() {
 	override fun execute(thread: VmThread, frame: VmFrame) {
 		val ref = frame.stack.pop() as RefType<*>
-		val index = (frame.stack.pop() as IntType).getTypeValue()
+		val indexType = (frame.stack.pop() as IntType)
+		val index = indexType.getTypeValue()
 		val value = (frame.stack.pop() as CharType)
 		VmRuntime.vm.checkCast(ref,Descriptor(VmTypes.ARRAY,"C"))
+		VmRuntime.vm.checkCast(indexType,Descriptor(VmTypes.INT,"int"))
+		VmRuntime.vm.checkCast(value,Descriptor(VmTypes.INT,"int"))
 		val array = (ref as RefType<ArrayRef>).getTypeValue().getRef()
 		if(index < 0 || index >= array.size){
 			throw VmOutOfBoundsException("index $index out of bounds for array of length ${array.size}")
@@ -434,10 +442,11 @@ class castore() : Instruction() {
 
 class iaload() : Instruction() {
 	override fun execute(thread: VmThread, frame: VmFrame) {
-		//TODO: cast inside the vm instead of using 'as' here
 		val ref = frame.stack.pop() as RefType<*>
-		val index = (frame.stack.pop() as IntType).getTypeValue()
+		val indexType = (frame.stack.pop() as IntType)
+		val index = indexType.getTypeValue()
 		VmRuntime.vm.checkCast(ref,Descriptor(VmTypes.ARRAY,"I"))
+		VmRuntime.vm.checkCast(indexType,Descriptor(VmTypes.INT,"int"))
 		val array = (ref as RefType<ArrayRef>).getTypeValue().getRef()
 		if(index < 0 || index >= array.size){
 			throw VmOutOfBoundsException("index $index out of bounds for array of length ${array.size}")
@@ -449,8 +458,10 @@ class iaload() : Instruction() {
 class faload() : Instruction() {
 	override fun execute(thread: VmThread, frame: VmFrame) {
 		val ref = frame.stack.pop() as RefType<*>
-		val index = (frame.stack.pop() as IntType).getTypeValue()
+		val indexType = (frame.stack.pop() as IntType)
+		val index = indexType.getTypeValue()
 		VmRuntime.vm.checkCast(ref,Descriptor(VmTypes.ARRAY,"F"))
+		VmRuntime.vm.checkCast(indexType,Descriptor(VmTypes.INT,"int"))
 		val array = (ref as RefType<ArrayRef>).getTypeValue().getRef()
 		if(index < 0 || index >= array.size){
 			throw VmOutOfBoundsException("index $index out of bounds for array of length ${array.size}")
@@ -462,8 +473,10 @@ class faload() : Instruction() {
 class caload() : Instruction() {
 	override fun execute(thread: VmThread, frame: VmFrame) {
 		val ref = frame.stack.pop() as RefType<*>
-		val index = (frame.stack.pop() as IntType).getTypeValue()
+		val indexType = (frame.stack.pop() as IntType)
+		val index = indexType.getTypeValue()
 		VmRuntime.vm.checkCast(ref,Descriptor(VmTypes.ARRAY,"C"))
+		VmRuntime.vm.checkCast(indexType,Descriptor(VmTypes.INT,"int"))
 		val array = (ref as RefType<ArrayRef>).getTypeValue().getRef()
 		if(index < 0 || index >= array.size){
 			throw VmOutOfBoundsException("index $index out of bounds for array of length ${array.size}")
@@ -475,7 +488,8 @@ class caload() : Instruction() {
 class aastore() : Instruction() {
 	override fun execute(thread: VmThread, frame: VmFrame) {
 		val ref = frame.stack.pop() as RefType<*>
-		val index = (frame.stack.pop() as IntType).getTypeValue()
+		val indexType = (frame.stack.pop() as IntType)
+		val index = indexType.getTypeValue()
 		val value = (frame.stack.pop() as RefType<*>)
 		val arrayRef = (ref as RefType<ArrayRef>).getTypeValue()
 		if(arrayRef.componentType != VmTypes.REFERENCE){
@@ -492,7 +506,8 @@ class aastore() : Instruction() {
 class aaload() : Instruction() {
 	override fun execute(thread: VmThread, frame: VmFrame) {
 		val ref = frame.stack.pop() as RefType<*>
-		val index = (frame.stack.pop() as IntType).getTypeValue()
+		val indexType = (frame.stack.pop() as IntType)
+		val index = indexType.getTypeValue()
 		val arrayRef = (ref as RefType<ArrayRef>).getTypeValue()
 		if(arrayRef.componentType != VmTypes.REFERENCE){
 			throw VmTypeCastException("cannot cast array of type '${arrayRef.componentType.name.lowercase()}' to 'reference'")
@@ -586,7 +601,6 @@ class putstatic(val constantPoolIndex: Int) : Instruction(){
 		val desc = FieldDescriptorAnalyzer.analyze(field.ref.descriptor)
 		VmRuntime.vm.checkCast(value,desc)
 
-		//TODO: type check please :sob:
 		field.value = value
 	}
 

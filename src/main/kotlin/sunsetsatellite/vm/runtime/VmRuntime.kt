@@ -48,44 +48,4 @@ object VmRuntime {
 		vm = VirtualMachine(args[0])
 		vm.init()
 	}
-
-	fun testFib(){
-		val nativeTimes: MutableList<Duration> = mutableListOf()
-		val vmTimes: MutableList<Duration> = mutableListOf()
-		NativeMethods.registerNatives()
-		Builtins.constructBuiltins()
-		val times = 1000
-		for (i in 0 until times) {
-			val nativeTime = measureTime {
-				println("fib: ${fib(0,1,45)}")
-			}
-			println("Native execution took $nativeTime")
-			nativeTimes.add(nativeTime)
-			println()
-
-			println("Starting virtual machine...")
-
-			val time = measureTime {
-				vm = VirtualMachine("base/Main")
-				vm.start()
-			}
-
-			println("VM execution took $time")
-			vmTimes.add(time)
-			println("Shutting down virtual machine...")
-			println()
-		}
-		println()
-		val nativeAverage = nativeTimes.sumOf { it.toInt(DurationUnit.MICROSECONDS) } / nativeTimes.size.toDouble()
-		val vmAverage = vmTimes.sumOf { it.toInt(DurationUnit.MICROSECONDS) } / vmTimes.size.toDouble()
-		println("Average native time (over $times runs): ${nativeAverage}us")
-		println("Average VM time (over $times runs): ${vmAverage}us")
-		println("VM is %.2fx slower than native execution.".format(vmAverage/nativeAverage))
-	}
-
-	fun fib(v1: Int, v2: Int, max: Int): Int {
-		if(max <= 0) return v1+v2
-		println("fib: ${v1+v2}")
-		return fib(v1+v2, v1, max-1)
-	}
 }

@@ -52,40 +52,14 @@ object Builtins {
 				attributes = listOf(
 					CodeAttribute(2,
 						arrayOf(
-
+							ldc(cfb.addStringConstantEntry("hello lua from craftvm!")),
+							dup(),
+							invokeinit(),
+							invokestatic(cfb.addMethodConstantEntry("println","(Lbase/String;)V","base/StdOut"))
 						)
 					)
 				)
 			)
-			.addMethod(
-				name = "fib",
-				descriptor = "(III)I",
-				accessFlags = MethodAccessFlags().apply { PUBLIC = true; STATIC = true },
-				attributes = listOf(
-					CodeAttribute(3,
-						arrayOf(
-							iload(2),
-							iif(6,Condition.GREATER),
-							iload(0),
-							iload(1),
-							iadd(),
-							areturn(),
-							iload(0),
-							iload(1),
-							iadd(),
-							iload(2),
-							debug("fib:"),
-							iload(0),
-							iconst(1),
-							iload(2),
-							isub(),
-							invokestatic(cfb.addMethodConstantEntry("fib","(III)I","base/Main")),
-							areturn()
-						)
-					)
-				)
-			)
-
 			.build()
 	}
 
