@@ -55,7 +55,8 @@ object Builtins {
 							ldc(cfb.addStringConstantEntry("hello lua from craftvm!")),
 							dup(),
 							invokeinit(),
-							invokestatic(cfb.addMethodConstantEntry("println","(Lbase/String;)V","base/StdOut"))
+							invokestatic(cfb.addMethodConstantEntry("println","(Lbase/String;)V","base/StdOut")),
+							vreturn()
 						)
 					)
 				)

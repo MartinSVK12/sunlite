@@ -23,7 +23,7 @@ class ClassFile (
 	val methods: Array<MethodInfo>,
 	val attributes: Array<BaseAttribute>
 ) {
-	val magic: Long = 0xDEADC0DE;
+	val magic: Long = 0xDEADC0DE
 
 	fun getClassName(): String {
 		return constant_pool[this_class].let {
