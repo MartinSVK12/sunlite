@@ -1,4 +1,4 @@
-package sunsetsatellite.vm.lang.lox
+package sunsetsatellite.lang.lox
 
 class Environment(val enclosing: Environment? = null) {
 
@@ -21,6 +21,19 @@ class Environment(val enclosing: Environment? = null) {
 		)
 	}
 
+	fun getAt(distance: Int, name: String?): Any? {
+		return ancestor(distance)?.values?.get(name)
+	}
+
+	fun ancestor(distance: Int): Environment? {
+		var environment: Environment? = this
+		for (i in 0..<distance) {
+			environment = environment?.enclosing
+		}
+
+		return environment
+	}
+
 	fun assign(name: Token, value: Any?) {
 		if (values.containsKey(name.lexeme)) {
 			values[name.lexeme] = value
@@ -35,6 +48,15 @@ class Environment(val enclosing: Environment? = null) {
 		throw LoxRuntimeError(
 			name,
 			"Undefined variable '" + name.lexeme + "'."
+		)
+	}
+
+	fun assignAt(distance: Int, name: Token, value: Any?) {
+		ancestor(distance)?.values?.set(name.lexeme, value
+			?: throw LoxRuntimeError(
+				name,
+				"Undefined variable '" + name.lexeme + "'."
+			)
 		)
 	}
 }

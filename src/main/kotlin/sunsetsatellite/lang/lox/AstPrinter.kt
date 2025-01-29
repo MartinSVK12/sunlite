@@ -1,4 +1,4 @@
-package sunsetsatellite.vm.lang.lox
+package sunsetsatellite.lang.lox
 
 
 object AstPrinter : Expr.Visitor<String>, Stmt.Visitor<String> {
@@ -26,7 +26,7 @@ object AstPrinter : Expr.Visitor<String>, Stmt.Visitor<String> {
 
 	override fun visitLiteralExpr(expr: Expr.Literal): String {
 		if (expr.value == null) return "nil"
-		return expr.value.toString()
+		return "\"${expr.value}\""
 	}
 
 	override fun visitVariableExpr(expr: Expr.Variable): String {
@@ -42,11 +42,27 @@ object AstPrinter : Expr.Visitor<String>, Stmt.Visitor<String> {
 	}
 
 	override fun visitCallExpr(expr: Expr.Call): String {
-		return "(call ${print(expr.callee)} ${parenthesizeList("args", expr.arguments)})"
+		return "(call ${print(expr.callee)} ${if (expr.arguments.isEmpty()) "(no args)" else parenthesizeList("args", expr.arguments)})"
 	}
 
 	override fun visitLambdaExpr(expr: Expr.Lambda): String {
 		return parenthesize("lambda ( ${expr.function.params.toString().replace("[","").replace("]","")})", expr.function.body)
+	}
+
+	override fun visitGetExpr(expr: Expr.Get): String {
+		return "(get '${expr.name.lexeme}' ${print(expr.obj)})"
+	}
+
+	override fun visitSetExpr(expr: Expr.Set): String {
+		return "(set '${expr.name.lexeme}' to ${print(expr.value)} on ${print(expr.obj)})"
+	}
+
+	override fun visitThisExpr(expr: Expr.This): String {
+		return "(this)"
+	}
+
+	override fun visitSuperExpr(expr: Expr.Super): String {
+		return "(super)"
 	}
 
 	override fun visitUnaryExpr(expr: Expr.Unary): String {
@@ -85,7 +101,7 @@ object AstPrinter : Expr.Visitor<String>, Stmt.Visitor<String> {
 		val builder = StringBuilder()
 
 		builder.append("(").append(name)
-		if(name == "block" || name.contains("function") || name.contains("lambda")) {
+		if(name == "block" || name.contains("function") || name.contains("class") || name.contains("lambda")) {
 			builder.append(" {\n")
 			tabs++
 		}
@@ -94,7 +110,7 @@ object AstPrinter : Expr.Visitor<String>, Stmt.Visitor<String> {
 			builder.append(stmt.accept(this))
 			if(stmts.size-1 > i) builder.append(",\n")
 		}
-		if(name == "block" || name.contains("function") || name.contains("lambda")){
+		if(name == "block" || name.contains("function") || name.contains("class") || name.contains("lambda")){
 			tabs--
 			builder.append("\n").append("\t".repeat(tabs)).append("}")
 		}
@@ -159,5 +175,9 @@ object AstPrinter : Expr.Visitor<String>, Stmt.Visitor<String> {
 
 	override fun visitReturnStmt(stmt: Stmt.Return): String {
 		return "(return ${print(stmt.value)})"
+	}
+
+	override fun visitClassStmt(stmt: Stmt.Class): String {
+		return parenthesize("class ${stmt.name.lexeme}${stmt.superclass?.let { return@let " < ${it.name.lexeme}" } ?: ""}",stmt.methods)
 	}
 }

@@ -1,3 +1,3 @@
-package sunsetsatellite.vm.lang.lox
+package sunsetsatellite.lang.lox
 
 class LoxContinue: RuntimeException(null,null,false,false)

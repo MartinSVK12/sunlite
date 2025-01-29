@@ -1,14 +1,15 @@
-package sunsetsatellite.vm.lang.lox
+package sunsetsatellite.lang.lox
 
-import sunsetsatellite.vm.lang.lox.Expr.Logical
-import sunsetsatellite.vm.lang.lox.Lox.runtimeError
-import sunsetsatellite.vm.lang.lox.Stmt.Return
-import sunsetsatellite.vm.lang.lox.TokenType.*
+import sunsetsatellite.lang.lox.Expr.Logical
+import sunsetsatellite.lang.lox.Lox.runtimeError
+import sunsetsatellite.lang.lox.Stmt.Return
+import sunsetsatellite.lang.lox.TokenType.*
 
 
 class Interpreter: Expr.Visitor<Any?>, Stmt.Visitor<Unit> {
 	val globals: Environment = Environment()
 	var environment: Environment = globals
+	val locals: MutableMap<Expr, Int> = mutableMapOf()
 
 	init {
 		globals.define("clock", object: LoxCallable {
@@ -106,12 +107,19 @@ class Interpreter: Expr.Visitor<Any?>, Stmt.Visitor<Unit> {
 	}
 
 	override fun visitVariableExpr(expr: Expr.Variable): Any? {
-		return environment.get(expr.name)
+		return lookUpVariable(expr.name, expr)
 	}
 
 	override fun visitAssignExpr(expr: Expr.Assign): Any? {
 		val value = evaluate(expr.value)
-		environment.assign(expr.name, value)
+
+		val distance = locals[expr]
+		if (distance != null) {
+			environment.assignAt(distance, expr.name, value)
+		} else {
+			globals.assign(expr.name, value)
+		}
+
 		return value
 	}
 
@@ -252,6 +260,41 @@ class Interpreter: Expr.Visitor<Any?>, Stmt.Visitor<Unit> {
 		throw LoxReturn(value)
 	}
 
+	override fun visitClassStmt(stmt: Stmt.Class) {
+
+		var superclass: Any? = null
+		if (stmt.superclass != null) {
+			superclass = evaluate(stmt.superclass)
+			if (superclass !is LoxClass) {
+				throw LoxRuntimeError(
+					stmt.superclass.name,
+					"Superclass must be a class."
+				)
+			}
+		}
+
+		environment.define(stmt.name.lexeme, null)
+
+		if (stmt.superclass != null) {
+			environment = Environment(environment)
+			environment.define("super", superclass)
+		}
+
+		val methods: MutableMap<String, LoxFunction> = mutableMapOf()
+		for (method in stmt.methods) {
+			val function = LoxFunction(method, environment).apply { if (method.name.lexeme == "init") this.setModifier(FunctionModifier.INIT) }
+			methods[method.name.lexeme] = function
+		}
+
+		val clazz = LoxClass(stmt.name.lexeme, methods, superclass as LoxClass?)
+
+		if (superclass != null) {
+			environment = environment.enclosing!!
+		}
+
+		environment.assign(stmt.name, clazz)
+	}
+
 	override fun visitCallExpr(expr: Expr.Call): Any? {
 		val callee = evaluate(expr.callee)
 
@@ -284,7 +327,49 @@ class Interpreter: Expr.Visitor<Any?>, Stmt.Visitor<Unit> {
 		return LoxFunction(expr.function, environment)
 	}
 
-	internal fun executeBlock(statements: List<Stmt>, environment: Environment) {
+	override fun visitGetExpr(expr: Expr.Get): Any? {
+		val obj = evaluate(expr.obj)
+		if (obj is LoxClassInstance) {
+			return obj.get(expr.name)
+		}
+
+		throw LoxRuntimeError(
+			expr.name,
+			"Only classes or class instances have properties."
+		)
+	}
+
+	override fun visitSetExpr(expr: Expr.Set): Any? {
+		val obj = evaluate(expr.obj) as? LoxClassInstance ?: throw LoxRuntimeError(
+			expr.name,
+			"Only classes or class instances have fields."
+		)
+
+		val value = evaluate(expr.value)
+		obj.set(expr.name, value)
+		return value
+	}
+
+	override fun visitThisExpr(expr: Expr.This): Any? {
+		return lookUpVariable(expr.keyword, expr)
+	}
+
+	override fun visitSuperExpr(expr: Expr.Super): Any? {
+		val distance = locals[expr]!!
+		val superclass = environment.getAt(distance, "super") as LoxClass?
+
+		//env with `this` is always in the previous env
+		val obj: LoxClassInstance = environment.getAt(distance - 1, "this") as LoxClassInstance
+
+		val method = superclass?.findMethod(expr.method.lexeme)
+			?: throw LoxRuntimeError(expr.method,
+			"Undefined property '" + expr.method.lexeme + "'.")
+
+		return method.bind(obj)
+	}
+
+
+	fun executeBlock(statements: List<Stmt>, environment: Environment) {
 		val previous = this.environment
 		try {
 			this.environment = environment
@@ -297,5 +382,16 @@ class Interpreter: Expr.Visitor<Any?>, Stmt.Visitor<Unit> {
 		}
 	}
 
+	fun resolve(expr: Expr, depth: Int) {
+		locals[expr] = depth
+	}
 
+	private fun lookUpVariable(name: Token, expr: Expr): Any? {
+		val distance = locals[expr]
+		return if (distance != null) {
+			environment.getAt(distance, name.lexeme)
+		} else {
+			globals.get(name)
+		}
+	}
 }

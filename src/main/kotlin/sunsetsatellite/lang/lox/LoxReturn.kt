@@ -1,3 +1,3 @@
-package sunsetsatellite.vm.lang.lox
+package sunsetsatellite.lang.lox
 
 class LoxReturn(val value: Any?): RuntimeException(null,null,false,false)

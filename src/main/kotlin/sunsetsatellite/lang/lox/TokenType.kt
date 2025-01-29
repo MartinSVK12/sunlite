@@ -1,4 +1,4 @@
-package sunsetsatellite.vm.lang.lox
+package sunsetsatellite.lang.lox
 
 enum class TokenType {
 	// Single-character tokens.
@@ -17,7 +17,7 @@ enum class TokenType {
 	// Keywords.
 	AND, CLASS, ELSE, FALSE, FUN, FOR, IF, NIL, OR,
 	PRINT, RETURN, SUPER, THIS, TRUE, VAR, WHILE,
-	BREAK, CONTINUE,
+	BREAK, CONTINUE, STATIC,
 
 	EOF
 }

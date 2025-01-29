@@ -1,7 +1,7 @@
-package sunsetsatellite.vm.lang.lox
+package sunsetsatellite.lang.lox
 
-import sunsetsatellite.vm.lang.lox.Lox.error
-import sunsetsatellite.vm.lang.lox.TokenType.*
+import sunsetsatellite.lang.lox.Lox.error
+import sunsetsatellite.lang.lox.TokenType.*
 
 
 class Scanner(private val source: String) {
@@ -33,6 +33,7 @@ class Scanner(private val source: String) {
 			keywords["while"] = WHILE
 			keywords["break"] = BREAK
 			keywords["continue"] = CONTINUE
+			keywords["static"] = STATIC
 		}
 	}
 

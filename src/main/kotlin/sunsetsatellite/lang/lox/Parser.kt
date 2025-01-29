@@ -1,13 +1,11 @@
-package sunsetsatellite.vm.lang.lox
+package sunsetsatellite.lang.lox
 
-import sunsetsatellite.vm.lang.lox.Expr.Assign
-import sunsetsatellite.vm.lang.lox.Expr.Logical
-import sunsetsatellite.vm.lang.lox.TokenType.*
+import sunsetsatellite.lang.lox.Expr.*
+import sunsetsatellite.lang.lox.TokenType.*
 
 
 class Parser(val tokens: List<Token>) {
 	private var current = 0
-	private var inLoop = false
 
 	private class ParseError : RuntimeException()
 
@@ -41,24 +39,43 @@ class Parser(val tokens: List<Token>) {
 			match(FOR) -> return forStatement()
 			match(BREAK) -> return breakStatement()
 			match(CONTINUE) -> return continueStatement()
-			match(FUN) -> return function("function")
+			match(FUN) -> return function("function", null)
 			match(RETURN) -> return returnStatement()
+			match(CLASS) -> return classDeclaration()
 			else -> return expressionStatement()
 		}
 	}
 
-	private fun returnStatement(): Stmt {
-		val keyword = previous()
-		var value: Expr? = null
-		if (!check(SEMICOLON)) {
-			value = expression()
+	private fun classDeclaration(): Stmt {
+		val name = consume(IDENTIFIER, "Expected class name.")
+
+
+		var superclass: Variable? = null
+		if (match(LESS)) {
+			consume(IDENTIFIER, "Expected superclass name.")
+			superclass = Variable(previous())
 		}
 
-		consume(SEMICOLON, "Expected ';' after return value.")
-		return Stmt.Return(keyword, value)
+		consume(LEFT_BRACE, "Expected '{' before class body.")
+
+		val methods: MutableList<Stmt.Function> = ArrayList()
+		while (!check(RIGHT_BRACE) && !isAtEnd()) {
+			if(match(STATIC)) {
+				methods.add(function("method", previous()))
+			} else {
+				methods.add(function("method", null))
+			}
+		}
+
+		consume(RIGHT_BRACE, "Expected '}' after class body.")
+
+		return Stmt.Class(name, methods, superclass)
 	}
 
-	private fun function(kind: String): Stmt.Function {
+	private fun function(kind: String, modifier: Token?): Stmt.Function {
+		if(modifier != null && FunctionModifier.entries.none { it.name.lowercase() == modifier.type.name.lowercase() }) {
+			error(peek(), "Invalid $kind modifier '${modifier.lexeme}'.")
+		}
 		val name = consume(IDENTIFIER, "Expected $kind name.")
 		consume(LEFT_PAREN, "Expect '(' after $kind name.")
 		val parameters: MutableList<Token> = ArrayList()
@@ -77,19 +94,32 @@ class Parser(val tokens: List<Token>) {
 
 		consume(LEFT_BRACE, "Expected '{' before $kind body.")
 		val body = block()
-		return Stmt.Function(name, parameters, body)
+		return Stmt.Function(name, parameters, body, FunctionModifier.get(modifier))
+	}
+
+	private fun returnStatement(): Stmt {
+		val keyword = previous()
+		var value: Expr? = null
+		if (!check(SEMICOLON)) {
+			value = expression()
+		}
+
+		consume(SEMICOLON, "Expected ';' after return value.")
+		return Stmt.Return(keyword, value)
 	}
 
 	private fun breakStatement(): Stmt {
 		consume(SEMICOLON, "Expected ';' after 'break'.")
-		if(!inLoop) throw error(peek(),"Unexpected 'break' outside of loop.")
-		return Stmt.Break()
+		val keyword = previous()
+		//if(!inLoop) throw error(peek(),"Unexpected 'break' outside of loop.")
+		return Stmt.Break(keyword)
 	}
 
 	private fun continueStatement(): Stmt {
 		consume(SEMICOLON, "Expected ';' after 'continue'.")
-		if(!inLoop) throw error(peek(),"Unexpected 'continue' outside of loop.")
-		return Stmt.Continue()
+		val keyword = previous()
+		//if(!inLoop) throw error(peek(),"Unexpected 'continue' outside of loop.")
+		return Stmt.Continue(keyword)
 	}
 
 	private fun printStatement(): Stmt {
@@ -102,9 +132,9 @@ class Parser(val tokens: List<Token>) {
 		consume(LEFT_PAREN, "Expected '(' after 'while'.")
 		val condition = expression()
 		consume(RIGHT_PAREN, "Expected ')' after 'while' condition.")
-		inLoop = true
+		//inLoop = true
 		val body = statement()
-		inLoop = false
+		//inLoop = false
 
 		return Stmt.While(condition, body)
 	}
@@ -131,7 +161,7 @@ class Parser(val tokens: List<Token>) {
 		}
 		consume(RIGHT_PAREN, "Expected ')' after 'for' clauses.")
 
-		inLoop = true
+		//inLoop = true
 
 		var body = statement()
 
@@ -144,14 +174,14 @@ class Parser(val tokens: List<Token>) {
 			)
 		}
 
-		if (condition == null) condition = Expr.Literal(true)
+		if (condition == null) condition = Literal(true)
 		body = Stmt.While(condition, body)
 
 		if (initializer != null) {
 			body = Stmt.Block(listOf(initializer, body))
 		}
 
-		inLoop = false
+		//inLoop = false
 
 		return body
 	}
@@ -211,9 +241,11 @@ class Parser(val tokens: List<Token>) {
 			val equals = previous()
 			val value = assignment()
 
-			if (expr is Expr.Variable) {
+			if (expr is Variable) {
 				val name = expr.name
 				return Assign(name, value)
+			} else if (expr is Get) {
+				return Set(expr.obj, expr.name, value)
 			}
 
 			error(equals, "Invalid assignment target.")
@@ -252,7 +284,7 @@ class Parser(val tokens: List<Token>) {
 		while (match(BANG_EQUAL, EQUAL_EQUAL)) {
 			val operator: Token = previous()
 			val right: Expr = comparison()
-			expr = Expr.Binary(expr, operator, right)
+			expr = Binary(expr, operator, right)
 		}
 
 		return expr
@@ -264,7 +296,7 @@ class Parser(val tokens: List<Token>) {
 		while (match(GREATER, GREATER_EQUAL, LESS, LESS_EQUAL)) {
 			val operator = previous()
 			val right: Expr = term()
-			expr = Expr.Binary(expr, operator, right)
+			expr = Binary(expr, operator, right)
 		}
 
 		return expr
@@ -276,7 +308,7 @@ class Parser(val tokens: List<Token>) {
 		while (match(MINUS, PLUS)) {
 			val operator = previous()
 			val right: Expr = factor()
-			expr = Expr.Binary(expr, operator, right)
+			expr = Binary(expr, operator, right)
 		}
 
 		return expr
@@ -288,7 +320,7 @@ class Parser(val tokens: List<Token>) {
 		while (match(SLASH, STAR)) {
 			val operator = previous()
 			val right: Expr = unary()
-			expr = Expr.Binary(expr, operator, right)
+			expr = Binary(expr, operator, right)
 		}
 
 		return expr
@@ -298,7 +330,7 @@ class Parser(val tokens: List<Token>) {
 		if (match(BANG, MINUS)) {
 			val operator = previous()
 			val right = unary()
-			return Expr.Unary(operator, right)
+			return Unary(operator, right)
 		}
 
 		return lambda()
@@ -323,6 +355,9 @@ class Parser(val tokens: List<Token>) {
 		while (true) {
 			if (match(LEFT_PAREN)) {
 				expr = finishCall(expr)
+			} else if (match(DOT)) {
+				val name: Token = consume(IDENTIFIER, "Expected property name after '.'.")
+				expr = Get(expr, name)
 			} else {
 				break
 			}
@@ -349,7 +384,7 @@ class Parser(val tokens: List<Token>) {
 		consume(LEFT_BRACE, "Expected '{' before lambda body.")
 		val body = block()
 
-		return Expr.Lambda(Stmt.Function(Token(STRING,"<lambda>", null, peek().line) ,parameters, body))
+		return Lambda(Stmt.Function(Token(STRING,"<lambda>", null, peek().line) ,parameters, body, FunctionModifier.NONE))
 	}
 
 	private fun finishCall(callee: Expr): Expr {
@@ -357,7 +392,7 @@ class Parser(val tokens: List<Token>) {
 		if (!check(RIGHT_PAREN)) {
 			do {
 				if (arguments.size >= 255) {
-					error(peek(), "Can't have more than 255 arguments.");
+					error(peek(), "Can't have more than 255 arguments.")
 				}
 				arguments.add(expression())
 			} while (match(COMMA))
@@ -368,26 +403,38 @@ class Parser(val tokens: List<Token>) {
 			"Expected ')' after arguments."
 		)
 
-		return Expr.Call(callee, paren, arguments)
+		return Call(callee, paren, arguments)
 	}
 
 	private fun primary(): Expr {
-		if (match(FALSE)) return Expr.Literal(false)
-		if (match(TRUE)) return Expr.Literal(true)
-		if (match(NIL)) return Expr.Literal(null)
+		if (match(FALSE)) return Literal(false)
+		if (match(TRUE)) return Literal(true)
+		if (match(NIL)) return Literal(null)
 
 		if (match(NUMBER, STRING)) {
-			return Expr.Literal(previous().literal)
+			return Literal(previous().literal)
 		}
+
+		if (match(SUPER)) {
+			val keyword = previous()
+			consume(DOT, "Expected '.' after 'super'.")
+			val method = consume(
+				IDENTIFIER,
+				"Expected superclass method name."
+			)
+			return Super(keyword, method)
+		}
+
+		if (match(THIS)) return This(previous())
 
 		if (match(LEFT_PAREN)) {
 			val expr = expression()
 			consume(RIGHT_PAREN, "Expected ')' after expression.")
-			return Expr.Grouping(expr)
+			return Grouping(expr)
 		}
 
 		if (match(IDENTIFIER)) {
-			return Expr.Variable(previous())
+			return Variable(previous())
 		}
 
 		throw error(peek(), "Expected expression.")

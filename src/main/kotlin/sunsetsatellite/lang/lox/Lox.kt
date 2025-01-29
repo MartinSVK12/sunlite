@@ -1,4 +1,4 @@
-package sunsetsatellite.vm.lang.lox
+package sunsetsatellite.lang.lox
 
 import java.io.BufferedReader
 import java.io.IOException
@@ -6,6 +6,7 @@ import java.io.InputStreamReader
 import java.nio.charset.Charset
 import java.nio.file.Files
 import java.nio.file.Paths
+import kotlin.system.exitProcess
 
 
 object Lox {
@@ -16,14 +17,17 @@ object Lox {
 	var hadRuntimeError: Boolean = false
 
 	@JvmStatic
+	var debug: Boolean = false
+
+	@JvmStatic
 	private val interpreter: Interpreter = Interpreter()
 
 	@JvmStatic
 	@Throws(IOException::class)
 	fun main(args: Array<String>) {
 		if (args.size > 1) {
-			System.out.println("Usage: lox [script]");
-			System.exit(64);
+			println("Usage: lox [script]");
+			exitProcess(64);
 		} else if (args.size == 1) {
 			runFile(args[0]);
 		} else {
@@ -37,8 +41,8 @@ object Lox {
 		runString(String(bytes, Charset.defaultCharset()))
 
 		// Indicate an error in the exit code.
-		if (hadError) System.exit(65)
-		if (hadRuntimeError) System.exit(70)
+		if (hadError) exitProcess(65)
+		if (hadRuntimeError) exitProcess(70)
 	}
 
 	@Throws(IOException::class)
@@ -74,6 +78,12 @@ object Lox {
 		// Stop if there was a syntax error.
 		if (hadError) return
 
+		val resolver = Resolver(interpreter)
+		resolver.resolve(statements)
+
+		// Stop if there was a resolution error.
+		if (hadError) return;
+		
 		println("AST: ")
 		println("-----")
 		statements.forEach {
@@ -116,6 +126,11 @@ object Lox {
 		System.err.println(
 			"[line $line] Error$where: $message"
 		)
+
+		if(debug) {
+			Exception("runtime stack trace").printStackTrace()
+		}
+
 		hadError = true
 	}
 
@@ -124,6 +139,11 @@ object Lox {
 			error.message +
 					"\n[line " + error.token.line + "]"
 		)
+
+		if(debug) {
+			error.printStackTrace()
+		}
+
 		hadRuntimeError = true
 	}
 }

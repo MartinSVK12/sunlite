@@ -1,4 +1,4 @@
-package sunsetsatellite.vm.lang.lox
+package sunsetsatellite.lang.lox
 
 abstract class Stmt {
 
@@ -38,19 +38,19 @@ abstract class Stmt {
 		}
 	}
 
-	class Break : Stmt(){
+	class Break(val keyword: Token) : Stmt(){
 		override fun <R> accept(visitor: Visitor<R>): R {
 			return visitor.visitBreakStmt(this)
 		}
 	}
 
-	class Continue : Stmt(){
+	class Continue(val keyword: Token) : Stmt(){
 		override fun <R> accept(visitor: Visitor<R>): R {
 			return visitor.visitContinueStmt(this)
 		}
 	}
 
-	data class Function(val name: Token, val params: List<Token>, val body: List<Stmt>) : Stmt(){
+	data class Function(val name: Token, val params: List<Token>, val body: List<Stmt>, var modifier: FunctionModifier) : Stmt(){
 		override fun <R> accept(visitor: Visitor<R>): R {
 			return visitor.visitFunctionStmt(this)
 		}
@@ -59,6 +59,12 @@ abstract class Stmt {
 	data class Return(val keyword: Token, val value: Expr?) : Stmt(){
 		override fun <R> accept(visitor: Visitor<R>): R {
 			return visitor.visitReturnStmt(this)
+		}
+	}
+
+	data class Class(val name: Token, val methods: List<Function>, val superclass: Expr.Variable?) : Stmt(){
+		override fun <R> accept(visitor: Visitor<R>): R {
+			return visitor.visitClassStmt(this)
 		}
 	}
 
@@ -73,6 +79,7 @@ abstract class Stmt {
 		fun visitContinueStmt(stmt: Continue): R
 		fun visitFunctionStmt(stmt: Function): R
 		fun visitReturnStmt(stmt: Return): R
+		fun visitClassStmt(stmt: Class): R
 	}
 
 	abstract fun <R> accept(visitor: Visitor<R>): R
