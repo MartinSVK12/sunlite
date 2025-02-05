@@ -38,7 +38,7 @@ object AstPrinter : Expr.Visitor<String>, Stmt.Visitor<String> {
 	}
 
 	override fun visitLogicalExpr(expr: Expr.Logical): String {
-		return "(logical ${print(expr)} ${expr.operator.lexeme} ${print(expr)})"
+		return "(logical ${print(expr.left)} ${expr.operator.lexeme} ${print(expr.right)})"
 	}
 
 	override fun visitCallExpr(expr: Expr.Call): String {
@@ -53,6 +53,14 @@ object AstPrinter : Expr.Visitor<String>, Stmt.Visitor<String> {
 		return "(get '${expr.name.lexeme}' ${print(expr.obj)})"
 	}
 
+	override fun visitDynamicGetExpr(expr: Expr.DynamicGet): String {
+		return "(dynamic get '${print(expr.what)}' ${print(expr.obj)})"
+	}
+
+	override fun visitDynamicSetExpr(expr: Expr.DynamicSet): String {
+		return "(set '${print(expr.what)}' to ${print(expr.value)} on ${print(expr.obj)})"
+	}
+
 	override fun visitSetExpr(expr: Expr.Set): String {
 		return "(set '${expr.name.lexeme}' to ${print(expr.value)} on ${print(expr.obj)})"
 	}
@@ -63,6 +71,14 @@ object AstPrinter : Expr.Visitor<String>, Stmt.Visitor<String> {
 
 	override fun visitSuperExpr(expr: Expr.Super): String {
 		return "(super)"
+	}
+
+	override fun visitCheckExpr(expr: Expr.Check): String {
+		return "(check ${print(expr.left)} ${expr.operator.lexeme} ${expr.right.getName()})"
+	}
+
+	override fun visitCastExpr(expr: Expr.Cast): String {
+		return "(cast ${print(expr.left)} ${expr.operator.lexeme} ${expr.right.getName()})"
 	}
 
 	override fun visitUnaryExpr(expr: Expr.Unary): String {
@@ -101,7 +117,7 @@ object AstPrinter : Expr.Visitor<String>, Stmt.Visitor<String> {
 		val builder = StringBuilder()
 
 		builder.append("(").append(name)
-		if(name == "block" || name.contains("function") || name.contains("class") || name.contains("lambda")) {
+		if(name == "block" || (name.contains("function") && !name.contains("abstract") && !name.contains("native")) || name.contains("class") || name.contains("interface") || name.contains("lambda")) {
 			builder.append(" {\n")
 			tabs++
 		}
@@ -110,7 +126,7 @@ object AstPrinter : Expr.Visitor<String>, Stmt.Visitor<String> {
 			builder.append(stmt.accept(this))
 			if(stmts.size-1 > i) builder.append(",\n")
 		}
-		if(name == "block" || name.contains("function") || name.contains("class") || name.contains("lambda")){
+		if(name == "block" || (name.contains("function") && !name.contains("abstract") && !name.contains("native")) || name.contains("class") || name.contains("interface") || name.contains("lambda")){
 			tabs--
 			builder.append("\n").append("\t".repeat(tabs)).append("}")
 		}
@@ -146,7 +162,7 @@ object AstPrinter : Expr.Visitor<String>, Stmt.Visitor<String> {
 	}
 
 	override fun visitVarStmt(stmt: Stmt.Var): String {
-		return stmt.initializer?.let { parenthesize("var '${stmt.name.lexeme}'", it) } ?: "(var '${stmt.name.lexeme}' nil)"
+		return stmt.initializer?.let { parenthesize("${stmt.modifier.name.lowercase()} var '${stmt.name.lexeme}' (type '${stmt.type.getName().lowercase()}')", it) } ?: "(${stmt.modifier.name.lowercase()} var '${stmt.name.lexeme}' (type '${stmt.type.getName().lowercase()}') nil)"
 	}
 
 	override fun visitBlockStmt(stmt: Stmt.Block): String {
@@ -170,7 +186,7 @@ object AstPrinter : Expr.Visitor<String>, Stmt.Visitor<String> {
 	}
 
 	override fun visitFunctionStmt(stmt: Stmt.Function): String {
-		return parenthesize("function ${stmt.name.lexeme}( ${stmt.params.toString().replace("[","").replace("]","")})", stmt.body)
+		return parenthesize("${stmt.modifier.name.lowercase()} function ${stmt.name.lexeme}( ${stmt.params.toString().replace("[","").replace("]","")} ): ${stmt.returnType.getName()}", stmt.body)
 	}
 
 	override fun visitReturnStmt(stmt: Stmt.Return): String {
@@ -178,6 +194,15 @@ object AstPrinter : Expr.Visitor<String>, Stmt.Visitor<String> {
 	}
 
 	override fun visitClassStmt(stmt: Stmt.Class): String {
-		return parenthesize("class ${stmt.name.lexeme}${stmt.superclass?.let { return@let " < ${it.name.lexeme}" } ?: ""}",stmt.methods)
+		return parenthesize("${stmt.modifier.name.lowercase()} class${if (stmt.typeParameters.isEmpty()) "" else "<${stmt.typeParameters.joinToString(",")}>"} ${stmt.name.lexeme}${stmt.superclass?.let { return@let " < (superclass ${it.name.lexeme})" } ?: ""}${if(stmt.superinterfaces.isNotEmpty()) " << ${parenthesizeList("superinterfaces",stmt.superinterfaces)}" else ""}",
+			mutableListOf<Stmt>().let { it.addAll(stmt.fieldDefaults); it.addAll(stmt.methods); return@let it }.toList())
+	}
+
+	override fun visitInterfaceStmt(stmt: Stmt.Interface): String {
+		return parenthesize("interface${if (stmt.typeParameters.isEmpty()) "" else "<${stmt.typeParameters.joinToString(",")}>"} ${stmt.name.lexeme}${if(stmt.superinterfaces.isNotEmpty()) " << ${parenthesizeList("superinterfaces",stmt.superinterfaces)}" else ""}",stmt.methods)
+	}
+
+	override fun visitImportStmt(stmt: Stmt.Import): String {
+		return "(import ${stmt.what.lexeme})"
 	}
 }

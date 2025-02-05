@@ -3,13 +3,19 @@ package sunsetsatellite.lang.lox
 import java.util.*
 
 
-class Resolver(private val interpreter: Interpreter): Expr.Visitor<Unit>, Stmt.Visitor<Unit> {
+class Resolver(private val interpreter: Interpreter, val lox: Lox): Expr.Visitor<Unit>, Stmt.Visitor<Unit> {
 
-    private val scopes: Stack<MutableMap<String, Boolean>> = Stack()
+    data class ResolutionInfo(var defined: Boolean, var type: Type, var returnType: Type, val paramTypes: List<Type>?)
+
+    private val scopes: Stack<MutableMap<String, ResolutionInfo>> = Stack()
+    private val globalScope: MutableMap<String, ResolutionInfo> = mutableMapOf()
     private var currentFunction = FunctionType.NONE
-    private var currentFunctionModifier = FunctionModifier.NONE
+    private var currentFunctionModifier = FunctionModifier.NORMAL
     private var currentClass = ClassType.NONE
+    private var currentInterface = ClassType.NONE
     private var inLoop: Int = 0
+
+    var currentFile: String? = null
 
     override fun visitBinaryExpr(expr: Expr.Binary) {
         resolve(expr.left)
@@ -29,10 +35,13 @@ class Resolver(private val interpreter: Interpreter): Expr.Visitor<Unit>, Stmt.V
     }
 
     override fun visitVariableExpr(expr: Expr.Variable) {
-        if (!scopes.isEmpty() && scopes.peek()[expr.name.lexeme] == false) {
-            Lox.error(expr.name,
-                "Can't read local variable in its own initializer.")
-            return
+        if (!scopes.isEmpty()) {
+            val resolutionInfo = scopes.peek()[expr.name.lexeme]
+            if(resolutionInfo != null && !resolutionInfo.defined) {
+                lox.error(expr.name,
+                    "Can't read local variable in its own initializer.")
+                return
+            }
         }
 
         resolveLocal(expr, expr.name)
@@ -57,10 +66,22 @@ class Resolver(private val interpreter: Interpreter): Expr.Visitor<Unit>, Stmt.V
     }
 
     override fun visitLambdaExpr(expr: Expr.Lambda) {
+        declare(expr.function.name, Type.ofFunction(expr.function.name.lexeme,lox), expr.function.returnType, expr.function.params.map { it.type })
         resolveFunction(expr.function,FunctionType.LAMBDA)
     }
 
     override fun visitGetExpr(expr: Expr.Get) {
+        resolve(expr.obj)
+    }
+
+    override fun visitDynamicGetExpr(expr: Expr.DynamicGet) {
+        resolve(expr.what)
+        resolve(expr.obj)
+    }
+
+    override fun visitDynamicSetExpr(expr: Expr.DynamicSet) {
+        resolve(expr.what)
+        resolve(expr.value)
         resolve(expr.obj)
     }
 
@@ -72,13 +93,13 @@ class Resolver(private val interpreter: Interpreter): Expr.Visitor<Unit>, Stmt.V
     override fun visitThisExpr(expr: Expr.This) {
 
         if (currentClass == ClassType.NONE) {
-            Lox.error(expr.keyword,
+            lox.error(expr.keyword,
                 "Unexpected 'this' outside of class.")
             return
         }
 
         if (currentFunctionModifier == FunctionModifier.STATIC) {
-            Lox.error(expr.keyword,
+            lox.error(expr.keyword,
                 "Unexpected 'this' inside a static method.")
             return
         }
@@ -89,14 +110,22 @@ class Resolver(private val interpreter: Interpreter): Expr.Visitor<Unit>, Stmt.V
     override fun visitSuperExpr(expr: Expr.Super) {
 
         if (currentClass == ClassType.NONE) {
-            Lox.error(expr.keyword,
+            lox.error(expr.keyword,
                 "Unexpected 'super' outside of a class.");
         } else if (currentClass != ClassType.SUBCLASS) {
-            Lox.error(expr.keyword,
+            lox.error(expr.keyword,
                 "Unexpected 'super' in a class with no superclass.");
         }
 
         resolveLocal(expr, expr.keyword)
+    }
+
+    override fun visitCheckExpr(expr: Expr.Check) {
+        resolve(expr.left)
+    }
+
+    override fun visitCastExpr(expr: Expr.Cast) {
+        resolve(expr.left)
     }
 
     override fun visitExprStmt(stmt: Stmt.Expression) {
@@ -108,14 +137,16 @@ class Resolver(private val interpreter: Interpreter): Expr.Visitor<Unit>, Stmt.V
     }
 
     override fun visitVarStmt(stmt: Stmt.Var) {
-        declare(stmt.name)
-        stmt.initializer?.let { resolve(it) }
-        define(stmt.name)
+        declare(stmt.name, stmt.type)
+        stmt.initializer?.let {
+            resolve(it)
+        }
+        define(stmt.name, stmt.type)
     }
 
     override fun visitBlockStmt(stmt: Stmt.Block) {
         beginScope()
-        resolve(stmt.statements)
+        resolve(stmt.statements, currentFile)
         endScope()
     }
 
@@ -133,33 +164,32 @@ class Resolver(private val interpreter: Interpreter): Expr.Visitor<Unit>, Stmt.V
     }
 
     override fun visitBreakStmt(stmt: Stmt.Break) {
-        if(inLoop <= 0) Lox.error(stmt.keyword, "Unexpected `break` outside of loop.")
+        if(inLoop <= 0) lox.error(stmt.keyword, "Unexpected `break` outside of loop.")
 
         // nothing else to resolve
     }
 
     override fun visitContinueStmt(stmt: Stmt.Continue) {
-        if(inLoop <= 0) Lox.error(stmt.keyword, "Unexpected `continue` outside of loop.")
+        if(inLoop <= 0) lox.error(stmt.keyword, "Unexpected `continue` outside of loop.")
 
         // nothing else to resolve
     }
 
     override fun visitFunctionStmt(stmt: Stmt.Function) {
-        declare(stmt.name)
-        define(stmt.name)
+        declare(stmt.name, Type.ofFunction(stmt.name.lexeme,lox), stmt.returnType, stmt.params.map { it.type })
+        define(stmt.name, Type.ofFunction(stmt.name.lexeme,lox), stmt.returnType, stmt.params.map { it.type })
 
         resolveFunction(stmt,FunctionType.FUNCTION)
     }
 
     override fun visitReturnStmt(stmt: Stmt.Return) {
         if (currentFunction == FunctionType.NONE) {
-            Lox.error(stmt.keyword, "Unexpected `return` outside of function.")
+            lox.error(stmt.keyword, "Unexpected `return` outside of function.")
             return
         }
         stmt.value?.let {
-
             if (currentFunction == FunctionType.INITIALIZER) {
-                Lox.error(stmt.keyword,
+                lox.error(stmt.keyword,
                     "Can't return a value from an initializer.")
             }
 
@@ -171,12 +201,17 @@ class Resolver(private val interpreter: Interpreter): Expr.Visitor<Unit>, Stmt.V
         val enclosingClass = currentClass
         currentClass = ClassType.CLASS
 
-        declare(stmt.name)
-        define(stmt.name)
+        declare(stmt.name, Type.ofClass(stmt.name.lexeme,lox))
+        define(stmt.name, Type.ofClass(stmt.name.lexeme,lox))
 
         if (stmt.superclass != null && stmt.name.lexeme == stmt.superclass.name.lexeme) {
-            Lox.error(stmt.superclass.name,
+            lox.error(stmt.superclass.name,
                 "A class can't inherit from itself.");
+        }
+
+        if(stmt.superinterfaces.any { return@any stmt.name.lexeme == it.name.lexeme }){
+            lox.error(stmt.name,
+                "A class can't inherit from itself as an interface.");
         }
 
         stmt.superclass?.let {
@@ -184,13 +219,19 @@ class Resolver(private val interpreter: Interpreter): Expr.Visitor<Unit>, Stmt.V
             resolve(it)
         }
 
+        stmt.superinterfaces.forEach {
+            resolve(it)
+        }
+
         if (stmt.superclass != null) {
             beginScope();
-            scopes.peek()["super"] = true;
+            scopes.peek().computeIfAbsent("super") { ResolutionInfo(true, Type.ofObject(stmt.superclass.name.lexeme,lox), Type.UNKNOWN, listOf()) }
         }
 
         beginScope()
-        scopes.peek()["this"] = true
+        scopes.peek().computeIfAbsent("this") { ResolutionInfo(true, Type.ofObject(stmt.name.lexeme,lox), Type.UNKNOWN, listOf()) }
+
+        stmt.fieldDefaults.forEach { resolve(it) }
 
         for (method in stmt.methods) {
             var declaration: FunctionType = FunctionType.METHOD
@@ -207,10 +248,51 @@ class Resolver(private val interpreter: Interpreter): Expr.Visitor<Unit>, Stmt.V
         currentClass = enclosingClass
     }
 
-    fun resolve(statements: List<Stmt>) {
+    override fun visitInterfaceStmt(stmt: Stmt.Interface) {
+        val enclosingClass = currentInterface
+        currentInterface = ClassType.INTERFACE
+
+        declare(stmt.name, Type.ofClass(stmt.name.lexeme,lox))
+        define(stmt.name, Type.ofClass(stmt.name.lexeme,lox))
+
+        if(stmt.superinterfaces.any { return@any stmt.name.lexeme == it.name.lexeme }){
+            lox.error(stmt.name,
+                "An interface can't inherit from itself.");
+        }
+
+        stmt.superinterfaces.forEach {
+            currentInterface = ClassType.SUBINTERFACE
+            resolve(it)
+        }
+
+        beginScope()
+
+        for (method in stmt.methods) {
+            val declaration: FunctionType = FunctionType.METHOD
+            resolveFunction(method, declaration)
+        }
+
+        endScope()
+
+        currentInterface = enclosingClass
+    }
+
+    override fun visitImportStmt(stmt: Stmt.Import) {
+        if(currentClass != ClassType.NONE || currentFunction != FunctionType.NONE || currentInterface != ClassType.NONE) {
+            lox.error(stmt.keyword,
+                "This 'load' statement has to be a top-level statement.")
+            return
+        }
+
+        lox.imports[stmt.what.literal]?.let { resolve(it, stmt.what.literal.toString()) }
+    }
+
+    fun resolve(statements: List<Stmt>, path: String?) {
+        currentFile = path
         for (statement in statements) {
             resolve(statement)
         }
+        if(Lox.debug) println()
     }
 
     private fun resolve(stmt: Stmt) {
@@ -229,23 +311,34 @@ class Resolver(private val interpreter: Interpreter): Expr.Visitor<Unit>, Stmt.V
         scopes.pop()
     }
 
-    private fun declare(name: Token) {
-        if (scopes.isEmpty()) return
+    private fun declare(name: Token, type: Type, returnType: Type = Type.UNKNOWN, paramTypes: List<Type>? = null) {
+        if (scopes.isEmpty()) {
+            globalScope.computeIfAbsent(name.lexeme) { ResolutionInfo(false, type, returnType, paramTypes) }
+            return
+        }
 
-        val scope: MutableMap<String, Boolean> = scopes.peek()
+        val scope: MutableMap<String, ResolutionInfo> = scopes.peek()
 
         if (scope.containsKey(name.lexeme)) {
-            Lox.error(name,
+            lox.error(name,
                 "A variable with this name already exists in this scope.")
             return
         }
 
-        scope[name.lexeme] = false
+        scope.computeIfAbsent(name.lexeme) { ResolutionInfo(false, type, returnType, paramTypes) }
+
     }
 
-    private fun define(name: Token) {
-        if (scopes.isEmpty()) return
-        scopes.peek()[name.lexeme] = true
+    private fun define(name: Token, type: Type, returnType: Type = Type.UNKNOWN, paramTypes: List<Type>? = null) {
+        if(Lox.debug) println("variable '${name.lexeme}' is of type '${type.getName()}'")
+        if (scopes.isEmpty()) {
+            globalScope.computeIfPresent(name.lexeme) { _, resolutionInfo -> resolutionInfo.defined = true; resolutionInfo }
+            globalScope.computeIfAbsent(name.lexeme) { ResolutionInfo(true, type, returnType, paramTypes) }
+            return
+        }
+        scopes.peek().computeIfPresent(name.lexeme) { _, resolutionInfo -> resolutionInfo.defined = true; resolutionInfo }
+        scopes.peek().computeIfAbsent(name.lexeme) { ResolutionInfo(true, type, returnType, paramTypes) }
+
     }
 
     private fun resolveLocal(expr: Expr, name: Token) {
@@ -260,7 +353,7 @@ class Resolver(private val interpreter: Interpreter): Expr.Visitor<Unit>, Stmt.V
     private fun resolveFunction(function: Stmt.Function, type: FunctionType) {
 
         if(currentClass == ClassType.NONE && function.modifier == FunctionModifier.STATIC){
-            Lox.error(function.name,
+            lox.error(function.name,
                 "Unexpected 'static' method modifier outside of class.")
             return
         }
@@ -273,10 +366,10 @@ class Resolver(private val interpreter: Interpreter): Expr.Visitor<Unit>, Stmt.V
 
         beginScope()
         for (param in function.params) {
-            declare(param)
-            define(param)
+            declare(param.token, param.type)
+            define(param.token, param.type)
         }
-        resolve(function.body)
+        resolve(function.body, currentFile)
         endScope()
 
         currentFunction = enclosingFunction

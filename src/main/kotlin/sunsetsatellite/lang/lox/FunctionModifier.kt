@@ -1,16 +1,19 @@
 package sunsetsatellite.lang.lox
 
 enum class FunctionModifier {
-    NONE,
+    NORMAL,
     INIT,
-    STATIC;
+    STATIC,
+    ABSTRACT,
+    NATIVE;
 
 
     companion object {
         fun get(token: Token?): FunctionModifier {
             return when (token?.type) {
                 TokenType.STATIC -> STATIC
-                else -> NONE
+                TokenType.NATIVE -> NATIVE
+                else -> NORMAL
             }
         }
     }

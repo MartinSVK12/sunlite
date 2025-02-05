@@ -2,14 +2,22 @@ package sunsetsatellite.lang.lox
 
 import sunsetsatellite.lang.lox.Expr.*
 import sunsetsatellite.lang.lox.TokenType.*
+import java.io.IOException
+import java.nio.charset.Charset
+import java.nio.file.Files
+import java.nio.file.Path
+import java.nio.file.Paths
 
 
-class Parser(val tokens: List<Token>) {
+class Parser(val tokens: List<Token>, val lox: Lox) {
 	private var current = 0
+
+	var currentFile: String? = null
 
 	private class ParseError : RuntimeException()
 
-	fun parse(): List<Stmt> {
+	fun parse(path: String?): List<Stmt> {
+		currentFile = path
 		val statements: MutableList<Stmt> = ArrayList()
 
 		while (!isAtEnd()) {
@@ -21,9 +29,15 @@ class Parser(val tokens: List<Token>) {
 
 	private fun declaration(): Stmt? {
 		try {
-			if (match(VAR)) return varDeclaration()
-
-			return statement()
+			return when {
+				match(VAR) -> varDeclaration()
+				match(FUN) -> function("function", null)
+				match(DYNAMIC) -> classDeclaration(ClassModifier.DYNAMIC)
+				match(CLASS) -> classDeclaration(ClassModifier.NORMAL)
+				match(INTERFACE) -> interfaceDeclaration()
+				match(IMPORT) -> importStatement()
+				else -> statement()
+			}
 		} catch (error: ParseError) {
 			synchronize()
 			return null
@@ -31,24 +45,106 @@ class Parser(val tokens: List<Token>) {
 	}
 
 	private fun statement(): Stmt {
-		when {
-			match(PRINT) -> return printStatement()
-			match(LEFT_BRACE) -> return Stmt.Block(block())
-			match(IF) -> return ifStatement()
-			match(WHILE) -> return whileStatement()
-			match(FOR) -> return forStatement()
-			match(BREAK) -> return breakStatement()
-			match(CONTINUE) -> return continueStatement()
-			match(FUN) -> return function("function", null)
-			match(RETURN) -> return returnStatement()
-			match(CLASS) -> return classDeclaration()
-			else -> return expressionStatement()
+		return when {
+			//match(PRINT) -> printStatement()
+			match(LEFT_BRACE) -> Stmt.Block(block(),previous().line,previous().file)
+			match(IF) -> ifStatement()
+			match(WHILE) -> whileStatement()
+			match(FOR) -> forStatement()
+			match(BREAK) -> breakStatement()
+			match(CONTINUE) -> continueStatement()
+			match(RETURN) -> returnStatement()
+			else -> expressionStatement()
 		}
 	}
 
-	private fun classDeclaration(): Stmt {
-		val name = consume(IDENTIFIER, "Expected class name.")
+	private fun importStatement(): Stmt? {
+		val keyword = previous()
+		val what = consume(STRING, "Expected import location string.")
+		consume(SEMICOLON, "Expected ';' after import statement.")
 
+		if(lox.imports.contains(what.literal as String)){
+			return null
+		}
+
+		var bytes: ByteArray? = null
+		var actualPath: Path
+		val invalidPaths: MutableList<Path> = mutableListOf()
+
+		lox.path.forEach {
+			actualPath = Paths.get(it, what.literal)
+			try {
+				bytes = Files.readAllBytes(actualPath)
+			} catch (_: IOException) {
+				invalidPaths.add(actualPath)
+			}
+		}
+
+		if(bytes == null) {
+			lox.error(keyword, "Load error, couldn't find '${what.literal}' on the load path list.")
+		}
+
+		val scanner = Scanner(String(bytes!!, Charset.defaultCharset()),lox)
+		val tokens: List<Token> = scanner.scanTokens(what.literal)
+
+		if(Lox.debug){
+			println("Tokens: ")
+			println("--------")
+			val builder: StringBuilder = StringBuilder()
+			tokens.forEachIndexed { i, it ->
+				builder.append("($it)")
+				if(tokens.size-1 > i) builder.append(", ")
+				if(i != 0 && i % 10 == 0) builder.append("\n")
+			}
+			println(builder.toString())
+			println()
+		}
+
+		val parser = Parser(tokens,lox)
+		val statements = parser.parse(what.literal)
+
+		// Stop if there was a syntax error.
+		if (lox.hadError) lox.error(keyword, "Load error at '${what.literal}' (details above).")
+
+		lox.imports[what.literal] = statements
+
+		if(Lox.debug) {
+			println("AST: ")
+			println("-----")
+			statements.forEach {
+				println(AstPrinter.print(it))
+			}
+			println("-----")
+			println()
+		}
+
+		if(Lox.debug) {
+			println("parsed '${what.literal}'")
+			println("------------------------")
+			println()
+		}
+
+		return Stmt.Import(keyword,what)
+	}
+
+	private fun classDeclaration(modifier: ClassModifier): Stmt {
+
+		if(modifier == ClassModifier.DYNAMIC) consume(CLASS, "Expected 'class' after class modifier.")
+
+		val typeParameters: MutableList<Param> = ArrayList()
+		if(match(LESS)){
+			do {
+				if (typeParameters.size >= 255) {
+					error(peek(), "Can't have more than 255 type parameters.")
+				}
+
+				val identifier = consume(IDENTIFIER, "Expected type parameter name.")
+				typeParameters.add(Param(identifier,Type.Parameter(identifier)))
+			} while (match(COMMA))
+			consume(GREATER, "Expected '>' after type parameter declaration.")
+		}
+
+		val name = consume(IDENTIFIER, "Expected class name.")
 
 		var superclass: Variable? = null
 		if (match(LESS)) {
@@ -56,51 +152,156 @@ class Parser(val tokens: List<Token>) {
 			superclass = Variable(previous())
 		}
 
+		val superinterfaces: MutableList<Variable> = mutableListOf()
+		if (match(LESS_LESS)) {
+			do {
+				if (superinterfaces.size >= 255) {
+					error(peek(), "Can't inherit more than 255 superinterfaces.")
+				}
+
+				superinterfaces.add(
+					Variable(consume(IDENTIFIER, "Expected superinterface name."))
+				)
+			} while (match(COMMA))
+		}
+
 		consume(LEFT_BRACE, "Expected '{' before class body.")
 
 		val methods: MutableList<Stmt.Function> = ArrayList()
-		while (!check(RIGHT_BRACE) && !isAtEnd()) {
-			if(match(STATIC)) {
-				methods.add(function("method", previous()))
-			} else {
-				methods.add(function("method", null))
+		val fields: MutableList<Stmt.Var> = ArrayList()
+		while (!checkType(RIGHT_BRACE) && !isAtEnd()) {
+			val currentModifier = peek()
+			when {
+				match(STATIC) || match(NATIVE) -> {
+					if(previous().type == STATIC) {
+						when {
+							match(VAR) -> {
+								fields.add(varDeclaration(FieldModifier.STATIC))
+							}
+							match(FUN) -> {
+								methods.add(function("method", currentModifier))
+							}
+							else -> {
+								throw error(peek(), "Expected a field or method declaration.")
+							}
+						}
+					} else if(match(FUN)) {
+						methods.add(function("method", currentModifier))
+					} else {
+						throw error(peek(), "Expected a field or method declaration.")
+					}
+				}
+				match(VAR) -> {
+					fields.add(varDeclaration())
+				}
+				match(FUN) -> {
+					methods.add(function("method", null))
+				}
+				else -> {
+					throw error(peek(), "Expected a field or method declaration.")
+				}
 			}
 		}
 
 		consume(RIGHT_BRACE, "Expected '}' after class body.")
 
-		return Stmt.Class(name, methods, superclass)
+		return Stmt.Class(name, methods, fields, superclass, superinterfaces, modifier, typeParameters)
 	}
 
-	private fun function(kind: String, modifier: Token?): Stmt.Function {
-		if(modifier != null && FunctionModifier.entries.none { it.name.lowercase() == modifier.type.name.lowercase() }) {
-			error(peek(), "Invalid $kind modifier '${modifier.lexeme}'.")
+	private fun interfaceDeclaration(): Stmt {
+
+		val typeParameters: MutableList<Param> = ArrayList()
+		if(match(LESS)){
+			do {
+				if (typeParameters.size >= 255) {
+					error(peek(), "Can't have more than 255 type parameters.")
+				}
+
+				val identifier = consume(IDENTIFIER, "Expected type parameter name.")
+				typeParameters.add(Param(identifier,Type.Parameter(identifier)))
+			} while (match(COMMA))
+			consume(GREATER, "Expected '>' after type parameter declaration.")
 		}
+
+		val name = consume(IDENTIFIER, "Expected class name.")
+
+		val superinterfaces: MutableList<Variable> = mutableListOf()
+		if (match(LESS_LESS)) {
+			do {
+				if (superinterfaces.size >= 255) {
+					error(peek(), "Can't inherit more than 255 superinterfaces.")
+				}
+
+				superinterfaces.add(
+					Variable(consume(IDENTIFIER, "Expected superinterface name."))
+				)
+			} while (match(COMMA))
+		}
+
+		consume(LEFT_BRACE, "Expected '{' before class body.")
+
+		val methods: MutableList<Stmt.Function> = ArrayList()
+		while (!checkType(RIGHT_BRACE) && !isAtEnd()) {
+			methods.add(abstractMethod())
+		}
+
+		consume(RIGHT_BRACE, "Expected '}' after class body.")
+
+		return Stmt.Interface(name, methods, superinterfaces, typeParameters)
+	}
+
+	private fun funcSignature(kind: String): Triple<Token,List<Param>,Type>{
 		val name = consume(IDENTIFIER, "Expected $kind name.")
-		consume(LEFT_PAREN, "Expect '(' after $kind name.")
-		val parameters: MutableList<Token> = ArrayList()
-		if (!check(RIGHT_PAREN)) {
+		consume(LEFT_PAREN, "Expected '(' after $kind name.")
+		val parameters: MutableList<Param> = ArrayList()
+		if (!checkType(RIGHT_PAREN)) {
 			do {
 				if (parameters.size >= 255) {
 					error(peek(), "Can't have more than 255 parameters.")
 				}
 
 				parameters.add(
-					consume(IDENTIFIER, "Expected parameter name.")
+					Param(consume(IDENTIFIER, "Expected parameter name."), getType())
 				)
 			} while (match(COMMA))
 		}
 		consume(RIGHT_PAREN, "Expected ')' after parameters.")
 
-		consume(LEFT_BRACE, "Expected '{' before $kind body.")
-		val body = block()
-		return Stmt.Function(name, parameters, body, FunctionModifier.get(modifier))
+		val type = getType(function = true)
+
+		return Triple(name,parameters,type)
+	}
+
+	private fun abstractMethod(): Stmt.Function {
+		consume(FUN, "Expected abstract method declaration")
+		val signature = funcSignature("abstract method")
+
+		return Stmt.Function(signature.first, signature.second, listOf(), FunctionModifier.ABSTRACT, signature.third)
+	}
+
+	private fun function(kind: String, modifier: Token?): Stmt.Function {
+		if(modifier != null && FunctionModifier.entries.none { it.name.lowercase() == modifier.type.name.lowercase() }) {
+			error(peek(), "Invalid $kind modifier '${modifier.lexeme}'.")
+		}
+
+		val funcModifier = FunctionModifier.get(modifier)
+		val signature = funcSignature(kind)
+
+		var body: List<Stmt> = listOf()
+		if(funcModifier != FunctionModifier.NATIVE){
+			consume(LEFT_BRACE, "Expected '{' before $kind body.")
+			body = block()
+		} else {
+			assert(LEFT_BRACE, "Native $kind cannot have a body.")
+		}
+
+		return Stmt.Function(signature.first, signature.second, body, funcModifier, signature.third)
 	}
 
 	private fun returnStatement(): Stmt {
 		val keyword = previous()
 		var value: Expr? = null
-		if (!check(SEMICOLON)) {
+		if (!checkType(SEMICOLON)) {
 			value = expression()
 		}
 
@@ -123,9 +324,10 @@ class Parser(val tokens: List<Token>) {
 	}
 
 	private fun printStatement(): Stmt {
-		val value = expression()
+		throw error(peek(),"Print as a statement has been deprecated, please use the global function 'print(...)' instead.")
+		/*val value = expression()
 		consume(SEMICOLON, "Expected ';' after value.")
-		return Stmt.Print(value)
+		return Stmt.Print(value)*/
 	}
 
 	private fun whileStatement(): Stmt {
@@ -150,13 +352,13 @@ class Parser(val tokens: List<Token>) {
 		}
 
 		var condition: Expr? = null
-		if (!check(SEMICOLON)) {
+		if (!checkType(SEMICOLON)) {
 			condition = expression()
 		}
 		consume(SEMICOLON, "Expected ';' after loop condition.")
 
 		var increment: Expr? = null
-		if (!check(RIGHT_PAREN)) {
+		if (!checkType(RIGHT_PAREN)) {
 			increment = expression()
 		}
 		consume(RIGHT_PAREN, "Expected ')' after 'for' clauses.")
@@ -170,15 +372,15 @@ class Parser(val tokens: List<Token>) {
 				listOf(
 					body,
 					Stmt.Expression(increment)
-				)
+				), peek().line, peek().file
 			)
 		}
 
-		if (condition == null) condition = Literal(true)
+		if (condition == null) condition = Literal(true,peek().line,peek().file)
 		body = Stmt.While(condition, body)
 
 		if (initializer != null) {
-			body = Stmt.Block(listOf(initializer, body))
+			body = Stmt.Block(listOf(initializer, body),peek().line,peek().file)
 		}
 
 		//inLoop = false
@@ -200,8 +402,10 @@ class Parser(val tokens: List<Token>) {
 		return Stmt.If(condition, thenBranch, elseBranch)
 	}
 
-	private fun varDeclaration(): Stmt {
+	private fun varDeclaration(modifier: FieldModifier = FieldModifier.NORMAL): Stmt.Var {
 		val name = consume(IDENTIFIER, "Expected variable name.")
+
+		val type = getType()
 
 		var initializer: Expr? = null
 		if (match(EQUAL)) {
@@ -209,7 +413,98 @@ class Parser(val tokens: List<Token>) {
 		}
 
 		consume(SEMICOLON, "Expected ';' after variable declaration.")
-		return Stmt.Var(name, initializer)
+		return Stmt.Var(name, type, initializer, modifier)
+	}
+
+	private fun getTypeTokens(oneOnly: Boolean): List<TypeToken> {
+		var firstToken = peek()
+		var firstTypeParameter: List<TypeToken> = listOf()
+		var firstPureTypeParameter = false
+		if (!match(TYPE_BOOLEAN, TYPE_STRING, TYPE_NUMBER, TYPE_FUNCTION, CLASS, TYPE_ANY, IDENTIFIER, NIL)) {
+			if(match(LESS)){
+				if(oneOnly){
+					throw error(firstToken, "Only bounds can be specified for pure type parameter.")
+				}
+				firstToken = peek()
+				firstTypeParameter = getTypeTokens(true)
+				consume(GREATER, "Expected '>' after type parameter.")
+				firstPureTypeParameter = true
+			} else {
+				throw error(firstToken, "Expected type.")
+			}
+		}
+		if(!firstPureTypeParameter && match(LESS)) {
+			if(oneOnly){
+				throw error(firstToken, "Only bounds can be specified for pure type parameter.")
+			}
+			if (!checkType(TYPE_BOOLEAN, TYPE_STRING, TYPE_NUMBER, TYPE_FUNCTION, CLASS, TYPE_ANY, IDENTIFIER, NIL)) {
+				throw error(firstToken, "Expected type for type parameter.")
+			}
+			firstTypeParameter = getTypeTokens(false)
+			consume(GREATER, "Expected '>' after type parameter.")
+		}
+		val types: MutableList<TypeToken> = mutableListOf(TypeToken(firstToken, if(firstPureTypeParameter) listOf() else firstTypeParameter, firstPureTypeParameter))
+
+		do {
+			if (types.size >= 255) {
+				error(peek(), "Can't have more than 255 types in a union type.")
+			}
+
+			if(match(PIPE)) {
+				var additionalToken = peek()
+				var additionalPureTypeParameter = false
+				var additionalTypeParameter: List<TypeToken> = listOf()
+				if (!match(
+						TYPE_BOOLEAN,
+						TYPE_STRING,
+						TYPE_NUMBER,
+						TYPE_FUNCTION,
+						CLASS,
+						TYPE_ANY,
+						IDENTIFIER,
+						NIL
+					)
+				) {
+					if(match(LESS)){
+						if(oneOnly){
+							throw error(firstToken, "Only bounds can be specified for pure type parameter.")
+						}
+						additionalToken = peek()
+						additionalTypeParameter = getTypeTokens(true)
+						consume(GREATER, "Expected '>' after type parameter.")
+						additionalPureTypeParameter = true
+					} else {
+						throw error(additionalToken, "Expected type.")
+					}
+				} else {
+					if(match(LESS)){
+						if(oneOnly){
+							throw error(firstToken, "Only bounds can be specified for pure type parameter.")
+						}
+						if (!checkType(TYPE_BOOLEAN, TYPE_STRING, TYPE_NUMBER, TYPE_FUNCTION, CLASS, TYPE_ANY, IDENTIFIER, NIL)) {
+							throw error(firstToken, "Expected type for type parameter.")
+						}
+						additionalTypeParameter = getTypeTokens(false)
+						consume(GREATER, "Expected '>' after type parameter.")
+					}
+					types.add(TypeToken(additionalToken, additionalTypeParameter, false))
+				}
+				if(additionalPureTypeParameter) {
+					types.add(TypeToken(additionalToken, listOf(), true))
+				}
+			} else {
+				break
+			}
+		} while (match(PIPE))
+		return types
+	}
+
+	private fun getType(function: Boolean = false, noColon: Boolean = false): Type {
+		var type: Type = if(function) Type.NIL else Type.ANY
+		if (match(COLON) || noColon) {
+			type = Type.of(getTypeTokens(false),lox)
+		}
+		return type
 	}
 
 	private fun expressionStatement(): Stmt {
@@ -221,7 +516,7 @@ class Parser(val tokens: List<Token>) {
 	private fun block(): List<Stmt> {
 		val statements: MutableList<Stmt> = ArrayList()
 
-		while (!check(RIGHT_BRACE) && !isAtEnd()) {
+		while (!checkType(RIGHT_BRACE) && !isAtEnd()) {
 			declaration()?.let { statements.add(it) }
 		}
 
@@ -246,6 +541,8 @@ class Parser(val tokens: List<Token>) {
 				return Assign(name, value)
 			} else if (expr is Get) {
 				return Set(expr.obj, expr.name, value)
+			} else if(expr is DynamicGet) {
+				return DynamicSet(expr.obj, expr.what, value, previous())
 			}
 
 			error(equals, "Invalid assignment target.")
@@ -267,12 +564,40 @@ class Parser(val tokens: List<Token>) {
 	}
 
 	private fun andExpr(): Expr {
-		var expr = equality()
+		var expr = check()
 
 		while (match(AND)) {
 			val operator = previous()
-			val right = equality()
+			val right = check()
 			expr = Logical(expr, operator, right)
+		}
+
+		return expr
+	}
+
+	private fun check(): Expr {
+		var expr = cast()
+
+		if(match(IS)) {
+			val operator = previous()
+			val right = getType(function = false, noColon = true)
+			expr = Check(expr, operator, right)
+		} else if(match(IS_NOT)){
+			val operator = previous()
+			val right = getType(function = false, noColon = true)
+			expr = Check(expr, operator, right)
+		}
+
+		return expr
+	}
+
+	private fun cast(): Expr {
+		var expr = equality()
+
+		if(match(AS)) {
+			val operator = previous()
+			val right = getType(function = false, noColon = true)
+			expr = Cast(expr, operator, right)
 		}
 
 		return expr
@@ -327,7 +652,7 @@ class Parser(val tokens: List<Token>) {
 	}
 
 	private fun unary(): Expr {
-		if (match(BANG, MINUS)) {
+		if (match(BANG, MINUS/*, INCREMENT, DECREMENT*/)) {
 			val operator = previous()
 			val right = unary()
 			return Unary(operator, right)
@@ -337,10 +662,11 @@ class Parser(val tokens: List<Token>) {
 	}
 
 	private fun lambda(): Expr {
+		val token = peek()
 		if(match(FUN)){
 			while (true) {
 				if (match(LEFT_PAREN)) {
-					return finishLambda()
+					return finishLambda(token)
 				} else {
 					break
 				}
@@ -353,11 +679,36 @@ class Parser(val tokens: List<Token>) {
 		var expr = primary()
 
 		while (true) {
+//			if(check(LESS)){
+//				if(!matchNext(TYPE_BOOLEAN, TYPE_STRING, TYPE_NUMBER, TYPE_FUNCTION, CLASS, TYPE_ANY, IDENTIFIER, NIL)) {
+//					break
+//				}
+//				advance()
+//				val parameters: MutableList<Type> = ArrayList()
+//				if (!check(GREATER)) {
+//					do {
+//						if (parameters.size >= 255) {
+//							error(peek(), "Can't have more than 255 type parameters.")
+//						}
+//
+//						parameters.add(
+//							getType(function = false, noColon = true)
+//						)
+//					} while (match(COMMA))
+//				}
+//				consume(GREATER, "Expected '>' after type parameter.")
+//				consume(LEFT_PAREN, "Expected '(' after '>'.")
+//				expr = finishCall(expr, parameters)
+//			}
 			if (match(LEFT_PAREN)) {
 				expr = finishCall(expr)
 			} else if (match(DOT)) {
-				val name: Token = consume(IDENTIFIER, "Expected property name after '.'.")
+				val name: Token = consume(IDENTIFIER, "Expected expression after '.'.")
 				expr = Get(expr, name)
+			} else if(match(LEFT_BRACKET)) {
+				val name = expression()
+				consume(RIGHT_BRACKET, "Expected ']' after expression.")
+				expr = DynamicGet(expr, name, previous())
 			} else {
 				break
 			}
@@ -366,30 +717,32 @@ class Parser(val tokens: List<Token>) {
 		return expr
 	}
 
-	private fun finishLambda(): Expr {
-		val parameters: MutableList<Token> = ArrayList()
-		if (!check(RIGHT_PAREN)) {
+	private fun finishLambda(token: Token): Expr {
+		val parameters: MutableList<Param> = ArrayList()
+		if (!checkType(RIGHT_PAREN)) {
 			do {
 				if (parameters.size >= 255) {
 					error(peek(), "Can't have more than 255 parameters.")
 				}
 
 				parameters.add(
-					consume(IDENTIFIER, "Expected parameter name.")
+					Param(consume(IDENTIFIER, "Expected parameter name."),getType())
 				)
 			} while (match(COMMA))
 		}
 		consume(RIGHT_PAREN, "Expected ')' after parameters.")
 
+		val type = getType(function = true)
+
 		consume(LEFT_BRACE, "Expected '{' before lambda body.")
 		val body = block()
 
-		return Lambda(Stmt.Function(Token(STRING,"<lambda>", null, peek().line) ,parameters, body, FunctionModifier.NONE))
+		return Lambda(Stmt.Function(Token(IDENTIFIER,"<lambda ${System.currentTimeMillis()}>", null, token.line, currentFile, token.pos), parameters, body, FunctionModifier.NORMAL, type))
 	}
 
 	private fun finishCall(callee: Expr): Expr {
 		val arguments: MutableList<Expr> = ArrayList()
-		if (!check(RIGHT_PAREN)) {
+		if (!checkType(RIGHT_PAREN)) {
 			do {
 				if (arguments.size >= 255) {
 					error(peek(), "Can't have more than 255 arguments.")
@@ -407,12 +760,12 @@ class Parser(val tokens: List<Token>) {
 	}
 
 	private fun primary(): Expr {
-		if (match(FALSE)) return Literal(false)
-		if (match(TRUE)) return Literal(true)
-		if (match(NIL)) return Literal(null)
+		if (match(FALSE)) return Literal(false,previous().line,previous().file)
+		if (match(TRUE)) return Literal(true,previous().line,previous().file)
+		if (match(NIL)) return Literal(null,previous().line,previous().file)
 
 		if (match(NUMBER, STRING)) {
-			return Literal(previous().literal)
+			return Literal(previous().literal,previous().line,previous().file)
 		}
 
 		if (match(SUPER)) {
@@ -441,14 +794,20 @@ class Parser(val tokens: List<Token>) {
 	}
 
 	private fun consume(type: TokenType, message: String): Token {
-		if (check(type)) return advance()
+		if (checkType(type)) return advance()
+
+		throw error(peek(), message)
+	}
+
+	private fun assert(type: TokenType, message: String): Token {
+		if (!checkType(type)) return peek()
 
 		throw error(peek(), message)
 	}
 
 	private fun match(vararg types: TokenType): Boolean {
 		for (type in types) {
-			if (check(type)) {
+			if (checkType(type)) {
 				advance()
 				return true
 			}
@@ -457,9 +816,34 @@ class Parser(val tokens: List<Token>) {
 		return false
 	}
 
-	private fun check(type: TokenType): Boolean {
+	private fun checkNext(vararg types: TokenType): Boolean {
+		for (type in types) {
+			if (checkNext(type)) {
+				return true
+			}
+		}
+
+		return false
+	}
+
+	private fun checkType(vararg types: TokenType): Boolean {
+		for (type in types) {
+			if (checkType(type)) {
+				return true
+			}
+		}
+
+		return false
+	}
+
+	private fun checkType(type: TokenType): Boolean {
 		if (isAtEnd()) return false
 		return peek().type === type
+	}
+
+	private fun checkNext(type: TokenType): Boolean {
+		if (isAtEnd()) return false
+		return next().type === type
 	}
 
 	private fun advance(): Token {
@@ -479,8 +863,13 @@ class Parser(val tokens: List<Token>) {
 		return tokens[current - 1]
 	}
 
+	private fun next(): Token {
+		if(current + 1 >= tokens.size) throw error(peek(), "Unexpected end of file.")
+		return tokens[current + 1]
+	}
+
 	private fun error(token: Token, message: String): ParseError {
-		Lox.error(token, message)
+		lox.error(token, message)
 		return ParseError()
 	}
 
@@ -491,7 +880,7 @@ class Parser(val tokens: List<Token>) {
 			if (previous().type == SEMICOLON) return
 
 			when (peek().type) {
-				CLASS, FUN, VAR, FOR, IF, WHILE, PRINT, RETURN, BREAK -> return
+				CLASS, INTERFACE, FUN, VAR, FOR, IF, WHILE, /*PRINT,*/ RETURN, BREAK, CONTINUE -> return
 				else -> {}
 			}
 

@@ -1,15 +1,18 @@
 package sunsetsatellite.lang.lox
 
-import sunsetsatellite.lang.lox.Lox.error
 import sunsetsatellite.lang.lox.TokenType.*
 
 
-class Scanner(private val source: String) {
+class Scanner(private val source: String, val lox: Lox) {
 	private val tokens: ArrayList<Token> = ArrayList()
 	private var start = 0
 	private var current = 0
 	private var line = 1
+	private var totalChars = 0
+	private var lineStart = 0
+	private var lineCurrent = 0
 
+	var currentFile: String? = null
 
 	companion object {
 		private val keywords: MutableMap<String, TokenType> = mutableMapOf()
@@ -24,7 +27,7 @@ class Scanner(private val source: String) {
 			keywords["if"] = IF
 			keywords["nil"] = NIL
 			keywords["or"] = OR
-			keywords["print"] = PRINT
+			//keywords["print"] = PRINT
 			keywords["return"] = RETURN
 			keywords["super"] = SUPER
 			keywords["this"] = THIS
@@ -34,18 +37,37 @@ class Scanner(private val source: String) {
 			keywords["break"] = BREAK
 			keywords["continue"] = CONTINUE
 			keywords["static"] = STATIC
+			keywords["native"] = NATIVE
+			keywords["interface"] = INTERFACE
+			keywords["is"] = IS
+			keywords["isnt"] = IS_NOT
+			keywords["import"] = IMPORT
+			keywords["dynamic"] = DYNAMIC
+			keywords["any"] = TYPE_ANY
+			keywords["string"] = TYPE_STRING
+			keywords["number"] = TYPE_NUMBER
+			keywords["boolean"] = TYPE_BOOLEAN
+			keywords["function"] = TYPE_FUNCTION
+			keywords["as"] = AS
+			/*println(keywords.keys.joinToString(
+                separator = ", ",
+                transform = { "\"$it\"" }
+            ))*/
 		}
 	}
 
 
-	fun scanTokens(): List<Token> {
+	fun scanTokens(path: String?): List<Token> {
+		currentFile = path
+
 		while (!isAtEnd()) {
 			// We are at the beginning of the next lexeme.
 			start = current
+			lineStart = lineCurrent
 			scanToken()
 		}
 
-		tokens.add(Token(EOF, "", null, line))
+		tokens.add(Token(EOF, "", null, line, currentFile, Token.Position(-1,-1)))
 		return tokens
 	}
 
@@ -59,25 +81,37 @@ class Scanner(private val source: String) {
 			')' -> addToken(RIGHT_PAREN)
 			'{' -> addToken(LEFT_BRACE)
 			'}' -> addToken(RIGHT_BRACE)
+			'[' -> addToken(LEFT_BRACKET)
+			']' -> addToken(RIGHT_BRACKET)
 			',' -> addToken(COMMA)
 			'.' -> addToken(DOT)
-			'-' -> addToken(MINUS)
-			'+' -> addToken(PLUS)
+			'-' -> addToken(MINUS) //addToken(if(match('+')) DECREMENT else MINUS)
+			'+' -> addToken(PLUS) //addToken(if(match('+')) INCREMENT else PLUS)
 			';' -> addToken(SEMICOLON)
 			'*' -> addToken(STAR)
+			':' -> addToken(COLON)
+			'|' -> addToken(PIPE)
 			'!' -> addToken(if(match('=')) BANG_EQUAL else BANG)
 			'=' -> addToken(if(match('=')) EQUAL_EQUAL else EQUAL)
-			'<' -> addToken(if(match('=')) LESS_EQUAL else LESS)
+			'<' -> addToken(if(match('=')) LESS_EQUAL else if(match('<')) LESS_LESS else LESS)
 			'>' -> addToken(if(match('=')) GREATER_EQUAL else GREATER)
 			'/' -> {
 				if(match('/')){
 					while (peek() != '\n' && !isAtEnd()) advance()
-				} else {
+				} else if(match('*')){
+					while (peek() != '*' && peekNext() != '/' && !isAtEnd()) advance()
+					if(!isAtEnd() && peek() == '*' && peekNext() == '/') advance(); advance()
+				}
+				else {
 					addToken(SLASH)
 				}
 			}
 			' ', '\r', '\t' -> {}
-			'\n' -> line++
+			'\n' -> {
+				lineStart = 0
+				lineCurrent = 0
+				line++
+			}
 			'"' -> string()
 			in '0'..'9' -> number()
 
@@ -88,7 +122,7 @@ class Scanner(private val source: String) {
 					return
 				}
 
-				error(line, "Unexpected character '$c'")
+				lox.error(line, "Unexpected character '$c'")
 			}
 		}
 	}
@@ -98,6 +132,8 @@ class Scanner(private val source: String) {
 		if (source[current] != expected) return false
 
 		current++
+		totalChars++
+		lineCurrent++
 		return true
 	}
 
@@ -113,6 +149,8 @@ class Scanner(private val source: String) {
 
 
 	private fun advance(): Char {
+		totalChars++
+		lineCurrent++
 		return source[current++]
 	}
 
@@ -122,7 +160,7 @@ class Scanner(private val source: String) {
 
 	private fun addToken(type: TokenType, literal: Any?) {
 		val text = source.substring(start, current)
-		tokens.add(Token(type, text, literal, line))
+		tokens.add(Token(type, text, literal, line, currentFile, Token.Position(lineStart,lineCurrent)))
 	}
 
 	private fun string() {
@@ -132,7 +170,7 @@ class Scanner(private val source: String) {
 		}
 
 		if (isAtEnd()) {
-			error(line, "Unterminated string.")
+			lox.error(line, "Unterminated string.")
 			return
 		}
 

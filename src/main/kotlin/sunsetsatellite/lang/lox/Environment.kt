@@ -1,6 +1,6 @@
 package sunsetsatellite.lang.lox
 
-class Environment(val enclosing: Environment? = null) {
+class Environment(val enclosing: Environment? = null, var line: Int = -1, val name: String, val file: String?) {
 
 	val values: MutableMap<String, Any?> = HashMap()
 
@@ -58,5 +58,9 @@ class Environment(val enclosing: Environment? = null) {
 				"Undefined variable '" + name.lexeme + "'."
 			)
 		)
+	}
+
+	override fun toString(): String {
+		return "${name}(${file}:${line}) (${values.size} values)"
 	}
 }

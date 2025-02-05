@@ -9,93 +9,228 @@ import java.nio.file.Paths
 import kotlin.system.exitProcess
 
 
-object Lox {
+class Lox(val args: Array<String>) {
 
-	@JvmStatic
 	var hadError: Boolean = false
-	@JvmStatic
+
 	var hadRuntimeError: Boolean = false
 
-	@JvmStatic
-	var debug: Boolean = false
+	var interpreter: Interpreter? = null
 
-	@JvmStatic
-	private val interpreter: Interpreter = Interpreter()
+	val typeCollector: TypeCollector = TypeCollector(this)
 
-	@JvmStatic
-	@Throws(IOException::class)
-	fun main(args: Array<String>) {
-		if (args.size > 1) {
-			println("Usage: lox [script]");
-			exitProcess(64);
-		} else if (args.size == 1) {
-			runFile(args[0]);
-		} else {
-			runPrompt();
+	val typeChecker: TypeChecker = TypeChecker(typeCollector,this)
+
+	val path: MutableList<String> = mutableListOf()
+
+	val imports: MutableMap<String,List<Stmt>> = mutableMapOf()
+
+	val natives: MutableMap<String,NativeFunction<*>> = mutableMapOf()
+
+	val globals: MutableMap<String,LoxCallable> = mutableMapOf()
+
+	val logEntryReceivers: MutableList<LogEntryReceiver> = mutableListOf()
+	val breakpointListeners: MutableList<BreakpointListener> = mutableListOf()
+
+	var breakpoints: MutableMap<String,IntArray> = mutableMapOf()
+
+	fun start() {
+		when {
+			args.size > 3 -> {
+				println("Usage: lox [script] (path) (options)")
+				exitProcess(64)
+			}
+			args.size == 1 -> {
+				runFile(args[0])
+			}
+			args.size == 2 -> {
+				path.addAll(args[1].split(";"))
+				runFile(args[0])
+			}
+			args.size == 3 -> {
+				args[2].split(";").forEach {
+					when (it) {
+						"debug" -> debug = true
+						"stacktrace" -> stacktrace = true
+						"warnStacktrace" -> warnStacktrace = true
+					}
+				}
+				path.addAll(args[1].split(";"))
+				runFile(args[0])
+			}
+			else -> {
+				runPrompt()
+			}
 		}
+	}
+
+	fun parse(code: String? = null): Pair<List<Token>,List<Stmt>>? {
+		val filePath = args[0]
+		path.addAll(args[1].split(";"))
+
+		val data: String = code ?: String(Files.readAllBytes(Paths.get(filePath)), Charset.defaultCharset())
+
+		val shortPath = filePath.split("/").last()
+
+		/*if(natives.isEmpty()){
+            natives.putAll(NativeList.registerNatives())
+        }*/
+
+		val env = Environment(null, 0, "<global env>", shortPath)
+		Globals.registerGlobals(env)
+		if(globals.isNotEmpty()){
+			globals.forEach { (k, v) -> env.define(k, v) }
+		}
+		interpreter = Interpreter(shortPath,env,this)
+
+		val scanner = Scanner(data, this)
+		val tokens: List<Token> = scanner.scanTokens(shortPath)
+
+		val parser = Parser(tokens,this)
+		val statements = parser.parse(shortPath)
+
+		// Stop if there was a syntax error.
+		if (hadError) return null
+
+		val resolver = Resolver(interpreter!!,this)
+		resolver.resolve(statements, shortPath)
+
+		// Stop if there was a resolution error.
+		if (hadError) return null
+
+		typeCollector.collect(statements, shortPath)
+
+		// Stop if there was a collection error.
+		if (hadError) return null
+
+		typeChecker.check(statements, shortPath)
+
+		// Stop if there was a type error.
+		if (hadError) return null
+
+		filePath.let { imports[it] = statements }
+
+		return tokens to statements
 	}
 
 	@Throws(IOException::class)
 	private fun runFile(path: String) {
 		val bytes = Files.readAllBytes(Paths.get(path))
-		runString(String(bytes, Charset.defaultCharset()))
+		runString(String(bytes, Charset.defaultCharset()), path)
 
 		// Indicate an error in the exit code.
-		if (hadError) exitProcess(65)
-		if (hadRuntimeError) exitProcess(70)
+		if (hadError) return //exitProcess(65)
+		if (hadRuntimeError) return //exitProcess(70)
 	}
 
 	@Throws(IOException::class)
 	private fun runPrompt() {
+		script = true
 		val input = InputStreamReader(System.`in`)
 		val reader = BufferedReader(input)
 
 		while (true) {
 			print("> ")
 			val line = reader.readLine() ?: break
-			runString(line)
-			hadError = false;
+			runString(line, null)
+			hadError = false
 		}
 	}
 
-	private fun runString(source: String) {
-		val scanner = Scanner(source)
-		val tokens: List<Token> = scanner.scanTokens()
+	private fun runString(source: String, path: String?) {
+		val shortPath = path?.split("/")?.last()
 
-		println("Tokens: ")
-		println("--------")
-		val builder: StringBuilder = StringBuilder()
-		tokens.forEachIndexed { i, it ->
-			builder.append(it.toString())
-			if(tokens.size-1 > i) builder.append(", ")
+		/*if(natives.isEmpty()){
+            natives.putAll(NativeList.registerNatives())
+        }*/
+
+		if(debug) {
+			printInfo("Load Path: ")
+			printInfo("--------")
+			this.path.forEach { printInfo(it) }
+			printInfo("--------")
+			printInfo()
 		}
-		println(builder.toString())
-		println()
 
-		val parser = Parser(tokens)
-		val statements = parser.parse()
+		val env = Environment(null, 0, "<global env>", shortPath)
+		Globals.registerGlobals(env)
+		if(globals.isNotEmpty()){
+			globals.forEach { (k, v) -> env.define(k, v) }
+		}
+		interpreter = Interpreter(shortPath,env,this)
+
+		val scanner = Scanner(source, this)
+		val tokens: List<Token> = scanner.scanTokens(shortPath)
+
+		if(debug){
+			printInfo("Tokens: ")
+			printInfo("--------")
+			val builder: StringBuilder = StringBuilder()
+			tokens.forEachIndexed { i, it ->
+				builder.append("($it)")
+				if(tokens.size-1 > i) builder.append(", ")
+				if(i != 0 && i % 10 == 0) builder.append("\n")
+			}
+			printInfo(builder.toString())
+			printInfo("--------")
+			printInfo()
+		}
+
+
+		val parser = Parser(tokens,this)
+		val statements = parser.parse(shortPath)
 
 		// Stop if there was a syntax error.
 		if (hadError) return
 
-		val resolver = Resolver(interpreter)
-		resolver.resolve(statements)
+		val resolver = Resolver(interpreter!!,this)
+		resolver.resolve(statements, shortPath)
 
 		// Stop if there was a resolution error.
-		if (hadError) return;
-		
-		println("AST: ")
-		println("-----")
-		statements.forEach {
-			println(AstPrinter.print(it))
+		if (hadError) return
+
+		typeCollector.collect(statements, shortPath)
+
+		if(debug){
+			printInfo("Types: ")
+			printInfo("--------")
+			typeCollector.info.forEach { printInfo(it) }
+			printInfo("--------")
+			printInfo()
 		}
-		println()
+
+		if(debug) {
+			printInfo("Type hierarchy: ")
+			printInfo("--------")
+			typeCollector.typeHierarchy.forEach { printInfo(it) }
+			printInfo("--------")
+			printInfo()
+		}
+
+		// Stop if there was a collection error.
+		if (hadError) return
+
+		typeChecker.check(statements, shortPath)
+
+		// Stop if there was a type error.
+		if (hadError) return
+
+		if(debug) {
+			printInfo("AST: ")
+			printInfo("-----")
+			statements.forEach {
+				printInfo(AstPrinter.print(it))
+			}
+			printInfo("-----")
+			printInfo()
+		}
+
 
 		try {
 			// Evaluate a single expression
 			if (statements.size == 1 && statements[0] is Stmt.Expression) {
-				val evaluated = interpreter.evaluate((statements[0] as Stmt.Expression).expr)
-				println(interpreter.stringify(evaluated))
+				val evaluated = interpreter!!.evaluate((statements[0] as Stmt.Expression).expr)
+				printInfo(interpreter!!.stringify(evaluated))
 				return
 			}
 		} catch (error: LoxRuntimeError) {
@@ -103,47 +238,110 @@ object Lox {
 			return
 		}
 
-		interpreter.interpret(statements)
+		path?.let { imports[it] = statements }
+
+		interpreter!!.interpret(statements, shortPath)
 	}
 
 	fun error(line: Int, message: String) {
-		report(line, "", message)
+		reportError(line, "", message, null)
 	}
 
 	fun error(token: Token, message: String) {
 		if (token.type == TokenType.EOF) {
-			report(token.line, " at end", message)
+			reportError(token.line, " at end", message, token.file)
 		} else {
-			report(token.line, " at '" + token.lexeme + "'", message)
+			reportError(token.line, " at '" + token.lexeme + "'", message, token.file)
+		}
+	}
+
+	fun warn(token: Token, message: String) {
+		if (token.type == TokenType.EOF) {
+			reportWarn(token.line, " at end", message, token.file)
+		} else {
+			reportWarn(token.line, " at '" + token.lexeme + "'", message, token.file)
 		}
 	}
 
 
-	private fun report(
+	private fun reportError(
 		line: Int, where: String,
-		message: String
+		message: String, file: String?
 	) {
-		System.err.println(
-			"[line $line] Error$where: $message"
-		)
+		val s = "[$file, line $line] Error$where: $message"
+		printErr(s)
 
-		if(debug) {
-			Exception("runtime stack trace").printStackTrace()
+		if(stacktrace) {
+			Exception("lox error internal stack trace").printStackTrace()
 		}
 
 		hadError = true
 	}
 
-	fun runtimeError(error: LoxRuntimeError) {
-		System.err.println(
-			error.message +
-					"\n[line " + error.token.line + "]"
-		)
+	private fun reportWarn(
+		line: Int, where: String,
+		message: String, file: String?
+	) {
+		val s = "[$file, line $line] Warn$where: $message"
+		printWarn(s)
 
-		if(debug) {
+		if(warnStacktrace) {
+			Exception("lox warn internal stack trace").printStackTrace()
+		}
+	}
+
+	fun runtimeError(error: LoxRuntimeError) {
+		if (error.token.type == TokenType.EOF) {
+			val s = "[${error.token.file}, line ${error.token.line}] Error at end: ${error.message}"
+			printErr(s)
+		} else {
+			val s = "[${error.token.file}, line ${error.token.line}] Error at '${error.token.lexeme}': ${error.message}"
+			printErr(s)
+		}
+
+
+		if(stacktrace) {
 			error.printStackTrace()
 		}
 
 		hadRuntimeError = true
+	}
+
+	fun printInfo(message: Any? = "") {
+		if(logToStdout) println(message)
+		logEntryReceivers.forEach { it.info(message.toString()) }
+	}
+	fun printWarn(message: Any? = "") {
+		if(logToStdout) System.err.println(message)
+		logEntryReceivers.forEach { it.warn(message.toString()) }
+	}
+	fun printErr(message: Any? = "") {
+		if(logToStdout) System.err.println(message)
+		logEntryReceivers.forEach { it.err(message.toString()) }
+	}
+
+	companion object {
+
+		@JvmStatic
+		var debug: Boolean = false
+
+		@JvmStatic
+		var stacktrace: Boolean = false
+
+		@JvmStatic
+		var warnStacktrace: Boolean = false
+
+		@JvmStatic
+		var script: Boolean = false
+
+		@JvmStatic
+		var logToStdout = false
+
+		@JvmStatic
+		@Throws(IOException::class)
+		fun main(args: Array<String>) {
+			val lox = Lox(args)
+			lox.start()
+		}
 	}
 }

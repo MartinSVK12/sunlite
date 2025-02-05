@@ -1,31 +1,20 @@
 package sunsetsatellite.lang.lox
 
 import sunsetsatellite.lang.lox.Expr.Logical
-import sunsetsatellite.lang.lox.Lox.runtimeError
 import sunsetsatellite.lang.lox.Stmt.Return
 import sunsetsatellite.lang.lox.TokenType.*
+import java.io.InputStreamReader
+import java.nio.charset.StandardCharsets
 
 
-class Interpreter: Expr.Visitor<Any?>, Stmt.Visitor<Unit> {
-	val globals: Environment = Environment()
+class Interpreter(file: String?, val globals: Environment = Environment(null,0, "<global env>", file), val lox: Lox): Expr.Visitor<Any?>, Stmt.Visitor<Unit> {
 	var environment: Environment = globals
 	val locals: MutableMap<Expr, Int> = mutableMapOf()
+	var currentFile: String? = null
+	var continueExecution: Boolean = false
+	var breakpointHit: Boolean = false
 
-	init {
-		globals.define("clock", object: LoxCallable {
-			override fun call(interpreter: Interpreter, arguments: List<Any?>?): Any {
-				return System.currentTimeMillis().toDouble() / 1000.0
-			}
-
-			override fun arity(): Int {
-				return 0
-			}
-
-			override fun toString(): String {
-				return "<native fn>"
-			}
-		})
-	}
+	private val stdin: InputStreamReader = InputStreamReader(System.`in`, StandardCharsets.UTF_8)
 
 	override fun visitBinaryExpr(expr: Expr.Binary): Any? {
 		val left = evaluate(expr.left)
@@ -74,6 +63,12 @@ class Interpreter: Expr.Visitor<Any?>, Stmt.Visitor<Unit> {
 			}
 			EQUAL_EQUAL -> {
 				isEqual(left, right)
+			}
+			IS -> {
+				inheritsFrom(expr.operator, left, right)
+			}
+			IS_NOT -> {
+				!inheritsFrom(expr.operator, left, right)
 			}
 			else -> {
 				null
@@ -136,6 +131,7 @@ class Interpreter: Expr.Visitor<Any?>, Stmt.Visitor<Unit> {
 	}
 
 	fun evaluate(expr: Expr?): Any? {
+		expr?.let { environment.line = it.getLine() }
 		return expr?.accept(this)
 	}
 
@@ -161,20 +157,42 @@ class Interpreter: Expr.Visitor<Any?>, Stmt.Visitor<Unit> {
 
 	private fun checkBinaryNumberCast(operator: Token, left: Any?, right: Any?) {
 		if(left is Double && right is Double) return
-		throw LoxRuntimeError(operator, "Operands must be a numbers.")
+		throw LoxRuntimeError(operator, "Operands must be numbers.")
 	}
 
-	fun interpret(statements: List<Stmt>) {
+	private fun inheritsFrom(operator: Token, left: Any?, right: Any?): Boolean {
+		if(left is LoxObject && right is LoxObject){
+			return left.inheritsFrom(right)
+		}
+		throw LoxRuntimeError(operator, "Operands must be classes or interfaces.")
+	}
+
+	fun interpret(statements: List<Stmt>, path: String?) {
+		currentFile = path
 		try {
 			for (statement in statements) {
 				execute(statement)
 			}
 		} catch (error: LoxRuntimeError) {
-			runtimeError(error)
+			lox.runtimeError(error)
 		}
 	}
 
 	private fun execute(stmt: Stmt) {
+		environment.line = stmt.getLine()
+		currentFile = stmt.getFile()
+		if(lox.breakpoints[currentFile]?.contains(stmt.getLine()) == true){
+			lox.breakpointListeners.forEach { it.breakpointHit(stmt.getLine(),currentFile,lox,environment) }
+			breakpointHit = true
+			while (true){
+				println(continueExecution)
+				if(continueExecution) {
+					breakpointHit = false
+					continueExecution = false
+					break
+				}
+			}
+		}
 		stmt.accept(this)
 	}
 
@@ -211,7 +229,7 @@ class Interpreter: Expr.Visitor<Any?>, Stmt.Visitor<Unit> {
 	}
 
 	override fun visitBlockStmt(stmt: Stmt.Block) {
-		executeBlock(stmt.statements, Environment(environment));
+		executeBlock(stmt.statements, Environment(environment, stmt.getLine(), "<block>", stmt.getFile()));
 	}
 
 	override fun visitIfStmt(stmt: Stmt.If) {
@@ -249,7 +267,7 @@ class Interpreter: Expr.Visitor<Any?>, Stmt.Visitor<Unit> {
 	}
 
 	override fun visitFunctionStmt(stmt: Stmt.Function) {
-		val function = LoxFunction(stmt, environment)
+		val function = LoxFunction(stmt, environment, lox)
 		environment.define(stmt.name.lexeme, function)
 	}
 
@@ -273,26 +291,69 @@ class Interpreter: Expr.Visitor<Any?>, Stmt.Visitor<Unit> {
 			}
 		}
 
+		val superinterfaces: MutableList<LoxInterface> = mutableListOf()
+		stmt.superinterfaces.forEach {
+			val superinterface = evaluate(it)
+			if(superinterface !is LoxInterface) {
+				throw LoxRuntimeError(
+					it.name,
+					"Superinterface must be an interface."
+				)
+			}
+			superinterfaces.add(superinterface)
+		}
+
 		environment.define(stmt.name.lexeme, null)
 
 		if (stmt.superclass != null) {
-			environment = Environment(environment)
+			environment = Environment(environment,stmt.superclass.getLine(),"super::${stmt.name.lexeme}", stmt.superclass.getFile())
 			environment.define("super", superclass)
 		}
 
 		val methods: MutableMap<String, LoxFunction> = mutableMapOf()
 		for (method in stmt.methods) {
-			val function = LoxFunction(method, environment).apply { if (method.name.lexeme == "init") this.setModifier(FunctionModifier.INIT) }
+			val function = LoxFunction(method, environment, lox).apply { if (method.name.lexeme == "init" && method.modifier != FunctionModifier.NATIVE) this.setModifier(FunctionModifier.INIT) }
 			methods[method.name.lexeme] = function
 		}
 
-		val clazz = LoxClass(stmt.name.lexeme, methods, superclass as LoxClass?)
+		val clazz = LoxClass(stmt.name.lexeme, methods, stmt.fieldDefaults.associate { it.name.lexeme to LoxField(it.type, it.modifier, evaluate(it.initializer)) }, superclass as LoxClass?, superinterfaces, stmt.modifier, lox)
 
 		if (superclass != null) {
 			environment = environment.enclosing!!
 		}
 
 		environment.assign(stmt.name, clazz)
+	}
+
+	override fun visitInterfaceStmt(stmt: Stmt.Interface) {
+
+		val superinterfaces: MutableList<LoxInterface> = mutableListOf()
+		stmt.superinterfaces.forEach {
+			val superinterface = evaluate(it)
+			if(superinterface !is LoxInterface) {
+				throw LoxRuntimeError(
+					it.name,
+					"Superinterface must be an interface."
+				)
+			}
+			superinterfaces.add(superinterface)
+		}
+
+		environment.define(stmt.name.lexeme, null)
+
+		val methods: MutableMap<String, LoxFunction> = mutableMapOf()
+		for (method in stmt.methods) {
+			val function = LoxFunction(method, environment, lox).apply { this.setModifier(FunctionModifier.ABSTRACT) }
+			methods[method.name.lexeme] = function
+		}
+
+		val clazz = LoxInterface(stmt.name.lexeme, methods, superinterfaces)
+
+		environment.assign(stmt.name, clazz)
+	}
+
+	override fun visitImportStmt(stmt: Stmt.Import) {
+		lox.imports[stmt.what.literal]?.let { interpret(it, stmt.what.literal.toString()) }
 	}
 
 	override fun visitCallExpr(expr: Expr.Call): Any? {
@@ -324,7 +385,7 @@ class Interpreter: Expr.Visitor<Any?>, Stmt.Visitor<Unit> {
 	}
 
 	override fun visitLambdaExpr(expr: Expr.Lambda): Any {
-		return LoxFunction(expr.function, environment)
+		return LoxFunction(expr.function, environment, lox)
 	}
 
 	override fun visitGetExpr(expr: Expr.Get): Any? {
@@ -333,8 +394,36 @@ class Interpreter: Expr.Visitor<Any?>, Stmt.Visitor<Unit> {
 			return obj.get(expr.name)
 		}
 
+		if (obj is LoxInterface){
+			throw LoxRuntimeError(
+				expr.name,
+				"Can't get abstract method '${expr.name.lexeme}' on interface '${obj.name}'"
+			)
+		}
+
 		throw LoxRuntimeError(
 			expr.name,
+			"Only classes or class instances have properties."
+		)
+	}
+
+	override fun visitDynamicGetExpr(expr: Expr.DynamicGet): Any? {
+		val obj = evaluate(expr.obj)
+		val what: String = evaluate(expr.what).toString()
+
+		if (obj is LoxClassInstance) {
+			return obj.dynamicGet(what, expr.token)
+		}
+
+		if (obj is LoxInterface){
+			throw LoxRuntimeError(
+				expr.token,
+				"Can't get abstract method '${expr.what}' on interface '${obj.name}'"
+			)
+		}
+
+		throw LoxRuntimeError(
+			expr.token,
 			"Only classes or class instances have properties."
 		)
 	}
@@ -347,6 +436,19 @@ class Interpreter: Expr.Visitor<Any?>, Stmt.Visitor<Unit> {
 
 		val value = evaluate(expr.value)
 		obj.set(expr.name, value)
+		return value
+	}
+
+	override fun visitDynamicSetExpr(expr: Expr.DynamicSet): Any? {
+		val obj = evaluate(expr.obj) as? LoxClassInstance ?: throw LoxRuntimeError(
+			expr.token,
+			"Only classes or class instances have fields."
+		)
+
+		val what = evaluate(expr.what).toString()
+
+		val value = evaluate(expr.value)
+		obj.dynamicSet(what, value, expr.token)
 		return value
 	}
 
@@ -366,6 +468,26 @@ class Interpreter: Expr.Visitor<Any?>, Stmt.Visitor<Unit> {
 			"Undefined property '" + expr.method.lexeme + "'.")
 
 		return method.bind(obj)
+	}
+
+	override fun visitCheckExpr(expr: Expr.Check): Any? {
+		val left = evaluate(expr.left)
+		val right = expr.right
+
+		return when (expr.operator.type) {
+			IS -> inheritsFrom(expr.operator, left, right)
+			IS_NOT -> !inheritsFrom(expr.operator, left, right)
+			else -> null
+		}
+	}
+
+	override fun visitCastExpr(expr: Expr.Cast): Any? {
+		val evaluated = evaluate(expr.left)
+		val type = Type.fromValue(evaluated,lox)
+
+		lox.typeChecker.checkType(type,expr.right,expr.operator,true)
+
+		return evaluated
 	}
 
 
