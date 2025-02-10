@@ -1,0 +1,77 @@
+import "bag.lox";
+import "abstract_list.lox";
+
+class<T> List << AbstractList {
+    var _length: number = 0;
+    var _items: Bag = Bag();
+
+    fun insert(index: number, o: <T>): boolean {
+        if(this._length <= index) return false;
+        this._items[index] = o;
+        return true;
+    }
+
+    fun add(o: <T>): boolean {
+        this._items[this._length] = o;
+        this._length = this._length + 1;
+        return true;
+    }
+
+    fun remove(o: <T>): boolean {
+        if(!this.contains(o)) return false;
+        var index: number = this.indexOf(o);
+        return this.removeAt(index);
+    }
+
+    fun removeAt(index: number): boolean {
+        if(index != -1){
+            this._items[index] = nil;
+            for(var i: number = index; i < this._length; i = i + 1){
+                this._items[i] = this._items[i + 1];
+            }
+            this._length = this._length - 1;
+            return true;
+        }
+        return false;
+    }
+
+    fun indexOf(o: <T>): number {
+        for(var i: number = 0; i < this._length; i = i + 1){
+            if(this.get(i) == o){
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    fun contains(o: <T>): boolean {
+        for(var i: number = 0; i < this._length; i = i + 1){
+            if(this.get(i) == o){
+                return true;
+            }
+        }
+        return false;
+    }
+
+    fun size(): number {
+        return this._length;
+    }
+
+    fun isEmpty(): boolean { return this._length == 0; }
+
+    fun get(i: number): <T> {
+        return this._items[i];
+    }
+
+    fun forEach(callback: function) {
+        for(var i: number = 0; i < this._length; i = i + 1){
+            callback(this.get(i));
+        }
+    }
+
+    fun forEachIndexed(callback: function) {
+        for(var i: number = 0; i < this._length; i = i + 1){
+            callback(i,this.get(i));
+        }
+    }
+}
