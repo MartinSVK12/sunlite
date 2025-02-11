@@ -153,7 +153,7 @@ class Parser(val tokens: List<Token>, val lox: Lox) {
 		}
 
 		val superinterfaces: MutableList<Variable> = mutableListOf()
-		if (match(LESS_LESS)) {
+		if (match(LESS_PIPE)) {
 			do {
 				if (superinterfaces.size >= 255) {
 					error(peek(), "Can't inherit more than 255 superinterfaces.")
@@ -205,6 +205,8 @@ class Parser(val tokens: List<Token>, val lox: Lox) {
 
 		consume(RIGHT_BRACE, "Expected '}' after class body.")
 
+
+
 		return Stmt.Class(name, methods, fields, superclass, superinterfaces, modifier, typeParameters)
 	}
 
@@ -226,7 +228,7 @@ class Parser(val tokens: List<Token>, val lox: Lox) {
 		val name = consume(IDENTIFIER, "Expected class name.")
 
 		val superinterfaces: MutableList<Variable> = mutableListOf()
-		if (match(LESS_LESS)) {
+		if (match(LESS_PIPE)) {
 			do {
 				if (superinterfaces.size >= 255) {
 					error(peek(), "Can't inherit more than 255 superinterfaces.")
@@ -274,14 +276,41 @@ class Parser(val tokens: List<Token>, val lox: Lox) {
 
 	private fun abstractMethod(): Stmt.Function {
 		consume(FUN, "Expected abstract method declaration")
+
+		val typeParameters: MutableList<Param> = ArrayList()
+		if(match(LESS)){
+			do {
+				if (typeParameters.size >= 255) {
+					error(peek(), "Can't have more than 255 type parameters.")
+				}
+
+				val identifier = consume(IDENTIFIER, "Expected type parameter name.")
+				typeParameters.add(Param(identifier,Type.Parameter(identifier)))
+			} while (match(COMMA))
+			consume(GREATER, "Expected '>' after type parameter declaration.")
+		}
+
 		val signature = funcSignature("abstract method")
 
-		return Stmt.Function(signature.first, signature.second, listOf(), FunctionModifier.ABSTRACT, signature.third)
+		return Stmt.Function(signature.first, signature.second, listOf(), FunctionModifier.ABSTRACT, signature.third, typeParameters)
 	}
 
 	private fun function(kind: String, modifier: Token?): Stmt.Function {
 		if(modifier != null && FunctionModifier.entries.none { it.name.lowercase() == modifier.type.name.lowercase() }) {
 			error(peek(), "Invalid $kind modifier '${modifier.lexeme}'.")
+		}
+
+		val typeParameters: MutableList<Param> = ArrayList()
+		if(match(LESS)){
+			do {
+				if (typeParameters.size >= 255) {
+					error(peek(), "Can't have more than 255 type parameters.")
+				}
+
+				val identifier = consume(IDENTIFIER, "Expected type parameter name.")
+				typeParameters.add(Param(identifier,Type.Parameter(identifier)))
+			} while (match(COMMA))
+			consume(GREATER, "Expected '>' after type parameter declaration.")
 		}
 
 		val funcModifier = FunctionModifier.get(modifier)
@@ -295,7 +324,7 @@ class Parser(val tokens: List<Token>, val lox: Lox) {
 			assert(LEFT_BRACE, "Native $kind cannot have a body.")
 		}
 
-		return Stmt.Function(signature.first, signature.second, body, funcModifier, signature.third)
+		return Stmt.Function(signature.first, signature.second, body, funcModifier, signature.third, typeParameters)
 	}
 
 	private fun returnStatement(): Stmt {
@@ -420,7 +449,7 @@ class Parser(val tokens: List<Token>, val lox: Lox) {
 		var firstToken = peek()
 		var firstTypeParameter: List<TypeToken> = listOf()
 		var firstPureTypeParameter = false
-		if (!match(TYPE_BOOLEAN, TYPE_STRING, TYPE_NUMBER, TYPE_FUNCTION, CLASS, TYPE_ANY, IDENTIFIER, NIL)) {
+		if (!match(TYPE_BOOLEAN, TYPE_STRING, TYPE_NUMBER, TYPE_FUNCTION, CLASS, TYPE_ANY, TYPE_ARRAY, IDENTIFIER, NIL)) {
 			if(match(LESS)){
 				if(oneOnly){
 					throw error(firstToken, "Only bounds can be specified for pure type parameter.")
@@ -437,7 +466,7 @@ class Parser(val tokens: List<Token>, val lox: Lox) {
 			if(oneOnly){
 				throw error(firstToken, "Only bounds can be specified for pure type parameter.")
 			}
-			if (!checkType(TYPE_BOOLEAN, TYPE_STRING, TYPE_NUMBER, TYPE_FUNCTION, CLASS, TYPE_ANY, IDENTIFIER, NIL)) {
+			if (!checkType(TYPE_BOOLEAN, TYPE_STRING, TYPE_NUMBER, TYPE_FUNCTION, CLASS, TYPE_ANY, TYPE_ARRAY, IDENTIFIER, NIL, LESS)) {
 				throw error(firstToken, "Expected type for type parameter.")
 			}
 			firstTypeParameter = getTypeTokens(false)
@@ -461,8 +490,9 @@ class Parser(val tokens: List<Token>, val lox: Lox) {
 						TYPE_FUNCTION,
 						CLASS,
 						TYPE_ANY,
+						TYPE_ARRAY,
 						IDENTIFIER,
-						NIL
+						NIL,
 					)
 				) {
 					if(match(LESS)){
@@ -481,7 +511,7 @@ class Parser(val tokens: List<Token>, val lox: Lox) {
 						if(oneOnly){
 							throw error(firstToken, "Only bounds can be specified for pure type parameter.")
 						}
-						if (!checkType(TYPE_BOOLEAN, TYPE_STRING, TYPE_NUMBER, TYPE_FUNCTION, CLASS, TYPE_ANY, IDENTIFIER, NIL)) {
+						if (!checkType(TYPE_BOOLEAN, TYPE_STRING, TYPE_NUMBER, TYPE_FUNCTION, CLASS, TYPE_ANY, TYPE_ARRAY, IDENTIFIER, NIL, LESS)) {
 							throw error(firstToken, "Expected type for type parameter.")
 						}
 						additionalTypeParameter = getTypeTokens(false)
@@ -532,20 +562,52 @@ class Parser(val tokens: List<Token>, val lox: Lox) {
 	private fun assignment(): Expr {
 		val expr = orExpr()
 
-		if (match(EQUAL)) {
-			val equals = previous()
-			val value = assignment()
+		when {
+			match(EQUAL) -> {
+				val equals = previous()
+				val value = assignment()
 
-			if (expr is Variable) {
-				val name = expr.name
-				return Assign(name, value)
-			} else if (expr is Get) {
-				return Set(expr.obj, expr.name, value)
-			} else if(expr is DynamicGet) {
-				return DynamicSet(expr.obj, expr.what, value, previous())
+				if (expr is Variable) {
+					val name = expr.name
+					return Assign(name, value, EQUAL)
+				} else if (expr is Get) {
+					return Set(expr.obj, expr.name, value, EQUAL)
+				} else if(expr is DynamicGet) {
+					return DynamicSet(expr.obj, expr.what, value, previous(), EQUAL)
+				}
+
+				error(equals, "Invalid assignment target.")
 			}
+			match(PLUS_EQUAL) -> {
+				val equals = previous()
+				val value = assignment()
 
-			error(equals, "Invalid assignment target.")
+				if (expr is Variable) {
+					val name = expr.name
+					return Assign(name, value, PLUS_EQUAL)
+				} else if (expr is Get) {
+					return Set(expr.obj, expr.name, value, PLUS_EQUAL)
+				} else if(expr is DynamicGet) {
+					return DynamicSet(expr.obj, expr.what, value, previous(), PLUS_EQUAL)
+				}
+
+				error(equals, "Invalid assignment target.")
+			}
+			match(MINUS_EQUAL) -> {
+				val equals = previous()
+				val value = assignment()
+
+				if (expr is Variable) {
+					val name = expr.name
+					return Assign(name, value, MINUS_EQUAL)
+				} else if (expr is Get) {
+					return Set(expr.obj, expr.name, value, MINUS_EQUAL)
+				} else if(expr is DynamicGet) {
+					return DynamicSet(expr.obj, expr.what, value, previous(), MINUS_EQUAL)
+				}
+
+				error(equals, "Invalid assignment target.")
+			}
 		}
 
 		return expr
@@ -664,13 +726,25 @@ class Parser(val tokens: List<Token>, val lox: Lox) {
 	private fun lambda(): Expr {
 		val token = peek()
 		if(match(FUN)){
-			while (true) {
-				if (match(LEFT_PAREN)) {
-					return finishLambda(token)
-				} else {
-					break
-				}
+			//while (true) {
+
+			val typeParameters: MutableList<Param> = ArrayList()
+			if(match(LESS)){
+				do {
+					if (typeParameters.size >= 255) {
+						error(peek(), "Can't have more than 255 type parameters.")
+					}
+
+					val identifier = consume(IDENTIFIER, "Expected type parameter name.")
+					typeParameters.add(Param(identifier,Type.Parameter(identifier)))
+				} while (match(COMMA))
+				consume(GREATER, "Expected '>' after type parameter declaration.")
 			}
+
+			consume(LEFT_PAREN, "Expected '(' after lambda declaration")
+
+			return finishLambda(token, typeParameters)
+			//}
 		}
 		return call()
 	}
@@ -701,7 +775,20 @@ class Parser(val tokens: List<Token>, val lox: Lox) {
 //				expr = finishCall(expr, parameters)
 //			}
 			if (match(LEFT_PAREN)) {
-				expr = finishCall(expr)
+
+				val typeParameters: MutableList<Type> = ArrayList()
+				if(match(LESS)){
+					do {
+						if (typeParameters.size >= 255) {
+							error(peek(), "Can't have more than 255 type parameters.")
+						}
+
+						typeParameters.add(getType(function = false, noColon = true))
+					} while (match(COMMA))
+					consume(GREATER, "Expected '>' after type parameter declaration.")
+				}
+
+				expr = finishCall(expr, typeParameters)
 			} else if (match(DOT)) {
 				val name: Token = consume(IDENTIFIER, "Expected expression after '.'.")
 				expr = Get(expr, name)
@@ -717,7 +804,7 @@ class Parser(val tokens: List<Token>, val lox: Lox) {
 		return expr
 	}
 
-	private fun finishLambda(token: Token): Expr {
+	private fun finishLambda(token: Token, typeParameters: MutableList<Param>): Expr {
 		val parameters: MutableList<Param> = ArrayList()
 		if (!checkType(RIGHT_PAREN)) {
 			do {
@@ -737,10 +824,10 @@ class Parser(val tokens: List<Token>, val lox: Lox) {
 		consume(LEFT_BRACE, "Expected '{' before lambda body.")
 		val body = block()
 
-		return Lambda(Stmt.Function(Token(IDENTIFIER,"<lambda ${System.currentTimeMillis()}>", null, token.line, currentFile, token.pos), parameters, body, FunctionModifier.NORMAL, type))
+		return Lambda(Stmt.Function(Token(IDENTIFIER,"<lambda ${System.currentTimeMillis()}>", null, token.line, currentFile, token.pos), parameters, body, FunctionModifier.NORMAL, type, typeParameters))
 	}
 
-	private fun finishCall(callee: Expr): Expr {
+	private fun finishCall(callee: Expr, typeArguments: List<Type>): Expr {
 		val arguments: MutableList<Expr> = ArrayList()
 		if (!checkType(RIGHT_PAREN)) {
 			do {
@@ -756,7 +843,7 @@ class Parser(val tokens: List<Token>, val lox: Lox) {
 			"Expected ')' after arguments."
 		)
 
-		return Call(callee, paren, arguments)
+		return Call(callee, paren, arguments, typeArguments)
 	}
 
 	private fun primary(): Expr {

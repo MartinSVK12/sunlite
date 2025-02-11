@@ -110,9 +110,56 @@ class Interpreter(file: String?, val globals: Environment = Environment(null,0, 
 
 		val distance = locals[expr]
 		if (distance != null) {
-			environment.assignAt(distance, expr.name, value)
+			when(expr.operator){
+				EQUAL -> {
+					environment.assignAt(distance, expr.name, value)
+				}
+				PLUS_EQUAL -> {
+					val previous = environment.getAt(distance, expr.name.lexeme)
+					lox.typeChecker.checkType(Type.Union(listOf(Type.NUMBER, Type.STRING)), Type.fromValue(value, lox), expr.name)
+					lox.typeChecker.checkType(Type.Union(listOf(Type.NUMBER, Type.STRING)), Type.fromValue(previous, lox), expr.name)
+					if(previous is Double && value is Double){
+						environment.assignAt(distance, expr.name, previous + value)
+					} else if(previous is String) {
+						environment.assignAt(distance, expr.name, previous + value.toString())
+					}
+				}
+				MINUS_EQUAL -> {
+					val previous = environment.getAt(distance, expr.name.lexeme)
+					lox.typeChecker.checkType(Type.NUMBER, Type.fromValue(value, lox), expr.name)
+					lox.typeChecker.checkType(Type.NUMBER, Type.fromValue(previous, lox), expr.name)
+					if(previous is Double && value is Double){
+						environment.assignAt(distance, expr.name, previous - value)
+					}
+				}
+				else -> {}
+			}
+
 		} else {
-			globals.assign(expr.name, value)
+			when(expr.operator){
+				EQUAL -> {
+					environment.assign(expr.name, value)
+				}
+				PLUS_EQUAL -> {
+					val previous = environment.get(expr.name)
+					lox.typeChecker.checkType(Type.Union(listOf(Type.NUMBER, Type.STRING)), Type.fromValue(value, lox), expr.name)
+					lox.typeChecker.checkType(Type.Union(listOf(Type.NUMBER, Type.STRING)), Type.fromValue(previous, lox), expr.name)
+					if(previous is Double && value is Double){
+						environment.assign(expr.name, previous + value)
+					} else if(previous is String) {
+						environment.assign(expr.name, previous + value.toString())
+					}
+				}
+				MINUS_EQUAL -> {
+					val previous = environment.get(expr.name)
+					lox.typeChecker.checkType(Type.NUMBER, Type.fromValue(value, lox), expr.name)
+					lox.typeChecker.checkType(Type.NUMBER, Type.fromValue(previous, lox), expr.name)
+					if(previous is Double && value is Double){
+						environment.assign(expr.name, previous - value)
+					}
+				}
+				else -> {}
+			}
 		}
 
 		return value
@@ -168,6 +215,7 @@ class Interpreter(file: String?, val globals: Environment = Environment(null,0, 
 	}
 
 	fun interpret(statements: List<Stmt>, path: String?) {
+		if(lox.hadRuntimeError) return
 		currentFile = path
 		try {
 			for (statement in statements) {
@@ -175,6 +223,7 @@ class Interpreter(file: String?, val globals: Environment = Environment(null,0, 
 			}
 		} catch (error: LoxRuntimeError) {
 			lox.runtimeError(error)
+			return
 		}
 	}
 
@@ -185,7 +234,6 @@ class Interpreter(file: String?, val globals: Environment = Environment(null,0, 
 			lox.breakpointListeners.forEach { it.breakpointHit(stmt.getLine(),currentFile,lox,environment) }
 			breakpointHit = true
 			while (true){
-				println(continueExecution)
 				if(continueExecution) {
 					breakpointHit = false
 					continueExecution = false
@@ -316,7 +364,7 @@ class Interpreter(file: String?, val globals: Environment = Environment(null,0, 
 			methods[method.name.lexeme] = function
 		}
 
-		val clazz = LoxClass(stmt.name.lexeme, methods, stmt.fieldDefaults.associate { it.name.lexeme to LoxField(it.type, it.modifier, evaluate(it.initializer)) }, superclass as LoxClass?, superinterfaces, stmt.modifier, lox)
+		val clazz = LoxClass(stmt.name.lexeme, methods, stmt.fieldDefaults.associate { it.name.lexeme to LoxField(it.type, it.modifier, evaluate(it.initializer)) }, superclass as LoxClass?, superinterfaces, stmt.modifier, stmt.typeParameters, lox)
 
 		if (superclass != null) {
 			environment = environment.enclosing!!
@@ -374,14 +422,21 @@ class Interpreter(file: String?, val globals: Environment = Environment(null,0, 
 
 		val function: LoxCallable = callee
 
-		if (arguments.size != function.arity()) {
+		if (arguments.size != function.arity() && (function.varargs() && arguments.size < function.arity())) {
 			throw LoxRuntimeError(
 				expr.paren,
 				"Expected ${function.arity()} arguments but got ${arguments.size}."
 			)
 		}
 
-		return function.call(this, arguments)
+		if(expr.typeArguments.size != function.typeArity()) {
+			throw LoxRuntimeError(
+				expr.paren,
+				"Expected ${function.typeArity()} type arguments but got ${expr.typeArguments.size}."
+			)
+		}
+
+		return function.call(this, arguments, expr.typeArguments)
 	}
 
 	override fun visitLambdaExpr(expr: Expr.Lambda): Any {
@@ -409,10 +464,10 @@ class Interpreter(file: String?, val globals: Environment = Environment(null,0, 
 
 	override fun visitDynamicGetExpr(expr: Expr.DynamicGet): Any? {
 		val obj = evaluate(expr.obj)
-		val what: String = evaluate(expr.what).toString()
+		val what = evaluate(expr.what)
 
 		if (obj is LoxClassInstance) {
-			return obj.dynamicGet(what, expr.token)
+			return obj.dynamicGet(what.toString(), expr.token)
 		}
 
 		if (obj is LoxInterface){
@@ -422,9 +477,14 @@ class Interpreter(file: String?, val globals: Environment = Environment(null,0, 
 			)
 		}
 
+		if (obj is LoxArray) {
+			lox.typeChecker.checkType(Type.NUMBER,Type.fromValue(what, lox),expr.token,true)
+			return obj.get((what as Double).toInt(),expr.token)
+		}
+
 		throw LoxRuntimeError(
 			expr.token,
-			"Only classes or class instances have properties."
+			"Can only get either properties from classes or class instance, or elements from an array. Value is of type '${Type.fromValue(obj,lox)}'"
 		)
 	}
 
@@ -440,15 +500,23 @@ class Interpreter(file: String?, val globals: Environment = Environment(null,0, 
 	}
 
 	override fun visitDynamicSetExpr(expr: Expr.DynamicSet): Any? {
-		val obj = evaluate(expr.obj) as? LoxClassInstance ?: throw LoxRuntimeError(
-			expr.token,
-			"Only classes or class instances have fields."
-		)
-
-		val what = evaluate(expr.what).toString()
-
+		val obj = evaluate(expr.obj)
 		val value = evaluate(expr.value)
-		obj.dynamicSet(what, value, expr.token)
+
+		if(obj is LoxClassInstance) {
+			val what = evaluate(expr.what).toString()
+			obj.dynamicSet(what, value, expr.token)
+		} else if (obj is LoxArray) {
+			val index = evaluate(expr.what)
+			lox.typeChecker.checkType(Type.NUMBER,Type.fromValue(index, lox),expr.token,true)
+			obj.set((index as Double).toInt(), value, expr.token)
+		} else {
+			throw LoxRuntimeError(
+				expr.token,
+				"Can only set either fields on classes or class instances, or elements into an array. Value is of type '${Type.fromValue(obj,lox)}'"
+			)
+		}
+
 		return value
 	}
 

@@ -119,7 +119,7 @@ abstract class Stmt {
 		}
 	}
 
-	data class Function(val name: Token, val params: List<Param>, val body: List<Stmt>, var modifier: FunctionModifier, val returnType: Type) : Stmt(), NamedStmt{
+	data class Function(val name: Token, val params: List<Param>, val body: List<Stmt>, var modifier: FunctionModifier, val returnType: Type, val typeParams: List<Param>) : Stmt(), NamedStmt{
 		override fun <R> accept(visitor: Visitor<R>): R {
 			return visitor.visitFunctionStmt(this)
 		}

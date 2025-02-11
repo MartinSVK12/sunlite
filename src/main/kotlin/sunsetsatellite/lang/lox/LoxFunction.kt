@@ -8,7 +8,8 @@ class LoxFunction(
 
 	override fun call(
 		interpreter: Interpreter,
-		arguments: List<Any?>?
+		arguments: List<Any?>?,
+		typeArguments: List<Type>
 	): Any? {
 		val environment = Environment(closure,declaration.getLine(),signature(),declaration.getFile())
 		for (i in declaration.params.indices) {
@@ -41,9 +42,18 @@ class LoxFunction(
 		return declaration.params.size
 	}
 
+	override fun typeArity(): Int {
+		return declaration.typeParams.size
+	}
+
 	override fun signature(): String {
 		val thisClass = closure.getAt(0, "this") as LoxClassInstance?
-		return "${thisClass?.name() ?: ""}${if(thisClass != null) "::" else ""}${declaration.name.lexeme}"
+		return "${thisClass?.name() ?: ""}${if(thisClass != null) "::" else ""}${declaration.name.lexeme}(${if(declaration.typeParams.isNotEmpty()) "<${declaration.typeParams.joinToString(", ")}>" else ""} ${declaration.params.joinToString(", ")} ${if(declaration.returnType != Type.NIL) ": ${declaration.returnType}" else ""})"
+	}
+
+	override fun varargs(): Boolean {
+		//TODO: implement
+		return false
 	}
 
 	fun bind(instance: LoxClassInstance): LoxFunction {

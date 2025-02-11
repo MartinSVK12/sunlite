@@ -257,7 +257,7 @@ class TypeChecker(val collector: TypeCollector, val lox: Lox) : Stmt.Visitor<Uni
 
         if(actual == Type.UNKNOWN){
             if(runtime) {
-                throw LoxRuntimeError(token,"Unchecked cast, couldn't determine if ${if (expectedName != null) "'${expectedName}' of type is " else "type is "}'${expected.getName()}', got '${actual.getName()}'.")
+                throw LoxRuntimeError(token,"Casting failed, couldn't determine if ${if (expectedName != null) "'${expectedName}' of type is " else "type is "}'${expected.getName()}', got '${actual.getName()}'.")
             }
             lox.warn(token,"Unchecked cast, couldn't determine if ${if (expectedName != null) "'${expectedName}' of type is " else "type is "}'${expected.getName()}', got '${actual.getName()}'.")
             return

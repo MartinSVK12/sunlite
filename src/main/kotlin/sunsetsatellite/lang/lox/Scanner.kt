@@ -48,6 +48,7 @@ class Scanner(private val source: String, val lox: Lox) {
 			keywords["number"] = TYPE_NUMBER
 			keywords["boolean"] = TYPE_BOOLEAN
 			keywords["function"] = TYPE_FUNCTION
+			keywords["array"] = TYPE_ARRAY
 			keywords["as"] = AS
 			/*println(keywords.keys.joinToString(
                 separator = ", ",
@@ -85,15 +86,15 @@ class Scanner(private val source: String, val lox: Lox) {
 			']' -> addToken(RIGHT_BRACKET)
 			',' -> addToken(COMMA)
 			'.' -> addToken(DOT)
-			'-' -> addToken(MINUS) //addToken(if(match('+')) DECREMENT else MINUS)
-			'+' -> addToken(PLUS) //addToken(if(match('+')) INCREMENT else PLUS)
+			'-' -> addToken(if(match('=')) MINUS_EQUAL else MINUS)
+			'+' -> addToken(if(match('=')) PLUS_EQUAL else PLUS)
 			';' -> addToken(SEMICOLON)
 			'*' -> addToken(STAR)
 			':' -> addToken(COLON)
 			'|' -> addToken(PIPE)
 			'!' -> addToken(if(match('=')) BANG_EQUAL else BANG)
 			'=' -> addToken(if(match('=')) EQUAL_EQUAL else EQUAL)
-			'<' -> addToken(if(match('=')) LESS_EQUAL else if(match('<')) LESS_LESS else LESS)
+			'<' -> addToken(if(match('=')) LESS_EQUAL else if(match('|')) LESS_PIPE else LESS)
 			'>' -> addToken(if(match('=')) GREATER_EQUAL else GREATER)
 			'/' -> {
 				if(match('/')){

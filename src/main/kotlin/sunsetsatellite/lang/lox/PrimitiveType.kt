@@ -8,6 +8,7 @@ enum class PrimitiveType {
     FUNCTION,
     CLASS,
     OBJECT,
+    ARRAY,
     NIL,
     UNKNOWN; //static type checker failed to get a more concrete type
 
@@ -21,8 +22,9 @@ enum class PrimitiveType {
                 TokenType.TYPE_NUMBER -> NUMBER
                 TokenType.CLASS -> CLASS
                 TokenType.IDENTIFIER -> OBJECT
+                TokenType.TYPE_ARRAY -> ARRAY
                 TokenType.NIL -> NIL
-                else -> ANY
+                else -> UNKNOWN
             }
         }
     }

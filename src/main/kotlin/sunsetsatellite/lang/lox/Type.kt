@@ -15,12 +15,10 @@ abstract class Type {
         override fun equals(other: Any?): Boolean {
             if (this === other) return true
             if (other != null) {
-                if (!javaClass.isAssignableFrom(other.javaClass)) return false
+                if (other !is Singular) return false
             } else {
                 return false
             }
-
-            other as Singular
 
             if (type != other.type) return false
             if (ref != other.ref && ref != "") return false
@@ -125,16 +123,16 @@ abstract class Type {
                 if(tokens[0].pure){
                     return Parameter(tokens[0].token)
                 }
-                return if(tokens[0].token.type != TokenType.IDENTIFIER){
+                if(tokens[0].token.type != TokenType.IDENTIFIER){
                     if(tokens[0].token.type == TokenType.CLASS && tokens[0].typeParameters.isNotEmpty()){
-                        Reference(PrimitiveType.get(tokens[0].token), tokens[0].token.lexeme, listOf(of(tokens[0].typeParameters,lox)),lox)
+                        return Reference(PrimitiveType.get(tokens[0].token), tokens[0].token.lexeme, listOf(of(tokens[0].typeParameters,lox)),lox)
                     }
-                    Singular(PrimitiveType.get(tokens[0].token))
+                    return Singular(PrimitiveType.get(tokens[0].token))
                 } else {
                     if(tokens[0].typeParameters.isNotEmpty()){
-                        Reference(PrimitiveType.get(tokens[0].token), tokens[0].token.lexeme, listOf(of(tokens[0].typeParameters,lox)),lox)
+                        return Reference(PrimitiveType.get(tokens[0].token), tokens[0].token.lexeme, listOf(of(tokens[0].typeParameters,lox)),lox)
                     } else {
-                        Reference(PrimitiveType.get(tokens[0].token), tokens[0].token.lexeme, listOf(), lox)
+                        return Reference(PrimitiveType.get(tokens[0].token), tokens[0].token.lexeme, listOf(), lox)
                     }
                 }
             } else if (tokens.size > 1) {
@@ -151,7 +149,7 @@ abstract class Type {
                 if(type is Union) {
                     return inType.types.containsAll(type.types) || inType.types.contains(ANY)
                 } else {
-                    return inType.types.contains(type) || inType.types.contains(ANY)
+                    return inType.types.any { it.equals(type) } || inType.types.contains(ANY)
                 }
             } else {
                 return inType.equals(type) || inType == ANY
@@ -170,6 +168,7 @@ abstract class Type {
                 is LoxClass -> ofClass(value.name, lox)
                 is LoxInterface -> ofClass(value.name, lox)
                 is LoxClassInstance -> ofObject(value.name(), lox)
+                is LoxArray -> ARRAY
                 else -> UNKNOWN
             }
         }
@@ -177,6 +176,9 @@ abstract class Type {
         val UNKNOWN = Singular(PrimitiveType.UNKNOWN)
         val NIL = Singular(PrimitiveType.NIL)
         val ANY = Singular(PrimitiveType.ANY)
+        val CLASS = Singular(PrimitiveType.CLASS)
+        val OBJECT = Singular(PrimitiveType.OBJECT)
+        val ARRAY = Singular(PrimitiveType.ARRAY)
         val NULLABLE_ANY = Union(listOf(ANY,NIL))
         val NUMBER = Singular(PrimitiveType.NUMBER)
         val STRING = Singular(PrimitiveType.STRING)

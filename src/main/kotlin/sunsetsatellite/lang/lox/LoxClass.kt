@@ -1,5 +1,7 @@
 package sunsetsatellite.lang.lox
 
+import sunsetsatellite.vm.code.new
+
 
 class LoxClass(
     val name: String,
@@ -8,8 +10,9 @@ class LoxClass(
     val superclass: LoxClass?,
     val superinterfaces: List<LoxInterface>,
     val modifier: ClassModifier,
+    val typeParameters: List<Param>,
     lox: Lox
-): LoxClassInstance(null, lox), LoxCallable, LoxObject {
+): LoxClassInstance(null, lox, mapOf()), LoxCallable, LoxObject {
 
      val staticFields = mutableMapOf<String, LoxField>().let {
         it.putAll(fieldDefaults.filter { default -> default.value.modifier == FieldModifier.STATIC })
@@ -17,11 +20,19 @@ class LoxClass(
         return@let it
     }
 
-    override fun call(interpreter: Interpreter, arguments: List<Any?>?): Any {
-        val instance = LoxClassInstance(this, lox)
+    override fun call(interpreter: Interpreter, arguments: List<Any?>?, typeArguments: List<Type>): Any {
+
+        var i = 0
+        val runtimeTypeMap = typeParameters.associate {
+            val pair = it.token.lexeme to typeArguments[i]
+            i++
+            return@associate pair
+        }
+
+        val instance = LoxClassInstance(this, lox, runtimeTypeMap)
 
         val initializer = findMethod("init")
-        initializer?.bind(instance)?.call(interpreter, arguments)
+        initializer?.bind(instance)?.call(interpreter, arguments, typeArguments)
 
         return instance
     }
@@ -31,8 +42,16 @@ class LoxClass(
         return initializer.arity()
     }
 
+    override fun typeArity(): Int {
+        return typeParameters.size
+    }
+
     override fun signature(): String {
         return name
+    }
+
+    override fun varargs(): Boolean {
+        return false
     }
 
     fun findMethod(name: String): LoxFunction? {

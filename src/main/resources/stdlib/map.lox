@@ -1,0 +1,80 @@
+import "bag.lox";
+import "abstract_list.lox";
+
+class<K,V> Map << AbstractMap {
+    var _length: number = 0;
+    var _items: Bag = Bag();
+    
+    fun size(): number {
+        return this._length;
+    }
+    fun isEmpty(): boolean {
+        return this._length == 0;
+    }
+
+    fun put(key: <K>, value: <V>): <V>|nil {
+        var old: <V> = this._items[key];
+        this._items[key] = value;
+        if(old == nil and value != nil) {
+            this._length = this._length + 1;
+        } else if(old != nil and value == nil) {
+            this._length = this._length - 1;
+        }
+        return old;
+    }
+    fun get(key: <K>): <V>|nil {
+        return this._items[key];
+    }
+    fun getOrDefault(key: <K>, default: <V>): <V>|nil {
+        var obj = this._items[key];
+        if(obj == nil){
+            return default;
+        } else {
+            return obj;
+        }
+    }
+    fun remove(key: <K>): <V>|nil {
+        var old: <V> = this._items[key];
+        this._items[key] = nil;
+        this._length = this._length - 1;
+    }
+    fun contains(key: <K>): boolean {
+        return this._items[key] != nil;
+    }
+
+    fun replace(key: <K>, newValue: <V>): <V>|nil {
+        var old: <V> = this._items[key];
+        if(old == nil) {
+            return nil;
+        } else {
+            this._items[key] = value;
+            if(newValue == nil) {
+                this._length = this._length - 1;
+            }
+        }
+        return old;
+    }
+
+    fun clear() {
+        this._bag = Bag();
+        this._length = 0;
+    }
+
+    fun forEach(callback: function) {
+        return;
+    }
+    
+    fun computeIfAbsent(key: <K>, func: function) {
+        if(!this.contains(key)){
+            this.put(key, func(key));
+        }
+    }
+    fun computeIfPresent(key: <K>, func: function) {
+        if(this.contains(key)){
+            this.put(key, func(key));
+        }
+    }
+    fun compute(key: <K>, func: function) {
+        this.put(key, func(key));
+    }
+}

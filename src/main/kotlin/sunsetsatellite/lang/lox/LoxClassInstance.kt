@@ -1,7 +1,7 @@
 package sunsetsatellite.lang.lox
 
 
-open class LoxClassInstance(val clazz: LoxClass?, val lox: Lox): LoxObject {
+open class LoxClassInstance(val clazz: LoxClass?, val lox: Lox, val runtimeTypeParams: Map<String, Type>): LoxObject {
 
     val fields: MutableMap<String, LoxField> = mutableMapOf<String, LoxField>().let {
         if(clazz != null) {
@@ -65,7 +65,18 @@ open class LoxClassInstance(val clazz: LoxClass?, val lox: Lox): LoxObject {
     open fun set(name: Token, value: Any?) {
         if (fields.containsKey(name.lexeme)) {
             val field = fields[name.lexeme]!!
-            lox.typeChecker.checkType(field.type,Type.fromValue(value,lox),name,true)
+            var concreteType: Type = field.type
+            if(field.type is Type.Parameter){
+                if(runtimeTypeParams.containsKey(field.type.name.lexeme)){
+                    concreteType = runtimeTypeParams[field.type.name.lexeme]!!
+                } else {
+                    throw LoxRuntimeError(
+                        name,
+                        "Undefined type parameter '" + field.type + "'."
+                    )
+                }
+            }
+            lox.typeChecker.checkType(concreteType,Type.fromValue(value,lox),name,true)
             field.value = value
             return
         }

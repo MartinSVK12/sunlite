@@ -53,6 +53,7 @@ class Lox(val args: Array<String>) {
 						"debug" -> debug = true
 						"stacktrace" -> stacktrace = true
 						"warnStacktrace" -> warnStacktrace = true
+						"stdout" -> logToStdout = true
 					}
 				}
 				path.addAll(args[1].split(";"))
@@ -341,6 +342,7 @@ class Lox(val args: Array<String>) {
 		@Throws(IOException::class)
 		fun main(args: Array<String>) {
 			val lox = Lox(args)
+			logToStdout = true
 			lox.start()
 		}
 	}

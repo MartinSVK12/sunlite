@@ -93,7 +93,7 @@ abstract class Expr {
 		}
 	}*/
 
-	data class Assign(val name: Token, val value: Expr): Expr(), NamedExpr {
+	data class Assign(val name: Token, val value: Expr, val operator: TokenType): Expr(), NamedExpr {
 		override fun <R> accept(visitor: Visitor<R>): R? {
 			return visitor.visitAssignExpr(this)
 		}
@@ -125,7 +125,7 @@ abstract class Expr {
 		}
 	}
 
-	data class Call(val callee: Expr, val paren: Token, val arguments: List<Expr>): Expr() {
+	data class Call(val callee: Expr, val paren: Token, val arguments: List<Expr>, val typeArguments: List<Type>): Expr() {
 		override fun <R> accept(visitor: Visitor<R>): R? {
 			return visitor.visitCallExpr(this)
 		}
@@ -189,7 +189,7 @@ abstract class Expr {
 		}
 	}
 
-	data class Set(val obj: Expr, val name: Token, val value: Expr): Expr(), NamedExpr {
+	data class Set(val obj: Expr, val name: Token, val value: Expr, val operator: TokenType): Expr(), NamedExpr {
 		override fun <R> accept(visitor: Visitor<R>): R? {
 			return visitor.visitSetExpr(this)
 		}
@@ -207,7 +207,7 @@ abstract class Expr {
 		}
 	}
 
-	data class DynamicSet(val obj: Expr, val what: Expr, val value: Expr, val token: Token): Expr() {
+	data class DynamicSet(val obj: Expr, val what: Expr, val value: Expr, val token: Token, val operator: TokenType): Expr() {
 		override fun <R> accept(visitor: Visitor<R>): R? {
 			return visitor.visitDynamicSetExpr(this)
 		}
