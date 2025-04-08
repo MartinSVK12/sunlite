@@ -1,7 +1,7 @@
 import "bag.lox";
-import "abstract_list.lox";
+import "abstract_map.lox";
 
-class<K,V> Map << AbstractMap {
+class<K,V> Map implements AbstractMap {
     var _length: number = 0;
     var _items: Bag = Bag();
     

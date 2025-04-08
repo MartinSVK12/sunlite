@@ -50,6 +50,8 @@ class Scanner(private val source: String, val lox: Lox) {
 			keywords["function"] = TYPE_FUNCTION
 			keywords["array"] = TYPE_ARRAY
 			keywords["as"] = AS
+			keywords["extends"] = EXTENDS
+			keywords["implements"] = IMPLEMENTS
 			/*println(keywords.keys.joinToString(
                 separator = ", ",
                 transform = { "\"$it\"" }
@@ -94,7 +96,7 @@ class Scanner(private val source: String, val lox: Lox) {
 			'|' -> addToken(PIPE)
 			'!' -> addToken(if(match('=')) BANG_EQUAL else BANG)
 			'=' -> addToken(if(match('=')) EQUAL_EQUAL else EQUAL)
-			'<' -> addToken(if(match('=')) LESS_EQUAL else if(match('|')) LESS_PIPE else LESS)
+			'<' -> addToken(if(match('=')) LESS_EQUAL else LESS)
 			'>' -> addToken(if(match('=')) GREATER_EQUAL else GREATER)
 			'/' -> {
 				if(match('/')){

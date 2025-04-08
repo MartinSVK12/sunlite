@@ -1,7 +1,7 @@
 import "bag.lox";
 import "abstract_list.lox";
 
-class<T> List <| AbstractList {
+class<T> List implements AbstractList {
     var _length: number = 0;
     var _array: array<<T>>;
 

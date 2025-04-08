@@ -147,13 +147,13 @@ class Parser(val tokens: List<Token>, val lox: Lox) {
 		val name = consume(IDENTIFIER, "Expected class name.")
 
 		var superclass: Variable? = null
-		if (match(LESS)) {
+		if (match(EXTENDS)) {
 			consume(IDENTIFIER, "Expected superclass name.")
 			superclass = Variable(previous())
 		}
 
 		val superinterfaces: MutableList<Variable> = mutableListOf()
-		if (match(LESS_PIPE)) {
+		if (match(IMPLEMENTS)) {
 			do {
 				if (superinterfaces.size >= 255) {
 					error(peek(), "Can't inherit more than 255 superinterfaces.")
@@ -228,7 +228,7 @@ class Parser(val tokens: List<Token>, val lox: Lox) {
 		val name = consume(IDENTIFIER, "Expected class name.")
 
 		val superinterfaces: MutableList<Variable> = mutableListOf()
-		if (match(LESS_PIPE)) {
+		if (match(IMPLEMENTS)) {
 			do {
 				if (superinterfaces.size >= 255) {
 					error(peek(), "Can't inherit more than 255 superinterfaces.")
