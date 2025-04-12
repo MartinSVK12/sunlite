@@ -1,8 +1,5 @@
 package sunsetsatellite.lang.lox
 
-import sunsetsatellite.vm.code.new
-
-
 class LoxClass(
     val name: String,
     val methods: MutableMap<String, LoxFunction>,

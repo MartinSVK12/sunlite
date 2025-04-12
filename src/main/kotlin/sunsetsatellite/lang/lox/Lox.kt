@@ -1,5 +1,7 @@
 package sunsetsatellite.lang.lox
 
+import sunsetsatellite.vm.lox.*
+import sunsetsatellite.vm.lox.LoxFunction
 import java.io.BufferedReader
 import java.io.IOException
 import java.io.InputStreamReader
@@ -51,9 +53,11 @@ class Lox(val args: Array<String>) {
 				args[2].split(";").forEach {
 					when (it) {
 						"debug" -> debug = true
+						"byteDebug" -> bytecodeDebug = true
 						"stacktrace" -> stacktrace = true
 						"warnStacktrace" -> warnStacktrace = true
 						"stdout" -> logToStdout = true
+						"vm" -> useVM = true
 					}
 				}
 				path.addAll(args[1].split(";"))
@@ -139,6 +143,10 @@ class Lox(val args: Array<String>) {
 	}
 
 	private fun runString(source: String, path: String?) {
+		if(useVM){
+			runVM(source, path)
+			return
+		}
 		val shortPath = path?.split("/")?.last()
 
 		/*if(natives.isEmpty()){
@@ -244,6 +252,29 @@ class Lox(val args: Array<String>) {
 		interpreter!!.interpret(statements, shortPath)
 	}
 
+	private fun runVM(source: String, path: String?) {
+		val shortPath = path?.split("/")?.last()
+
+		val scanner = Scanner(source, this)
+		val tokens: List<Token> = scanner.scanTokens(shortPath)
+
+		val parser = Parser(tokens,this)
+		val statements = parser.parse(shortPath)
+
+		val vm = VM(this)
+
+		// Stop if there was a syntax error.
+		if (hadError) return
+
+		val compiler = Compiler(this, vm)
+
+		val program: LoxFunction = compiler.compile(statements, shortPath)
+
+		vm.call(LoxFuncObj(program),0)
+
+		vm.run()
+	}
+
 	fun error(line: Int, message: String) {
 		reportError(line, "", message, null)
 	}
@@ -327,6 +358,9 @@ class Lox(val args: Array<String>) {
 		var debug: Boolean = false
 
 		@JvmStatic
+		var bytecodeDebug: Boolean = false
+
+		@JvmStatic
 		var stacktrace: Boolean = false
 
 		@JvmStatic
@@ -337,6 +371,9 @@ class Lox(val args: Array<String>) {
 
 		@JvmStatic
 		var logToStdout = false
+
+		@JvmStatic
+		var useVM = false
 
 		@JvmStatic
 		@Throws(IOException::class)

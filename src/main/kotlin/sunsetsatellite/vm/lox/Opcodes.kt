@@ -1,0 +1,30 @@
+package sunsetsatellite.vm.lox
+
+enum class Opcodes {
+	NOP,
+	RETURN,
+	CONSTANT,
+	NEGATE,
+	ADD,
+	SUB,
+	MULTIPLY,
+	DIVIDE,
+	NIL,
+	TRUE,
+	FALSE,
+	NOT,
+	EQUAL,
+	GREATER,
+	LESS,
+	PRINT,
+	POP,
+	DEF_GLOBAL,
+	SET_GLOBAL,
+	GET_GLOBAL,
+	SET_LOCAL,
+	GET_LOCAL,
+	JUMP_IF_FALSE,
+	JUMP,
+	LOOP,
+	CALL
+}

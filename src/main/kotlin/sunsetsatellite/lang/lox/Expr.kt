@@ -1,6 +1,6 @@
 package sunsetsatellite.lang.lox
 
-abstract class Expr {
+abstract class Expr: Element {
 	data class Binary(val left: Expr, val operator: Token, val right: Expr) : Expr() {
 		override fun <R> accept(visitor: Visitor<R>): R? {
 			return visitor.visitBinaryExpr(this)
@@ -301,12 +301,9 @@ abstract class Expr {
 		fun visitCastExpr(expr: Cast): R
 	}
 
-	interface NamedExpr {
+	interface NamedExpr: Element {
 		fun getNameToken(): Token
 	}
 
 	abstract fun <R> accept(visitor: Visitor<R>): R?
-
-	abstract fun getLine(): Int
-	abstract fun getFile(): String?
 }

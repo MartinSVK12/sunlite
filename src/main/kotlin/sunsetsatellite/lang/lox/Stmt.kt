@@ -1,6 +1,6 @@
 package sunsetsatellite.lang.lox
 
-abstract class Stmt {
+abstract class Stmt: Element {
 
 	data class Expression(val expr: Expr) : Stmt() {
 		override fun <R> accept(visitor: Visitor<R>): R {
@@ -217,12 +217,9 @@ abstract class Stmt {
 		fun visitImportStmt(stmt: Import): R
 	}
 
-	interface NamedStmt {
+	interface NamedStmt: Element {
 		fun getNameToken(): Token
 	}
 
 	abstract fun <R> accept(visitor: Visitor<R>): R
-
-	abstract fun getLine(): Int
-	abstract fun getFile(): String?
 }

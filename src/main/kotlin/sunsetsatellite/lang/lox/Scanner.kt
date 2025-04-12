@@ -1,5 +1,6 @@
 package sunsetsatellite.lang.lox
 
+import sunsetsatellite.lang.lox.Lox.Companion.stacktrace
 import sunsetsatellite.lang.lox.TokenType.*
 
 
@@ -52,10 +53,6 @@ class Scanner(private val source: String, val lox: Lox) {
 			keywords["as"] = AS
 			keywords["extends"] = EXTENDS
 			keywords["implements"] = IMPLEMENTS
-			/*println(keywords.keys.joinToString(
-                separator = ", ",
-                transform = { "\"$it\"" }
-            ))*/
 		}
 	}
 
