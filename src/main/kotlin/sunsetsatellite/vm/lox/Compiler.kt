@@ -348,7 +348,7 @@ class Compiler(val lox: Lox, val vm: VM, val enclosing: Compiler?): Expr.Visitor
 	}
 
 	override fun visitLambdaExpr(expr: Expr.Lambda) {
-		TODO("Not yet implemented")
+		makeFunction(expr.function)
 	}
 
 	override fun visitGetExpr(expr: Expr.Get) {
