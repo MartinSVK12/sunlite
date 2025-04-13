@@ -50,31 +50,54 @@ object Disassembler {
 			Opcodes.JUMP -> return jumpInstruction(sb, opcode.name, 1, chunk, offset )
 			Opcodes.LOOP -> return jumpInstruction(sb, opcode.name, -1, chunk, offset )
 			Opcodes.CALL -> return byteInstruction(sb, opcode.name, chunk, offset )
-			else -> return offset + 1
+			Opcodes.CLOSURE -> return closureInstruction(sb, opcode.name, chunk, offset)
+			Opcodes.GET_UPVALUE -> return shortInstruction(sb, opcode.name, chunk, offset )
+			Opcodes.SET_UPVALUE -> return shortInstruction(sb, opcode.name, chunk, offset )
 		}
+	}
+
+	private fun closureInstruction(sb: StringBuilder, name: String, chunk: Chunk, startOffset: Int): Int {
+		var offset = startOffset
+		val constant = (chunk.code[offset + 1].toInt() shl 8) or chunk.code[offset + 2].toInt()
+		offset += 3
+		sb.append(String.format("%-16s (%02X) %4d '", name, Opcodes.valueOf(name).ordinal, constant))
+		if(constant > chunk.constants.size){
+			sb.append("<error reading constant>")
+		} else {
+			sb.append(chunk.constants[constant].toString())
+		}
+		sb.append("'\n")
+		val function = chunk.constants[constant] as LoxFuncObj
+		for (i in 0 until function.value.upvalueCount) {
+			val isLocal = chunk.code[offset++].toInt()
+			val index = (chunk.code[offset].toInt() shl 8) or chunk.code[offset + 1].toInt()
+			offset += 2
+			sb.append(String.format("%04d      L  %s %d\n", offset - 3, if(isLocal == 1) "local" else "upvalue", index))
+		}
+		return offset
 	}
 
 	private fun jumpInstruction(sb: StringBuilder, name: String, sign: Int, chunk: Chunk, offset: Int): Int {
 		val jmp = (chunk.code[offset + 1].toInt() shl 8) or chunk.code[offset + 2].toInt()
-		sb.append(String.format("%-16s %4d -> %d\n", name, offset, offset + 3 + sign * jmp))
+		sb.append(String.format("%-16s (%02X) %4d -> %d\n", name, Opcodes.valueOf(name).ordinal, offset, offset + 3 + sign * jmp))
 		return offset + 3
 	}
 
 	private fun byteInstruction(sb: StringBuilder, name: String, chunk: Chunk, offset: Int): Int {
 		val byte = chunk.code[offset + 1]
-		sb.append(String.format("%-16s %4d\n", name, byte))
+		sb.append(String.format("%-16s (%02X) %4d\n", name, Opcodes.valueOf(name).ordinal, byte))
 		return offset + 2
 	}
 
 	private fun shortInstruction(sb: StringBuilder, name: String, chunk: Chunk, offset: Int): Int {
 		val short = (chunk.code[offset + 1].toInt() shl 8) or chunk.code[offset + 2].toInt()
-		sb.append(String.format("%-16s %4d\n", name, short))
+		sb.append(String.format("%-16s (%02X) %4d\n", name, Opcodes.valueOf(name).ordinal, short))
 		return offset + 3
 	}
 
 	private fun constantInstruction(sb: StringBuilder, name: String, chunk: Chunk, offset: Int): Int {
 		val constant = (chunk.code[offset + 1].toInt() shl 8) or chunk.code[offset + 2].toInt()
-		sb.append(String.format("%-16s %4d '", name, constant))
+		sb.append(String.format("%-16s (%02X) %4d '", name, Opcodes.valueOf(name).ordinal, constant))
 		if(constant > chunk.constants.size){
 			sb.append("<error reading constant>")
 		} else {
@@ -85,7 +108,7 @@ object Disassembler {
 	}
 
 	private fun simpleInstruction(sb: StringBuilder, name: String, offset: Int): Int {
-		sb.append(String.format("%s\n", name))
+		sb.append(String.format("%-16s (%02X)\n", name, Opcodes.valueOf(name).ordinal))
 		return offset + 1
 	}
 

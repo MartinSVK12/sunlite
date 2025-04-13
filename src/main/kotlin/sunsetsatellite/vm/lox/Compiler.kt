@@ -3,15 +3,22 @@ package sunsetsatellite.vm.lox
 import sunsetsatellite.lang.lox.*
 import sunsetsatellite.lang.lox.TokenType.*
 
-class Compiler(val lox: Lox, val vm: VM): Expr.Visitor<Unit>, Stmt.Visitor<Unit> {
 
-	class Local(val name: Token, var depth: Int)
+class Compiler(val lox: Lox, val vm: VM, val enclosing: Compiler?): Expr.Visitor<Unit>, Stmt.Visitor<Unit> {
+
+	class Local(val name: Token, var depth: Int, var isCaptured: Boolean = false)
+
+	class Upvalue(val index: Int, val isLocal: Boolean)
 
 	var currentFile: String? = null
 	val chunk = MutableChunk()
 	val locals: MutableList<Local> = mutableListOf()
+	val upvalues: MutableList<Upvalue> = mutableListOf()
 	var localScopeDepth: Int = 0
 	var topLevel: Boolean = false
+
+	val incompleteBreaks: MutableList<Int> = mutableListOf()
+	val incompleteContinues: MutableList<Int> = mutableListOf()
 
 	fun compile(statements: List<Stmt>, path: String? = null, name: String = "", arity: Int = 0): LoxFunction {
 		currentFile = path
@@ -25,10 +32,21 @@ class Compiler(val lox: Lox, val vm: VM): Expr.Visitor<Unit>, Stmt.Visitor<Unit>
 			chunk.debugInfo.name = name
 		}
 
+		emitByte(Opcodes.NIL,statements.lastOrNull());
+		emitByte(Opcodes.RETURN,statements.lastOrNull());
+
 		if(Lox.debug){
 			lox.printInfo(Disassembler.disassembleChunk(chunk.toImmutable()))
 		}
-		return LoxFunction(name, chunk.toImmutable(), arity)
+
+		incompleteBreaks.forEach {
+			lox.error(chunk.debugInfo.lines[it], "Unexpected 'break' outside of loop.", chunk.debugInfo.file)
+		}
+		incompleteContinues.forEach {
+			lox.error(chunk.debugInfo.lines[it], "Unexpected 'continue' outside of loop.", chunk.debugInfo.file)
+		}
+
+		return LoxFunction(name, chunk.toImmutable(), arity, upvalues.size)
 	}
 
 	private fun compile(stmt: Stmt) {
@@ -50,9 +68,9 @@ class Compiler(val lox: Lox, val vm: VM): Expr.Visitor<Unit>, Stmt.Visitor<Unit>
 	}
 
 
-	private fun emitByte(byte: Opcodes, expr: Element) {
+	private fun emitByte(byte: Opcodes, expr: Element?) {
 		chunk.code.add(byte.ordinal.toByte())
-		chunk.debugInfo.lines.add(expr.getLine())
+		chunk.debugInfo.lines.add(expr?.getLine() ?: 0)
 	}
 
 	private fun emitShort(short: Int, expr: Element) {
@@ -214,15 +232,19 @@ class Compiler(val lox: Lox, val vm: VM): Expr.Visitor<Unit>, Stmt.Visitor<Unit>
 		if(arg != -1){
 			getOp = Opcodes.GET_LOCAL
 		} else {
-			arg = addConstant(LoxString(expr.name.lexeme),expr)
-			getOp = Opcodes.GET_GLOBAL
+			arg = resolveUpvalue(enclosing, expr)
+			if(arg != -1){
+				getOp = Opcodes.GET_UPVALUE
+			} else {
+				arg = addConstant(LoxString(expr.name.lexeme),expr)
+				getOp = Opcodes.GET_GLOBAL
+			}
 		}
-
 		emitByte(getOp, expr)
 		emitShort(arg, expr)
 	}
 
-	fun resolveLocal(expr: Expr.NamedExpr): Int {
+	private fun resolveLocal(expr: Expr.NamedExpr): Int {
 		for ((i, local) in locals.withIndex()) {
 			if(local.name.lexeme == expr.getNameToken().lexeme){
 				if(local.depth == -1){
@@ -235,6 +257,41 @@ class Compiler(val lox: Lox, val vm: VM): Expr.Visitor<Unit>, Stmt.Visitor<Unit>
 		return -1
 	}
 
+	private fun resolveUpvalue(compiler: Compiler?, expr: Expr.NamedExpr): Int {
+		if(compiler == null) return -1;
+		val local: Int = compiler.resolveLocal(expr)
+		if(local != -1){
+			compiler.locals[local].isCaptured = true
+			return addUpvalue(local, true, expr)
+		}
+
+		val upvalue: Int = resolveUpvalue(compiler.enclosing, expr)
+		if(upvalue != -1){
+			return addUpvalue(upvalue, false, expr)
+		}
+
+		return -1
+	}
+
+	private fun addUpvalue(local: Int, isLocal: Boolean, expr: Expr.NamedExpr): Int {
+
+		for (i in 0 until upvalues.size) {
+			val upvalue = upvalues[i]
+			if(upvalue.index == local && upvalue.isLocal == isLocal){
+				return i
+			}
+		}
+
+		if (upvalues.size >= Short.MAX_VALUE) {
+			lox.error(expr.getNameToken(),"Too many upvalues in function.");
+			return 0;
+		}
+
+
+		upvalues.add(Upvalue(local, isLocal))
+		return upvalues.size-1
+	}
+
 	override fun visitAssignExpr(expr: Expr.Assign) {
 		val setOp: Opcodes
 
@@ -242,10 +299,14 @@ class Compiler(val lox: Lox, val vm: VM): Expr.Visitor<Unit>, Stmt.Visitor<Unit>
 		if(arg != -1){
 			setOp = Opcodes.SET_LOCAL
 		} else {
-			arg = addConstant(LoxString(expr.name.lexeme),expr);
-			setOp = Opcodes.SET_GLOBAL
+			arg = resolveUpvalue(enclosing, expr)
+			if(arg != -1){
+				setOp = Opcodes.SET_UPVALUE
+			} else {
+				arg = addConstant(LoxString(expr.name.lexeme),expr);
+				setOp = Opcodes.SET_GLOBAL
+			}
 		}
-
 		compile(expr.value)
 		emitByte(setOp, expr)
 		emitShort(arg, expr)
@@ -401,7 +462,13 @@ class Compiler(val lox: Lox, val vm: VM): Expr.Visitor<Unit>, Stmt.Visitor<Unit>
 
 	private fun endScope(e: Element){
 		localScopeDepth--
-		locals.removeIf { emitByte(Opcodes.POP, e); return@removeIf it.depth > localScopeDepth }
+		locals.removeIf {
+			if(it.depth > localScopeDepth){
+				emitByte(Opcodes.POP, e)
+				return@removeIf true
+			}
+			return@removeIf false
+		}
 	}
 
 	override fun visitIfStmt(stmt: Stmt.If) {
@@ -424,19 +491,45 @@ class Compiler(val lox: Lox, val vm: VM): Expr.Visitor<Unit>, Stmt.Visitor<Unit>
 
 		val exitJump = emitJump(Opcodes.JUMP_IF_FALSE, stmt)
 		emitByte(Opcodes.POP, stmt)
-		compile(stmt.body)
+		val body: Stmt.Block = stmt.body as Stmt.Block
+		if(body.statements.isNotEmpty()) {
+			compile(body.statements[0])
+			if( //for loop
+				body.statements.size == 2 &&
+				body.statements[0] is Stmt.Block &&
+				body.statements[1] is Stmt.Expression &&
+				(body.statements[1] as Stmt.Expression).expr is Expr.Assign
+			) {
+				incompleteContinues.forEach {
+					patchJump(it, stmt)
+				}
+				incompleteContinues.clear()
+				compile(body.statements[1])
+			} else { //normal while loop
+				val list = body.statements.subList(1, body.statements.size)
+				list.forEach { compile(it) }
+				incompleteContinues.forEach {
+					patchJump(it, stmt)
+				}
+				incompleteContinues.clear()
+			}
+		}
+
 		emitLoop(loopStart, stmt)
 
 		patchJump(exitJump, stmt)
 		emitByte(Opcodes.POP, stmt)
+
+		incompleteBreaks.forEach { patchJump(it, stmt) }
+		incompleteBreaks.clear()
 	}
 
 	override fun visitBreakStmt(stmt: Stmt.Break) {
-		TODO("Not yet implemented")
+		incompleteBreaks.add(emitJump(Opcodes.JUMP, stmt))
 	}
 
 	override fun visitContinueStmt(stmt: Stmt.Continue) {
-		TODO("Not yet implemented")
+		incompleteContinues.add(emitJump(Opcodes.JUMP, stmt))
 	}
 
 	override fun visitFunctionStmt(stmt: Stmt.Function) {
@@ -447,7 +540,7 @@ class Compiler(val lox: Lox, val vm: VM): Expr.Visitor<Unit>, Stmt.Visitor<Unit>
 	}
 
 	private fun makeFunction(stmt: Stmt.Function){
-		val compiler = Compiler(lox,vm)
+		val compiler = Compiler(lox,vm,this)
 		compiler.beginScope(stmt)
 		for (param in stmt.params) {
 			val constantIndex = compiler.makeVariable(param.token, stmt)
@@ -455,8 +548,12 @@ class Compiler(val lox: Lox, val vm: VM): Expr.Visitor<Unit>, Stmt.Visitor<Unit>
 		}
 
 		val function: LoxFunction = compiler.compile(stmt.body, currentFile, stmt.name.lexeme, stmt.params.size)
-		emitByte(Opcodes.CONSTANT, stmt)
+		emitByte(Opcodes.CLOSURE, stmt)
 		emitShort(addConstant(LoxFuncObj(function),stmt),stmt)
+		for (upvalue in compiler.upvalues) {
+			emitByte(if(upvalue.isLocal) 1 else 0, stmt)
+			emitShort(upvalue.index, stmt)
+		}
 	}
 
 	override fun visitReturnStmt(stmt: Stmt.Return) {

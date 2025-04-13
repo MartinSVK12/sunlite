@@ -2,7 +2,7 @@ package sunsetsatellite.vm.lox
 
 import java.util.*
 
-class CallFrame(val function: LoxFunction, val locals: Array<AnyLoxValue>) {
+class CallFrame(val closure: LoxClosure/*, val locals: Array<AnyLoxValue>*/) {
 	var pc: Int = 0
 	val stack: Stack<AnyLoxValue> = Stack()
 

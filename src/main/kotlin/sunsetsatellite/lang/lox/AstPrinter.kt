@@ -170,7 +170,8 @@ object AstPrinter : Expr.Visitor<String>, Stmt.Visitor<String> {
 	}
 
 	override fun visitIfStmt(stmt: Stmt.If): String {
-		return parenthesize("if", stmt.condition, listOf(stmt.thenBranch))
+		val thenBranch = parenthesize("if", stmt.condition, listOf(stmt.thenBranch))
+		return thenBranch + if(stmt.elseBranch != null) parenthesize("else\n", null, listOf(stmt.elseBranch)) else ""
 	}
 
 	override fun visitWhileStmt(stmt: Stmt.While): String {

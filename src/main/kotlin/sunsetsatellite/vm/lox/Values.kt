@@ -118,6 +118,32 @@ class LoxFuncObj(value: LoxFunction) : LoxObj<LoxFunction>(value) {
 	}
 }
 
+class LoxClosureObj(value: LoxClosure) : LoxObj<LoxClosure>(value) {
+	override fun equals(other: Any?): Boolean {
+		if (other !is LoxClosureObj) return false
+		return other.value == value
+	}
+
+	override fun hashCode(): Int {
+		return javaClass.hashCode()
+	}
+}
+
+class LoxUpvalueObj(value: LoxUpvalue) : LoxObj<LoxUpvalue>(value) {
+	override fun equals(other: Any?): Boolean {
+		if (other !is LoxUpvalue) return false
+		return super.equals(other)
+	}
+
+	override fun hashCode(): Int {
+		return javaClass.hashCode()
+	}
+
+	override fun toString(): String {
+		return "<upvalue>"
+	}
+}
+
 class LoxNativeFuncObj(value: LoxNativeFunction) : LoxObj<LoxNativeFunction>(value) {
 	override fun equals(other: Any?): Boolean {
 		if (other !is LoxNativeFuncObj) return false

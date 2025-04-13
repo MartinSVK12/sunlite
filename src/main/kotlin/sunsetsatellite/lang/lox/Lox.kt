@@ -261,22 +261,41 @@ class Lox(val args: Array<String>) {
 		val parser = Parser(tokens,this)
 		val statements = parser.parse(shortPath)
 
-		val vm = VM(this)
-
 		// Stop if there was a syntax error.
 		if (hadError) return
 
-		val compiler = Compiler(this, vm)
+		if(debug) {
+			printInfo("AST: ")
+			printInfo("-----")
+			statements.forEach {
+				printInfo(AstPrinter.print(it))
+			}
+			printInfo("-----")
+			printInfo()
+		}
+
+		val vm = VM(this)
+
+		val compiler = Compiler(this, vm, null)
 
 		val program: LoxFunction = compiler.compile(statements, shortPath)
 
-		vm.call(LoxFuncObj(program),0)
+		// Stop if there was a compilation error.
+		if (hadError) return
 
-		vm.run()
+		vm.call(LoxClosureObj(LoxClosure(program)),0)
+
+		try {
+			vm.run()
+		} catch (e: Exception) {
+			vm.runtimeError("internal vm error: $e")
+			e.printStackTrace()
+		}
+
 	}
 
-	fun error(line: Int, message: String) {
-		reportError(line, "", message, null)
+	fun error(line: Int, message: String, file: String? = null) {
+		reportError(line, "", message, file ?: "<unknown file>")
 	}
 
 	fun error(token: Token, message: String) {
