@@ -286,7 +286,7 @@ static InterpretResult run() {
 
 void push(Value value) {
 	if (vm.stackTop - vm.stack >= STACK_MAX - 1) {
-		printf("clox: stack overflow");
+		printf("sunlite: stack overflow");
 		exit(1);
 	}
 	*vm.stackTop = value;
@@ -295,7 +295,7 @@ void push(Value value) {
 
 Value pop() {
 	if (vm.stackTop - vm.stack == 0) {
-		printf("clox: stack underflow");
+		printf("sunlite: stack underflow");
 		exit(1);
 	}
 	vm.stackTop--;

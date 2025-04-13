@@ -1,5 +1,5 @@
-A custom Lox interpreter with several additional features (and in the future, also a language virtual machine) written in Kotlin. 
+An interpreter and bytecode virtual machine for the Sunlite programming language.
 
-- Lox - https://craftinginterpreters.com/, https://github.com/munificent/craftinginterpreters
+- Inspired and based off of Lox - https://craftinginterpreters.com/, https://github.com/munificent/craftinginterpreters
 
 Why? For fun.

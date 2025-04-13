@@ -16,7 +16,7 @@ void * reallocate(void *pointer, size_t oldSize, size_t newSize) {
 
 	void* result = realloc(pointer, newSize);
 	if (result == NULL) {
-		printf("clox: allocation failed: out of memory");
+		printf("sunlite: allocation failed: out of memory");
 		exit(1);
 	}
 	return result;
