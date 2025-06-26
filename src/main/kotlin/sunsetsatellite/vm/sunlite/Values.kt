@@ -107,6 +107,17 @@ class SLString(value: String) : SLObj<String>(value) {
 	}
 }
 
+class SLArrayObj(value: SLArray) : SLObj<SLArray>(value) {
+	override fun equals(other: Any?): Boolean {
+		if (other !is SLArrayObj) return false
+		return other.value == value
+	}
+
+	override fun hashCode(): Int {
+		return javaClass.hashCode()
+	}
+}
+
 class SLFuncObj(value: SLFunction) : SLObj<SLFunction>(value) {
 	override fun equals(other: Any?): Boolean {
 		if (other !is SLFuncObj) return false

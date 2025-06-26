@@ -1,6 +1,5 @@
 package sunsetsatellite.lang.sunlite
 
-import sunsetsatellite.interpreter.sunlite.*
 import sunsetsatellite.vm.sunlite.*
 import sunsetsatellite.vm.sunlite.SLFunction
 import java.io.BufferedReader
@@ -18,19 +17,9 @@ class Sunlite(val args: Array<String>) {
 
 	var hadRuntimeError: Boolean = false
 
-	var interpreter: Interpreter? = null
-
-	val typeCollector: TypeCollector = TypeCollector(this)
-
-	val typeChecker: TypeChecker = TypeChecker(typeCollector,this)
-
 	val path: MutableList<String> = mutableListOf()
 
 	val imports: MutableMap<String,List<Stmt>> = mutableMapOf()
-
-	val natives: MutableMap<String, NativeFunction<*>> = mutableMapOf()
-
-	val globals: MutableMap<String, LoxCallable> = mutableMapOf()
 
 	val logEntryReceivers: MutableList<LogEntryReceiver> = mutableListOf()
 	val breakpointListeners: MutableList<BreakpointListener> = mutableListOf()
@@ -58,7 +47,6 @@ class Sunlite(val args: Array<String>) {
 						"stacktrace" -> stacktrace = true
 						"warnStacktrace" -> warnStacktrace = true
 						"stdout" -> logToStdout = true
-						"vm" -> useVM = true
 					}
 				}
 				path.addAll(args[1].split(";"))
@@ -68,55 +56,6 @@ class Sunlite(val args: Array<String>) {
 				runPrompt()
 			}
 		}
-	}
-
-	fun parse(code: String? = null): Pair<List<Token>,List<Stmt>>? {
-		val filePath = args[0]
-		path.addAll(args[1].split(";"))
-
-		val data: String = code ?: String(Files.readAllBytes(Paths.get(filePath)), Charset.defaultCharset())
-
-		val shortPath = filePath.split("/").last()
-
-		/*if(natives.isEmpty()){
-            natives.putAll(NativeList.registerNatives())
-        }*/
-
-		val env = Environment(null, 0, "<global env>", shortPath)
-		Globals.registerGlobals(env)
-		if(globals.isNotEmpty()){
-			globals.forEach { (k, v) -> env.define(k, v) }
-		}
-		interpreter = Interpreter(shortPath,env,this)
-
-		val scanner = Scanner(data, this)
-		val tokens: List<Token> = scanner.scanTokens(shortPath)
-
-		val parser = Parser(tokens,this)
-		val statements = parser.parse(shortPath)
-
-		// Stop if there was a syntax error.
-		if (hadError) return null
-
-		val resolver = Resolver(interpreter!!,this)
-		resolver.resolve(statements, shortPath)
-
-		// Stop if there was a resolution error.
-		if (hadError) return null
-
-		typeCollector.collect(statements, shortPath)
-
-		// Stop if there was a collection error.
-		if (hadError) return null
-
-		typeChecker.check(statements, shortPath)
-
-		// Stop if there was a type error.
-		if (hadError) return null
-
-		filePath.let { imports[it] = statements }
-
-		return tokens to statements
 	}
 
 	@Throws(IOException::class)
@@ -144,113 +83,8 @@ class Sunlite(val args: Array<String>) {
 	}
 
 	private fun runString(source: String, path: String?) {
-		if(useVM){
-			runVM(source, path)
-			return
-		}
-		val shortPath = path?.split("/")?.last()
-
-		/*if(natives.isEmpty()){
-            natives.putAll(NativeList.registerNatives())
-        }*/
-
-		if(debug) {
-			printInfo("Load Path: ")
-			printInfo("--------")
-			this.path.forEach { printInfo(it) }
-			printInfo("--------")
-			printInfo()
-		}
-
-		val env = Environment(null, 0, "<global env>", shortPath)
-		Globals.registerGlobals(env)
-		if(globals.isNotEmpty()){
-			globals.forEach { (k, v) -> env.define(k, v) }
-		}
-		interpreter = Interpreter(shortPath,env,this)
-
-		val scanner = Scanner(source, this)
-		val tokens: List<Token> = scanner.scanTokens(shortPath)
-
-		if(debug){
-			printInfo("Tokens: ")
-			printInfo("--------")
-			val builder: StringBuilder = StringBuilder()
-			tokens.forEachIndexed { i, it ->
-				builder.append("($it)")
-				if(tokens.size-1 > i) builder.append(", ")
-				if(i != 0 && i % 10 == 0) builder.append("\n")
-			}
-			printInfo(builder.toString())
-			printInfo("--------")
-			printInfo()
-		}
-
-
-		val parser = Parser(tokens,this)
-		val statements = parser.parse(shortPath)
-
-		// Stop if there was a syntax error.
-		if (hadError) return
-
-		val resolver = Resolver(interpreter!!,this)
-		resolver.resolve(statements, shortPath)
-
-		// Stop if there was a resolution error.
-		if (hadError) return
-
-		typeCollector.collect(statements, shortPath)
-
-		if(debug){
-			printInfo("Types: ")
-			printInfo("--------")
-			typeCollector.info.forEach { printInfo(it) }
-			printInfo("--------")
-			printInfo()
-		}
-
-		if(debug) {
-			printInfo("Type hierarchy: ")
-			printInfo("--------")
-			typeCollector.typeHierarchy.forEach { printInfo(it) }
-			printInfo("--------")
-			printInfo()
-		}
-
-		// Stop if there was a collection error.
-		if (hadError) return
-
-		typeChecker.check(statements, shortPath)
-
-		// Stop if there was a type error.
-		if (hadError) return
-
-		if(debug) {
-			printInfo("AST: ")
-			printInfo("-----")
-			statements.forEach {
-				printInfo(AstPrinter.print(it))
-			}
-			printInfo("-----")
-			printInfo()
-		}
-
-
-		try {
-			// Evaluate a single expression
-			if (statements.size == 1 && statements[0] is Stmt.Expression) {
-				val evaluated = interpreter!!.evaluate((statements[0] as Stmt.Expression).expr)
-				printInfo(interpreter!!.stringify(evaluated))
-				return
-			}
-		} catch (error: LoxRuntimeError) {
-			runtimeError(error)
-			return
-		}
-
-		path?.let { imports[it] = statements }
-
-		interpreter!!.interpret(statements, shortPath)
+		runVM(source, path)
+		return
 	}
 
 	private fun runVM(source: String, path: String?) {
@@ -315,7 +149,6 @@ class Sunlite(val args: Array<String>) {
 		}
 	}
 
-
 	private fun reportError(
 		line: Int, where: String,
 		message: String, file: String?
@@ -340,23 +173,6 @@ class Sunlite(val args: Array<String>) {
 		if(warnStacktrace) {
 			Exception("sunlite warn internal stack trace").printStackTrace()
 		}
-	}
-
-	fun runtimeError(error: LoxRuntimeError) {
-		if (error.token.type == TokenType.EOF) {
-			val s = "[${error.token.file}, line ${error.token.line}] Error at end: ${error.message}"
-			printErr(s)
-		} else {
-			val s = "[${error.token.file}, line ${error.token.line}] Error at '${error.token.lexeme}': ${error.message}"
-			printErr(s)
-		}
-
-
-		if(stacktrace) {
-			error.printStackTrace()
-		}
-
-		hadRuntimeError = true
 	}
 
 	fun printInfo(message: Any? = "") {
@@ -391,9 +207,6 @@ class Sunlite(val args: Array<String>) {
 
 		@JvmStatic
 		var logToStdout = false
-
-		@JvmStatic
-		var useVM = false
 
 		@JvmStatic
 		@Throws(IOException::class)
