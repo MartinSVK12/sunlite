@@ -284,7 +284,7 @@ class Sunlite(val args: Array<String>) {
 		// Stop if there was a compilation error.
 		if (hadError) return
 
-		vm.call(SunliteClosureObj(SLClosure(program)),0)
+		vm.call(SLClosureObj(SLClosure(program)),0)
 
 		try {
 			vm.run()

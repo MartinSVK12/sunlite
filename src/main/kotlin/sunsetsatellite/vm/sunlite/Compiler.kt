@@ -159,7 +159,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?): Expr
 	}
 
 	private fun addIdentifier(string: String, e: Element): Int {
-		return addConstant(SunliteString(string), e)
+		return addConstant(SLString(string), e)
 	}
 
 	override fun visitBinaryExpr(expr: Expr.Binary) {
@@ -233,10 +233,10 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?): Expr
 				}
 			}
 			is Double -> {
-				emitConstant(SunliteNumber(expr.value),expr)
+				emitConstant(SLNumber(expr.value),expr)
 			}
 			is String -> {
-				emitConstant(SunliteString(expr.value),expr)
+				emitConstant(SLString(expr.value),expr)
 			}
 			null -> {
 				emitByte(Opcodes.NIL, expr)
@@ -479,7 +479,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?): Expr
 		declareVariable(token, stmt)
 		if(localScopeDepth > 0) return 0;
 
-		return addConstant(SunliteString(token.lexeme),stmt)
+		return addConstant(SLString(token.lexeme),stmt)
 	}
 
 	private fun declareVariable(token: Token, stmt: Stmt.NamedStmt){
@@ -607,7 +607,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?): Expr
 
 		val function: SLFunction = compiler.compile(stmt.type, stmt.body, currentFile, stmt.name.lexeme, stmt.params.size)
 		emitByte(Opcodes.CLOSURE, stmt)
-		emitShort(addConstant(SunliteFuncObj(function),stmt),stmt)
+		emitShort(addConstant(SLFuncObj(function),stmt),stmt)
 		for (upvalue in compiler.upvalues) {
 			emitByte(if(upvalue.isLocal) 1 else 0, stmt)
 			emitShort(upvalue.index, stmt)

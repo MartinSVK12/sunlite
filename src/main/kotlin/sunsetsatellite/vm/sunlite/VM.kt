@@ -13,28 +13,28 @@ class VM(val sunlite: Sunlite): Runnable {
 		val openUpvalues: MutableList<SLUpvalue> = mutableListOf()
 
 		fun arrayOfNils(size: Int): Array<AnySunliteValue> {
-			return Array(size) { SunliteNil }
+			return Array(size) { SLNil }
 		}
 	}
 
 	init {
 		defineNative(object : SLNativeFunction("clock",0) {
 			override fun call(vm: VM, args: Array<AnySunliteValue>): AnySunliteValue {
-				return SunliteNumber(System.currentTimeMillis().toDouble() / 1000)
+				return SLNumber(System.currentTimeMillis().toDouble() / 1000)
 			}
 		})
 
 		defineNative(object : SLNativeFunction("print",1) {
 			override fun call(vm: VM, args: Array<AnySunliteValue>): AnySunliteValue {
 				val value = args[0]
-				println(if(value is SunliteString) value.value else value.toString())
-				return SunliteNil
+				println(if(value is SLString) value.value else value.toString())
+				return SLNil
 			}
 		})
 
 		defineNative(object : SLNativeFunction("str",1) {
 			override fun call(vm: VM, args: Array<AnySunliteValue>): AnySunliteValue {
-				return SunliteString(args[0].toString())
+				return SLString(args[0].toString())
 			}
 		})
 	}
@@ -42,7 +42,7 @@ class VM(val sunlite: Sunlite): Runnable {
 	val frameStack: Stack<CallFrame> = Stack()
 
 	fun defineNative(function: SLNativeFunction){
-		globals[function.name] = SunliteNativeFuncObj(function)
+		globals[function.name] = SLNativeFuncObj(function)
 	}
 
 	override fun run(){
@@ -81,20 +81,20 @@ class VM(val sunlite: Sunlite): Runnable {
 				}
 				Opcodes.CONSTANT -> fr.push(readConstant(fr))
 				Opcodes.NEGATE -> {
-					if(fr.peek() !is SunliteNumber){
+					if(fr.peek() !is SLNumber){
 						runtimeError("Operand must be a number.")
 						return
 					}
-					fr.push(-(fr.pop() as SunliteNumber))
+					fr.push(-(fr.pop() as SLNumber))
 				}
 				Opcodes.ADD -> {
-					if(fr.peek() is SunliteString && fr.peek(1) is SunliteString){
-						val right = fr.pop() as SunliteString
-						val left = fr.pop() as SunliteString
+					if(fr.peek() is SLString && fr.peek(1) is SLString){
+						val right = fr.pop() as SLString
+						val left = fr.pop() as SLString
 						fr.push(left + right)
-					} else if(fr.peek() is SunliteNumber && fr.peek(1) is SunliteNumber){
-						val right = fr.pop() as SunliteNumber
-						val left = fr.pop() as SunliteNumber
+					} else if(fr.peek() is SLNumber && fr.peek(1) is SLNumber){
+						val right = fr.pop() as SLNumber
+						val left = fr.pop() as SLNumber
 						fr.push(left + right)
 					} else {
 						runtimeError("Operands must be numbers or strings.")
@@ -102,59 +102,59 @@ class VM(val sunlite: Sunlite): Runnable {
 					}
 				}
 				Opcodes.SUB -> {
-					if(fr.peek() !is SunliteNumber || fr.peek(1) !is SunliteNumber){
+					if(fr.peek() !is SLNumber || fr.peek(1) !is SLNumber){
 						runtimeError("Operands must be a number.")
 						return
 					}
-					val right = fr.pop() as SunliteNumber
-					val left = fr.pop() as SunliteNumber
+					val right = fr.pop() as SLNumber
+					val left = fr.pop() as SLNumber
 					fr.push(left - right)
 				}
 				Opcodes.MULTIPLY -> {
-					if(fr.peek() !is SunliteNumber || fr.peek(1) !is SunliteNumber){
+					if(fr.peek() !is SLNumber || fr.peek(1) !is SLNumber){
 						runtimeError("Operands must be a number.")
 						return
 					}
-					val right = fr.pop() as SunliteNumber
-					val left = fr.pop() as SunliteNumber
+					val right = fr.pop() as SLNumber
+					val left = fr.pop() as SLNumber
 					fr.push(left * right)
 				}
 				Opcodes.DIVIDE -> {
-					if(fr.peek() !is SunliteNumber || fr.peek(1) !is SunliteNumber){
+					if(fr.peek() !is SLNumber || fr.peek(1) !is SLNumber){
 						runtimeError("Operands must be a number.")
 						return
 					}
-					val right = fr.pop() as SunliteNumber
-					val left = fr.pop() as SunliteNumber
+					val right = fr.pop() as SLNumber
+					val left = fr.pop() as SLNumber
 					fr.push(left / right)
 				}
-				Opcodes.NIL -> fr.push(SunliteNil)
-				Opcodes.TRUE -> fr.push(SunliteBool(true))
-				Opcodes.FALSE -> fr.push(SunliteBool(false))
-				Opcodes.NOT -> fr.push(SunliteBool(isFalse(fr.pop())))
-				Opcodes.EQUAL -> fr.push(SunliteBool(fr.pop() == fr.pop()))
+				Opcodes.NIL -> fr.push(SLNil)
+				Opcodes.TRUE -> fr.push(SLBool(true))
+				Opcodes.FALSE -> fr.push(SLBool(false))
+				Opcodes.NOT -> fr.push(SLBool(isFalse(fr.pop())))
+				Opcodes.EQUAL -> fr.push(SLBool(fr.pop() == fr.pop()))
 				Opcodes.GREATER -> {
-					if(fr.peek() !is SunliteNumber || fr.peek(1) !is SunliteNumber){
+					if(fr.peek() !is SLNumber || fr.peek(1) !is SLNumber){
 						runtimeError("Operands must be a number.")
 						return
 					}
-					fr.push(SunliteBool(fr.pop() as SunliteNumber > fr.pop() as SunliteNumber))
+					fr.push(SLBool(fr.pop() as SLNumber > fr.pop() as SLNumber))
 				}
 				Opcodes.LESS -> {
-					if(fr.peek() !is SunliteNumber || fr.peek(1) !is SunliteNumber){
+					if(fr.peek() !is SLNumber || fr.peek(1) !is SLNumber){
 						runtimeError("Operands must be a number.")
 						return
 					}
-					fr.push(SunliteBool((fr.pop() as SunliteNumber) < (fr.pop() as SunliteNumber)))
+					fr.push(SLBool((fr.pop() as SLNumber) < (fr.pop() as SLNumber)))
 				}
 				Opcodes.PRINT -> println(fr.pop())
 				Opcodes.POP -> fr.pop()
 				Opcodes.DEF_GLOBAL -> {
-					val constant = readConstant(fr) as SunliteString
+					val constant = readConstant(fr) as SLString
 					globals[constant.value] = fr.pop()
 				}
 				Opcodes.SET_GLOBAL -> {
-					val constant = readConstant(fr) as SunliteString
+					val constant = readConstant(fr) as SLString
 					if(!globals.containsKey(constant.value)) {
 						runtimeError("Undefined variable '${constant.value}'.")
 						return
@@ -162,7 +162,7 @@ class VM(val sunlite: Sunlite): Runnable {
 					globals[constant.value] = fr.peek()
 				}
 				Opcodes.GET_GLOBAL -> {
-					val constant = readConstant(fr) as SunliteString
+					val constant = readConstant(fr) as SLString
 					if(!globals.containsKey(constant.value)) {
 						runtimeError("Undefined variable '${constant.value}'.")
 						return
@@ -193,9 +193,9 @@ class VM(val sunlite: Sunlite): Runnable {
 					fr = frameStack.peek()
 				}
 				Opcodes.CLOSURE -> {
-					val constant = readConstant(fr) as SunliteFuncObj
+					val constant = readConstant(fr) as SLFuncObj
 					val closure = SLClosure(constant.value)
-					fr.push(SunliteClosureObj(closure))
+					fr.push(SLClosureObj(closure))
 					for (i in 0 until closure.upvalues.size) {
 						val isLocal: Int = readByte(fr)
 						val index: Int = readShort(fr)
@@ -208,23 +208,23 @@ class VM(val sunlite: Sunlite): Runnable {
 				}
 				Opcodes.GET_UPVALUE -> {
 					val slot = readShort(fr)
-					fr.push(fr.closure.upvalues[slot]?.closedValue ?: SunliteNil)
+					fr.push(fr.closure.upvalues[slot]?.closedValue ?: SLNil)
 				}
 				Opcodes.SET_UPVALUE -> {
 					val slot = readShort(fr)
 					fr.closure.upvalues[slot]?.closedValue = fr.peek(0);
 				}
 				Opcodes.CLASS -> {
-					val constant = readConstant(fr) as SunliteString
-					fr.push(SunliteClassObj(SLClass(constant.value, mutableMapOf())))
+					val constant = readConstant(fr) as SLString
+					fr.push(SLClassObj(SLClass(constant.value, mutableMapOf())))
 				}
 
 				Opcodes.SET_PROP -> {
-					if(fr.peek(1) !is SunliteClassInstanceObj){
+					if(fr.peek(1) !is SLClassInstanceObj){
 						runtimeError("Only instances have properties.")
 						return
 					}
-					val instance = (fr.peek(1) as SunliteClassInstanceObj).value
+					val instance = (fr.peek(1) as SLClassInstanceObj).value
 					val name = readString(fr).value
 					instance.fields[name] = fr.peek(0)
 					val value = fr.pop()
@@ -232,11 +232,11 @@ class VM(val sunlite: Sunlite): Runnable {
 					fr.push(value)
 				}
 				Opcodes.GET_PROP -> {
-					if (fr.peek(0) !is SunliteClassInstanceObj) {
+					if (fr.peek(0) !is SLClassInstanceObj) {
 						runtimeError("Only instances have properties.")
 						return
 					}
-					val instance = (fr.peek(0) as SunliteClassInstanceObj).value
+					val instance = (fr.peek(0) as SLClassInstanceObj).value
 					val name = readString(fr).value
 					if (instance.fields.containsKey(name)) {
 						fr.pop()
@@ -254,14 +254,14 @@ class VM(val sunlite: Sunlite): Runnable {
 				Opcodes.INHERIT -> {
 					val superclass = fr.peek(1)
 
-					if(superclass !is SunliteClassObj){
+					if(superclass !is SLClassObj){
 						runtimeError("Superclass must be a class.")
 						return
 					}
 
 					val subclass = fr.peek(0)
 
-					if(subclass !is SunliteClassObj){
+					if(subclass !is SLClassObj){
 						runtimeError("Only classes support inheritance.")
 						return
 					}
@@ -273,7 +273,7 @@ class VM(val sunlite: Sunlite): Runnable {
 					val name = readString(fr)
 					val superclass = fr.pop()
 
-					if(superclass !is SunliteClassObj){
+					if(superclass !is SLClassObj){
 						runtimeError("Superclass must be a class.")
 						return
 					}
@@ -288,7 +288,7 @@ class VM(val sunlite: Sunlite): Runnable {
 		}
 	}
 
-	private fun readString(fr: CallFrame) = readConstant(fr) as SunliteString
+	private fun readString(fr: CallFrame) = readConstant(fr) as SLString
 	private fun readConstant(fr: CallFrame) = fr.closure.function.chunk.constants[readShort(fr)]
 
 	private fun captureUpvalue(fr: CallFrame, index: Int): SLUpvalue {
@@ -305,8 +305,8 @@ class VM(val sunlite: Sunlite): Runnable {
 	}
 
 	private fun defineMethod(fr: CallFrame, name: String) {
-		val method = fr.peek(0) as SunliteClosureObj
-		val clazz = (fr.peek(1) as SunliteClassObj).value
+		val method = fr.peek(0) as SLClosureObj
+		val clazz = (fr.peek(1) as SLClassObj).value
 		clazz.methods[name] = method
 		fr.pop()
 	}
@@ -314,7 +314,7 @@ class VM(val sunlite: Sunlite): Runnable {
 	private fun bindMethod(fr: CallFrame, clazz: SLClass, name: String): Boolean {
 		if(!clazz.methods.containsKey(name)) return false
 
-		val bound = SunliteBoundMethodObj(
+		val bound = SLBoundMethodObj(
 			SLBoundMethod(
 				clazz.methods[name]!!.value,
 				fr.peek(0)
@@ -324,19 +324,19 @@ class VM(val sunlite: Sunlite): Runnable {
 		return true
 	}
 
-	private fun callValue(callee: SunliteValue<*>, argCount: Int): Boolean {
+	private fun callValue(callee: SLValue<*>, argCount: Int): Boolean {
 		if(callee.isObj()){
 			when(callee.value) {
 				is SLClosure -> {
-					return call(callee as SunliteClosureObj, argCount)
+					return call(callee as SLClosureObj, argCount)
 				}
 				is SLNativeFunction -> {
-					return callNative(callee as SunliteNativeFuncObj, argCount)
+					return callNative(callee as SLNativeFuncObj, argCount)
 				}
 				is SLClass -> {
 					val stack = frameStack.peek().stack
 					val instance =
-						SunliteClassInstanceObj(SLClassInstance(callee.value, mutableMapOf()))
+						SLClassInstanceObj(SLClassInstance(callee.value, mutableMapOf()))
 					stack[stack.size - argCount - 1] = instance
 					if(callee.value.methods.containsKey("init")){
 						val success = call(callee.value.methods["init"]!!, argCount)
@@ -350,7 +350,7 @@ class VM(val sunlite: Sunlite): Runnable {
 					return true
 				}
 				is SLBoundMethod -> {
-					val success = call(SunliteClosureObj(callee.value.method), argCount)
+					val success = call(SLClosureObj(callee.value.method), argCount)
 					if(!success) return false
 					frameStack.peek().stack.insertElementAt(callee.value.receiver, 0)
 					return true
@@ -361,7 +361,7 @@ class VM(val sunlite: Sunlite): Runnable {
 		return false
 	}
 
-	fun callNative(callee: SunliteNativeFuncObj, argCount: Int): Boolean {
+	fun callNative(callee: SLNativeFuncObj, argCount: Int): Boolean {
 		if(argCount != callee.value.arity){
 			runtimeError("Expected ${callee.value.arity} arguments but got ${argCount}.")
 			return false
@@ -372,7 +372,7 @@ class VM(val sunlite: Sunlite): Runnable {
 		return true
 	}
 
-	fun call(callee: SunliteClosureObj, argCount: Int): Boolean {
+	fun call(callee: SLClosureObj, argCount: Int): Boolean {
 		if(argCount != callee.value.function.arity){
 			runtimeError("Expected ${callee.value.function.arity} arguments but got ${argCount}.")
 			return false
@@ -391,7 +391,7 @@ class VM(val sunlite: Sunlite): Runnable {
 	}
 
 	private fun isFalse(value: AnySunliteValue): Boolean {
-		return value is SunliteNil || value is SunliteBool && !value.value
+		return value is SLNil || value is SLBool && !value.value
 	}
 
 	private fun readByte(frame: CallFrame): Int {

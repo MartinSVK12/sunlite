@@ -73,7 +73,7 @@ object Disassembler {
 			sb.append(chunk.constants[constant].toString())
 		}
 		sb.append("\n")
-		val function = chunk.constants[constant] as SunliteFuncObj
+		val function = chunk.constants[constant] as SLFuncObj
 		for (i in 0 until function.value.upvalueCount) {
 			val isLocal = chunk.code[offset++].toInt()
 			val index = (chunk.code[offset].toInt() shl 8) or chunk.code[offset + 1].toInt()
