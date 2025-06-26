@@ -23,7 +23,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?): Expr
 	val incompleteBreaks: MutableList<Int> = mutableListOf()
 	val incompleteContinues: MutableList<Int> = mutableListOf()
 
-	fun compile(type: FunctionType, statements: List<Stmt>, path: String? = null, name: String = "", arity: Int = 0): SunliteFunction {
+	fun compile(type: FunctionType, statements: List<Stmt>, path: String? = null, name: String = "", arity: Int = 0): SLFunction {
 		currentFile = path
 		chunk.debugInfo.file = currentFile
 		currentFunctionType = type
@@ -62,7 +62,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?): Expr
 			sunlite.error(chunk.debugInfo.lines[it], "Unexpected 'continue' outside of loop.", chunk.debugInfo.file)
 		}
 
-		return SunliteFunction(name, chunk.toImmutable(), arity, upvalues.size)
+		return SLFunction(name, chunk.toImmutable(), arity, upvalues.size)
 	}
 
 	private fun compile(stmt: Stmt) {
@@ -605,7 +605,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?): Expr
 			compiler.defineVariable(constantIndex, stmt)
 		}
 
-		val function: SunliteFunction = compiler.compile(stmt.type, stmt.body, currentFile, stmt.name.lexeme, stmt.params.size)
+		val function: SLFunction = compiler.compile(stmt.type, stmt.body, currentFile, stmt.name.lexeme, stmt.params.size)
 		emitByte(Opcodes.CLOSURE, stmt)
 		emitShort(addConstant(SunliteFuncObj(function),stmt),stmt)
 		for (upvalue in compiler.upvalues) {

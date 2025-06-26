@@ -2,8 +2,6 @@ package sunsetsatellite.vm.sunlite
 
 import sunsetsatellite.lang.sunlite.Sunlite
 import sunsetsatellite.lang.sunlite.Sunlite.Companion.stacktrace
-import sunsetsatellite.vm.sunlite.VM.Companion.MAX_FRAMES
-import sunsetsatellite.vm.sunlite.VM.Companion.openUpvalues
 import java.util.*
 
 class VM(val sunlite: Sunlite): Runnable {
@@ -12,7 +10,7 @@ class VM(val sunlite: Sunlite): Runnable {
 		const val MAX_FRAMES: Int = 255
 
 		val globals: MutableMap<String, AnySunliteValue> = HashMap()
-		val openUpvalues: MutableList<SunliteUpvalue> = mutableListOf()
+		val openUpvalues: MutableList<SLUpvalue> = mutableListOf()
 
 		fun arrayOfNils(size: Int): Array<AnySunliteValue> {
 			return Array(size) { SunliteNil }
@@ -20,13 +18,13 @@ class VM(val sunlite: Sunlite): Runnable {
 	}
 
 	init {
-		defineNative(object : SunliteNativeFunction("clock",0) {
+		defineNative(object : SLNativeFunction("clock",0) {
 			override fun call(vm: VM, args: Array<AnySunliteValue>): AnySunliteValue {
 				return SunliteNumber(System.currentTimeMillis().toDouble() / 1000)
 			}
 		})
 
-		defineNative(object : SunliteNativeFunction("print",1) {
+		defineNative(object : SLNativeFunction("print",1) {
 			override fun call(vm: VM, args: Array<AnySunliteValue>): AnySunliteValue {
 				val value = args[0]
 				println(if(value is SunliteString) value.value else value.toString())
@@ -34,7 +32,7 @@ class VM(val sunlite: Sunlite): Runnable {
 			}
 		})
 
-		defineNative(object : SunliteNativeFunction("str",1) {
+		defineNative(object : SLNativeFunction("str",1) {
 			override fun call(vm: VM, args: Array<AnySunliteValue>): AnySunliteValue {
 				return SunliteString(args[0].toString())
 			}
@@ -43,7 +41,7 @@ class VM(val sunlite: Sunlite): Runnable {
 
 	val frameStack: Stack<CallFrame> = Stack()
 
-	fun defineNative(function: SunliteNativeFunction){
+	fun defineNative(function: SLNativeFunction){
 		globals[function.name] = SunliteNativeFuncObj(function)
 	}
 
@@ -51,7 +49,6 @@ class VM(val sunlite: Sunlite): Runnable {
 		var fr: CallFrame = frameStack.peek()
 
 		while (fr.pc < fr.closure.function.chunk.code.size) {
-
 			if(Sunlite.bytecodeDebug){
 				val sb = StringBuilder()
 				sb.append("STACK @ ${fr.closure.function.chunk.debugInfo.file}::${fr.closure.function.chunk.debugInfo.name}: ")
@@ -197,7 +194,7 @@ class VM(val sunlite: Sunlite): Runnable {
 				}
 				Opcodes.CLOSURE -> {
 					val constant = readConstant(fr) as SunliteFuncObj
-					val closure = SunliteClosure(constant.value)
+					val closure = SLClosure(constant.value)
 					fr.push(SunliteClosureObj(closure))
 					for (i in 0 until closure.upvalues.size) {
 						val isLocal: Int = readByte(fr)
@@ -219,7 +216,7 @@ class VM(val sunlite: Sunlite): Runnable {
 				}
 				Opcodes.CLASS -> {
 					val constant = readConstant(fr) as SunliteString
-					fr.push(SunliteClassObj(SunliteClass(constant.value, mutableMapOf())))
+					fr.push(SunliteClassObj(SLClass(constant.value, mutableMapOf())))
 				}
 
 				Opcodes.SET_PROP -> {
@@ -294,7 +291,7 @@ class VM(val sunlite: Sunlite): Runnable {
 	private fun readString(fr: CallFrame) = readConstant(fr) as SunliteString
 	private fun readConstant(fr: CallFrame) = fr.closure.function.chunk.constants[readShort(fr)]
 
-	private fun captureUpvalue(fr: CallFrame, index: Int): SunliteUpvalue {
+	private fun captureUpvalue(fr: CallFrame, index: Int): SLUpvalue {
 		val value = fr.stack.elementAt(index)
 		val found = openUpvalues.find { it.closedValue == value }
 
@@ -302,7 +299,7 @@ class VM(val sunlite: Sunlite): Runnable {
 			return found
 		}
 
-		val upvalue = SunliteUpvalue(value)
+		val upvalue = SLUpvalue(value)
 		openUpvalues.add(upvalue)
 		return upvalue
 	}
@@ -314,11 +311,11 @@ class VM(val sunlite: Sunlite): Runnable {
 		fr.pop()
 	}
 
-	private fun bindMethod(fr: CallFrame, clazz: SunliteClass, name: String): Boolean {
+	private fun bindMethod(fr: CallFrame, clazz: SLClass, name: String): Boolean {
 		if(!clazz.methods.containsKey(name)) return false
 
 		val bound = SunliteBoundMethodObj(
-			SunliteBoundMethod(
+			SLBoundMethod(
 				clazz.methods[name]!!.value,
 				fr.peek(0)
 			))
@@ -330,31 +327,33 @@ class VM(val sunlite: Sunlite): Runnable {
 	private fun callValue(callee: SunliteValue<*>, argCount: Int): Boolean {
 		if(callee.isObj()){
 			when(callee.value) {
-				is SunliteClosure -> {
+				is SLClosure -> {
 					return call(callee as SunliteClosureObj, argCount)
 				}
-				is SunliteNativeFunction -> {
+				is SLNativeFunction -> {
 					return callNative(callee as SunliteNativeFuncObj, argCount)
 				}
-				is SunliteClass -> {
+				is SLClass -> {
 					val stack = frameStack.peek().stack
 					val instance =
-						SunliteClassInstanceObj(SunliteClassInstance(callee.value, mutableMapOf()))
+						SunliteClassInstanceObj(SLClassInstance(callee.value, mutableMapOf()))
 					stack[stack.size - argCount - 1] = instance
 					if(callee.value.methods.containsKey("init")){
 						val success = call(callee.value.methods["init"]!!, argCount)
+						if(!success) return false
 						frameStack.peek().stack.insertElementAt(instance, 0)
-						return success
+						return true
 					} else if(argCount != 0){
 						runtimeError("Expected 0 arguments but got $argCount.")
 						return false
 					}
 					return true
 				}
-				is SunliteBoundMethod -> {
+				is SLBoundMethod -> {
 					val success = call(SunliteClosureObj(callee.value.method), argCount)
+					if(!success) return false
 					frameStack.peek().stack.insertElementAt(callee.value.receiver, 0)
-					return success
+					return true
 				}
 			}
 		}

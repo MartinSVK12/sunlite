@@ -2,7 +2,7 @@ package sunsetsatellite.lang.sunlite
 
 import sunsetsatellite.interpreter.sunlite.*
 import sunsetsatellite.vm.sunlite.*
-import sunsetsatellite.vm.sunlite.SunliteFunction
+import sunsetsatellite.vm.sunlite.SLFunction
 import java.io.BufferedReader
 import java.io.IOException
 import java.io.InputStreamReader
@@ -279,12 +279,12 @@ class Sunlite(val args: Array<String>) {
 
 		val compiler = Compiler(this, vm, null)
 
-		val program: SunliteFunction = compiler.compile(FunctionType.FUNCTION, statements, shortPath)
+		val program: SLFunction = compiler.compile(FunctionType.FUNCTION, statements, shortPath)
 
 		// Stop if there was a compilation error.
 		if (hadError) return
 
-		vm.call(SunliteClosureObj(SunliteClosure(program)),0)
+		vm.call(SunliteClosureObj(SLClosure(program)),0)
 
 		try {
 			vm.run()

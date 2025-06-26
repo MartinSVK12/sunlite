@@ -84,7 +84,7 @@ abstract class SunliteObj<T>(value: T): SunliteValue<T>(value) {
 	}
 
 	fun isFunc(): Boolean {
-		return value is SunliteFunction
+		return value is SLFunction
 	}
 }
 
@@ -107,7 +107,7 @@ class SunliteString(value: String) : SunliteObj<String>(value) {
 	}
 }
 
-class SunliteFuncObj(value: SunliteFunction) : SunliteObj<SunliteFunction>(value) {
+class SunliteFuncObj(value: SLFunction) : SunliteObj<SLFunction>(value) {
 	override fun equals(other: Any?): Boolean {
 		if (other !is SunliteFuncObj) return false
 		return other.value == value
@@ -118,7 +118,7 @@ class SunliteFuncObj(value: SunliteFunction) : SunliteObj<SunliteFunction>(value
 	}
 }
 
-class SunliteClosureObj(value: SunliteClosure) : SunliteObj<SunliteClosure>(value) {
+class SunliteClosureObj(value: SLClosure) : SunliteObj<SLClosure>(value) {
 	override fun equals(other: Any?): Boolean {
 		if (other !is SunliteClosureObj) return false
 		return other.value == value
@@ -129,9 +129,9 @@ class SunliteClosureObj(value: SunliteClosure) : SunliteObj<SunliteClosure>(valu
 	}
 }
 
-class SunliteUpvalueObj(value: SunliteUpvalue) : SunliteObj<SunliteUpvalue>(value) {
+class SunliteUpvalueObj(value: SLUpvalue) : SunliteObj<SLUpvalue>(value) {
 	override fun equals(other: Any?): Boolean {
-		if (other !is SunliteUpvalue) return false
+		if (other !is SLUpvalue) return false
 		return super.equals(other)
 	}
 
@@ -144,7 +144,7 @@ class SunliteUpvalueObj(value: SunliteUpvalue) : SunliteObj<SunliteUpvalue>(valu
 	}
 }
 
-class SunliteNativeFuncObj(value: SunliteNativeFunction) : SunliteObj<SunliteNativeFunction>(value) {
+class SunliteNativeFuncObj(value: SLNativeFunction) : SunliteObj<SLNativeFunction>(value) {
 	override fun equals(other: Any?): Boolean {
 		if (other !is SunliteNativeFuncObj) return false
 		return other.value == value
@@ -155,7 +155,7 @@ class SunliteNativeFuncObj(value: SunliteNativeFunction) : SunliteObj<SunliteNat
 	}
 }
 
-class SunliteClassObj(value: SunliteClass) : SunliteObj<SunliteClass>(value) {
+class SunliteClassObj(value: SLClass) : SunliteObj<SLClass>(value) {
 	override fun equals(other: Any?): Boolean {
 		if (other !is SunliteClassObj) return false
 		return other.value == value
@@ -166,7 +166,7 @@ class SunliteClassObj(value: SunliteClass) : SunliteObj<SunliteClass>(value) {
 	}
 }
 
-class SunliteClassInstanceObj(value: SunliteClassInstance) : SunliteObj<SunliteClassInstance>(value) {
+class SunliteClassInstanceObj(value: SLClassInstance) : SunliteObj<SLClassInstance>(value) {
 	override fun equals(other: Any?): Boolean {
 		if (other !is SunliteClassInstanceObj) return false
 		return other.value == value
@@ -177,7 +177,7 @@ class SunliteClassInstanceObj(value: SunliteClassInstance) : SunliteObj<SunliteC
 	}
 }
 
-class SunliteBoundMethodObj(value: SunliteBoundMethod) : SunliteObj<SunliteBoundMethod>(value) {
+class SunliteBoundMethodObj(value: SLBoundMethod) : SunliteObj<SLBoundMethod>(value) {
 	override fun equals(other: Any?): Boolean {
 		if (other !is SunliteBoundMethodObj) return false
 		return other.value == value

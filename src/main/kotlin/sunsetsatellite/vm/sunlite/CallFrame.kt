@@ -2,7 +2,7 @@ package sunsetsatellite.vm.sunlite
 
 import java.util.*
 
-class CallFrame(val closure: SunliteClosure/*, val locals: Array<AnyLoxValue>*/) {
+class CallFrame(val closure: SLClosure/*, val locals: Array<AnyLoxValue>*/) {
 	var pc: Int = 0
 	val stack: Stack<AnySunliteValue> = Stack()
 
