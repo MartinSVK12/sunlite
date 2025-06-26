@@ -1,28 +1,27 @@
 package sunsetsatellite.vm.sunlite
 
 import sunsetsatellite.lang.sunlite.Sunlite
-import sunsetsatellite.lang.sunlite.Token
 
 class SLArray(var size: Int, val sunlite: Sunlite) {
-	private var array: Array<Any?> = arrayOfNulls(size)
+	private var array: Array<AnySLValue> = VM.arrayOfNils(size)
 
-	fun set(index: Int, value: Any?, token: Token) {
+	fun set(index: Int, value: AnySLValue) {
 		if(index >= size) {
-			//throw er(token, "Array index $index is out of bounds for an array of size $size.")
+			sunlite.vm.runtimeError("Array index $index is out of bounds for an array of size $size.")
 		}
 		array[index] = value
 	}
 
-	fun get(index: Int, token: Token): Any? {
+	fun get(index: Int): AnySLValue {
 		if(index >= size) {
-			//throw LoxRuntimeError(token, "Array index $index is out of bounds for an array of size $size.")
+			sunlite.vm.runtimeError("Array index $index is out of bounds for an array of size $size.")
 		}
 		return array[index]
 	}
 
 	fun resize(newSize: Int) {
-		val newArray = arrayOfNulls<Any?>(newSize)
-		System.arraycopy(array, 0, newArray, 0, Math.min(array.size, newSize))
+		val newArray = VM.arrayOfNils(newSize)
+		System.arraycopy(array, 0, newArray, 0, array.size.coerceAtMost(newSize))
 		size = newSize
 		array = newArray
 	}

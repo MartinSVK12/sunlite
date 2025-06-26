@@ -6,35 +6,60 @@ import java.util.*
 
 class VM(val sunlite: Sunlite): Runnable {
 
+	var breakpointHit: Boolean = false
+	var continueExecution: Boolean = false
+	var lastBreakpointLine: Int = -1
+
 	companion object {
 		const val MAX_FRAMES: Int = 255
 
-		val globals: MutableMap<String, AnySunliteValue> = HashMap()
+		val globals: MutableMap<String, AnySLValue> = HashMap()
 		val openUpvalues: MutableList<SLUpvalue> = mutableListOf()
 
-		fun arrayOfNils(size: Int): Array<AnySunliteValue> {
+		fun arrayOfNils(size: Int): Array<AnySLValue> {
 			return Array(size) { SLNil }
 		}
 	}
 
 	init {
 		defineNative(object : SLNativeFunction("clock",0) {
-			override fun call(vm: VM, args: Array<AnySunliteValue>): AnySunliteValue {
+			override fun call(vm: VM, args: Array<AnySLValue>): AnySLValue {
 				return SLNumber(System.currentTimeMillis().toDouble() / 1000)
 			}
 		})
 
 		defineNative(object : SLNativeFunction("print",1) {
-			override fun call(vm: VM, args: Array<AnySunliteValue>): AnySunliteValue {
+			override fun call(vm: VM, args: Array<AnySLValue>): AnySLValue {
 				val value = args[0]
-				println(if(value is SLString) value.value else value.toString())
+				sunlite.printInfo(if(value is SLString) value.value else value.toString())
 				return SLNil
 			}
 		})
 
 		defineNative(object : SLNativeFunction("str",1) {
-			override fun call(vm: VM, args: Array<AnySunliteValue>): AnySunliteValue {
+			override fun call(vm: VM, args: Array<AnySLValue>): AnySLValue {
 				return SLString(args[0].toString())
+			}
+		})
+
+		defineNative(object : SLNativeFunction("arrayOf",1) {
+			override fun call(
+				vm: VM,
+				args: Array<AnySLValue>
+			): AnySLValue {
+				return SLArrayObj(SLArray((args[0] as SLNumber).value.toInt(),vm.sunlite))
+			}
+		})
+
+		defineNative(object : SLNativeFunction("resize",2) {
+			override fun call(
+				vm: VM,
+				args: Array<AnySLValue>
+			): AnySLValue {
+				val array = args[1] as SLArrayObj
+				val newSize = args[0] as SLNumber
+				array.value.resize(newSize.value.toInt())
+				return SLNil
 			}
 		})
 	}
@@ -62,13 +87,33 @@ class VM(val sunlite: Sunlite): Runnable {
 				sunlite.printInfo(sb.toString())
 			}
 
+			val currentLine = fr.closure.function.chunk.debugInfo.lines[fr.pc]
+			val currentFile = fr.closure.function.chunk.debugInfo.file
+
+			if (sunlite.breakpoints[currentFile]?.contains(currentLine) == true) {
+				if(lastBreakpointLine != currentLine){
+					if(!breakpointHit){
+						sunlite.breakpointListeners.forEach { it.breakpointHit(currentLine, currentFile, sunlite) }
+						lastBreakpointLine = currentLine
+					}
+
+					breakpointHit = true
+				}
+				if(breakpointHit && continueExecution) {
+					breakpointHit = false
+					continueExecution = false
+				} else if(breakpointHit) {
+					continue
+				}
+			}
+
 			val instruction = readByte(fr);
 			when (Opcodes.entries[instruction]) {
 				Opcodes.NOP -> {
-					return
+
 				}
 				Opcodes.RETURN -> {
-					val value: AnySunliteValue = fr.pop()
+					val value: AnySLValue = fr.pop()
 					if(frameStack.size == 1){
 						return
 					}
@@ -248,6 +293,33 @@ class VM(val sunlite: Sunlite): Runnable {
 						return
 					}
 				}
+				Opcodes.ARRAY_GET -> {
+					if (fr.peek(0) !is SLArrayObj) {
+						runtimeError("Only arrays support the indexing operator.")
+						return
+					}
+					val arr = (fr.pop() as SLArrayObj).value
+					val index = fr.pop()
+					if (index !is SLNumber) {
+						runtimeError("Array index must be a number.")
+					}
+					fr.push(arr.get((index as SLNumber).value.toInt()))
+				}
+				Opcodes.ARRAY_SET -> {
+					if (fr.peek(0) !is SLArrayObj) {
+						runtimeError("Only arrays support the indexing operator.")
+						return
+					}
+					val arr = (fr.pop() as SLArrayObj).value
+					val index = fr.pop()
+					val value = fr.pop()
+					if (index !is SLNumber) {
+						runtimeError("Array index must be a number.")
+					}
+					arr.set((index as SLNumber).value.toInt(), value)
+					fr.push(value)
+
+				}
 				Opcodes.METHOD -> {
 					defineMethod(fr,readString(fr).value)
 				}
@@ -390,7 +462,7 @@ class VM(val sunlite: Sunlite): Runnable {
 		return true
 	}
 
-	private fun isFalse(value: AnySunliteValue): Boolean {
+	private fun isFalse(value: AnySLValue): Boolean {
 		return value is SLNil || value is SLBool && !value.value
 	}
 

@@ -11,7 +11,7 @@ class MutableChunkDebugInfo(val lines: MutableList<Int> = mutableListOf(), var f
 	}
 }
 
-class Chunk(val code: ByteArray, val constants: Array<AnySunliteValue>, val debugInfo: ChunkDebugInfo) {
+class Chunk(val code: ByteArray, val constants: Array<AnySLValue>, val debugInfo: ChunkDebugInfo) {
 
 	fun size(): Int {
 		return code.size
@@ -28,7 +28,7 @@ class Chunk(val code: ByteArray, val constants: Array<AnySunliteValue>, val debu
 	}
 }
 
-class MutableChunk(val code: MutableList<Byte> = mutableListOf(), val constants: MutableList<AnySunliteValue> = mutableListOf(), val debugInfo: MutableChunkDebugInfo = MutableChunkDebugInfo()) {
+class MutableChunk(val code: MutableList<Byte> = mutableListOf(), val constants: MutableList<AnySLValue> = mutableListOf(), val debugInfo: MutableChunkDebugInfo = MutableChunkDebugInfo()) {
 
 	fun size(): Int {
 		return code.size

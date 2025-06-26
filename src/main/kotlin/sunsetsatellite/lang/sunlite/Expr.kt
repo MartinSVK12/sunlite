@@ -175,9 +175,9 @@ abstract class Expr: Element {
 		}
 	}
 
-	data class DynamicGet(val obj: Expr, val what: Expr, val token: Token): Expr() {
+	data class ArrayGet(val obj: Expr, val what: Expr, val token: Token): Expr() {
 		override fun <R> accept(visitor: Visitor<R>): R? {
-			return visitor.visitDynamicGetExpr(this)
+			return visitor.visitArrayGetExpr(this)
 		}
 
 		override fun getLine(): Int {
@@ -207,9 +207,9 @@ abstract class Expr: Element {
 		}
 	}
 
-	data class DynamicSet(val obj: Expr, val what: Expr, val value: Expr, val token: Token, val operator: TokenType): Expr() {
+	data class ArraySet(val obj: Expr, val what: Expr, val value: Expr, val token: Token, val operator: TokenType): Expr() {
 		override fun <R> accept(visitor: Visitor<R>): R? {
-			return visitor.visitDynamicSetExpr(this)
+			return visitor.visitArraySetExpr(this)
 		}
 
 		override fun getLine(): Int {
@@ -292,8 +292,8 @@ abstract class Expr: Element {
 		fun visitCallExpr(expr: Call): R?
 		fun visitLambdaExpr(expr: Lambda): R
 		fun visitGetExpr(expr: Get): R
-		fun visitDynamicGetExpr(expr: DynamicGet): R
-		fun visitDynamicSetExpr(expr: DynamicSet): R
+		fun visitArrayGetExpr(expr: ArrayGet): R
+		fun visitArraySetExpr(expr: ArraySet): R
 		fun visitSetExpr(expr: Set): R
 		fun visitThisExpr(expr: This): R
 		fun visitSuperExpr(expr: Super): R

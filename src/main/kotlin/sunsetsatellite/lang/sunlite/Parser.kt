@@ -585,8 +585,8 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite) {
 					return Assign(name, value, EQUAL)
 				} else if (expr is Get) {
 					return Set(expr.obj, expr.name, value, EQUAL)
-				} else if(expr is DynamicGet) {
-					return DynamicSet(expr.obj, expr.what, value, previous(), EQUAL)
+				} else if(expr is ArrayGet) {
+					return ArraySet(expr.obj, expr.what, value, previous(), EQUAL)
 				}
 
 				error(equals, "Invalid assignment target.")
@@ -600,8 +600,8 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite) {
 					return Assign(name, value, PLUS_EQUAL)
 				} else if (expr is Get) {
 					return Set(expr.obj, expr.name, value, PLUS_EQUAL)
-				} else if(expr is DynamicGet) {
-					return DynamicSet(expr.obj, expr.what, value, previous(), PLUS_EQUAL)
+				} else if(expr is ArrayGet) {
+					return ArraySet(expr.obj, expr.what, value, previous(), PLUS_EQUAL)
 				}
 
 				error(equals, "Invalid assignment target.")
@@ -615,8 +615,8 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite) {
 					return Assign(name, value, MINUS_EQUAL)
 				} else if (expr is Get) {
 					return Set(expr.obj, expr.name, value, MINUS_EQUAL)
-				} else if(expr is DynamicGet) {
-					return DynamicSet(expr.obj, expr.what, value, previous(), MINUS_EQUAL)
+				} else if(expr is ArrayGet) {
+					return ArraySet(expr.obj, expr.what, value, previous(), MINUS_EQUAL)
 				}
 
 				error(equals, "Invalid assignment target.")
@@ -808,7 +808,7 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite) {
 			} else if(match(LEFT_BRACKET)) {
 				val name = expression()
 				consume(RIGHT_BRACKET, "Expected ']' after expression.")
-				expr = DynamicGet(expr, name, previous())
+				expr = ArrayGet(expr, name, previous())
 			} else {
 				break
 			}

@@ -12,22 +12,24 @@ import java.nio.charset.Charset
 import java.nio.file.Files
 import java.nio.file.Paths
 import kotlin.system.exitProcess
+import kotlin.text.split
 
 
 class Sunlite(val args: Array<String>) {
 
 	var hadError: Boolean = false
-
 	var hadRuntimeError: Boolean = false
 
 	val path: MutableList<String> = mutableListOf()
-
 	val imports: MutableMap<String,List<Stmt>> = mutableMapOf()
 
 	val logEntryReceivers: MutableList<LogEntryReceiver> = mutableListOf()
 	val breakpointListeners: MutableList<BreakpointListener> = mutableListOf()
 
 	var breakpoints: MutableMap<String,IntArray> = mutableMapOf()
+
+	var uninitialized: Boolean = true
+	lateinit var vm: VM
 
 	fun start() {
 		when {
@@ -62,7 +64,23 @@ class Sunlite(val args: Array<String>) {
 	}
 
 	fun parse(code: String? = null): Pair<List<Token>,List<Stmt>>? {
-		return null
+		val filePath = args[0]
+		path.addAll(args[1].split(";"))
+
+		val data: String = code ?: String(Files.readAllBytes(Paths.get(filePath)), Charset.defaultCharset())
+
+		val shortPath = filePath.split("/").last()
+
+		val scanner = Scanner(data, this)
+		val tokens: List<Token> = scanner.scanTokens(shortPath)
+
+		val parser = Parser(tokens,this)
+		val statements = parser.parse(shortPath)
+
+		// Stop if there was a syntax error.
+		if (hadError) return null
+
+		return tokens to statements
 	}
 
 	@Throws(IOException::class)
@@ -116,7 +134,8 @@ class Sunlite(val args: Array<String>) {
 			printInfo()
 		}
 
-		val vm = VM(this)
+		vm = VM(this)
+		uninitialized = false
 
 		val compiler = Compiler(this, vm, null)
 

@@ -111,7 +111,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?): Expr
 		emitByte(byte2, expr)
 	}
 
-	private fun emitConstant(value: AnySunliteValue, expr: Element) {
+	private fun emitConstant(value: AnySLValue, expr: Element) {
 		emitByte(Opcodes.CONSTANT, expr)
 		emitShort(addConstant(value, expr), expr)
 	}
@@ -145,7 +145,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?): Expr
 		chunk.code[offset + 1] = (jump and 0xFF).toByte()
 	}
 
-	private fun addConstant(value: AnySunliteValue, e: Element): Int {
+	private fun addConstant(value: AnySLValue, e: Element): Int {
 		if(chunk.constants.contains(value)) {
 			return chunk.constants.indexOf(value)
 		}
@@ -378,12 +378,19 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?): Expr
 		emitShort(name, expr)
 	}
 
-	override fun visitDynamicGetExpr(expr: Expr.DynamicGet) {
-		TODO("Not yet implemented")
+	override fun visitArrayGetExpr(expr: Expr.ArrayGet) {
+		compile(expr.what)
+		compile(expr.obj)
+		//val name = addIdentifier((expr.obj as Expr.NamedExpr).getNameToken().lexeme, expr)
+		emitByte(Opcodes.ARRAY_GET, expr)
+		//emitShort(name, expr)
 	}
 
-	override fun visitDynamicSetExpr(expr: Expr.DynamicSet) {
-		TODO("Not yet implemented")
+	override fun visitArraySetExpr(expr: Expr.ArraySet) {
+		compile(expr.value)
+		compile(expr.what)
+		compile(expr.obj)
+		emitByte(Opcodes.ARRAY_SET, expr)
 	}
 
 	override fun visitSetExpr(expr: Expr.Set) {

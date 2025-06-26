@@ -1,6 +1,6 @@
 package sunsetsatellite.vm.sunlite
 
-typealias AnySunliteValue = SLValue<*>
+typealias AnySLValue = SLValue<*>
 
 abstract class SLValue<T>(val value: T) {
 	fun isBool(): Boolean {

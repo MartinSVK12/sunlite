@@ -59,6 +59,8 @@ object Disassembler {
 			Opcodes.METHOD -> return constantInstruction(sb, opcode.name, chunk, offset)
 			Opcodes.INHERIT -> return simpleInstruction(sb, opcode.name, offset)
 			Opcodes.GET_SUPER -> return constantInstruction(sb, opcode.name, chunk, offset)
+			Opcodes.ARRAY_GET -> return simpleInstruction(sb, opcode.name, offset)
+			Opcodes.ARRAY_SET -> return simpleInstruction(sb, opcode.name, offset)
 		}
 	}
 

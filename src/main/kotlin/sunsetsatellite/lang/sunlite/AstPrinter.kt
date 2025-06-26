@@ -53,12 +53,12 @@ object AstPrinter : Expr.Visitor<String>, Stmt.Visitor<String> {
 		return "(get '${expr.name.lexeme}' ${print(expr.obj)})"
 	}
 
-	override fun visitDynamicGetExpr(expr: Expr.DynamicGet): String {
-		return "(dynamic get '${print(expr.what)}' ${print(expr.obj)})"
+	override fun visitArrayGetExpr(expr: Expr.ArrayGet): String {
+		return "(array get '${print(expr.what)}' ${print(expr.obj)})"
 	}
 
-	override fun visitDynamicSetExpr(expr: Expr.DynamicSet): String {
-		return "(set '${print(expr.what)}' to ${print(expr.value)} on ${print(expr.obj)})"
+	override fun visitArraySetExpr(expr: Expr.ArraySet): String {
+		return "(array set '${print(expr.what)}' to ${print(expr.value)} on ${print(expr.obj)})"
 	}
 
 	override fun visitSetExpr(expr: Expr.Set): String {
