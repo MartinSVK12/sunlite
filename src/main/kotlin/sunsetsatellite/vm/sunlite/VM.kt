@@ -2,6 +2,8 @@ package sunsetsatellite.vm.sunlite
 
 import sunsetsatellite.lang.sunlite.Sunlite
 import sunsetsatellite.lang.sunlite.Sunlite.Companion.stacktrace
+import sunsetsatellite.vm.sunlite.VM.Companion.MAX_FRAMES
+import sunsetsatellite.vm.sunlite.VM.Companion.openUpvalues
 import java.util.*
 
 class VM(val sunlite: Sunlite): Runnable {
@@ -9,32 +11,32 @@ class VM(val sunlite: Sunlite): Runnable {
 	companion object {
 		const val MAX_FRAMES: Int = 255
 
-		val globals: MutableMap<String, AnyLoxValue> = HashMap()
+		val globals: MutableMap<String, AnySunliteValue> = HashMap()
 		val openUpvalues: MutableList<SunliteUpvalue> = mutableListOf()
 
-		fun arrayOfNils(size: Int): Array<AnyLoxValue> {
-			return Array(size) { LoxNil }
+		fun arrayOfNils(size: Int): Array<AnySunliteValue> {
+			return Array(size) { SunliteNil }
 		}
 	}
 
 	init {
 		defineNative(object : SunliteNativeFunction("clock",0) {
-			override fun call(vm: VM, args: Array<AnyLoxValue>): AnyLoxValue {
-				return LoxNumber(System.currentTimeMillis().toDouble() / 1000)
+			override fun call(vm: VM, args: Array<AnySunliteValue>): AnySunliteValue {
+				return SunliteNumber(System.currentTimeMillis().toDouble() / 1000)
 			}
 		})
 
 		defineNative(object : SunliteNativeFunction("print",1) {
-			override fun call(vm: VM, args: Array<AnyLoxValue>): AnyLoxValue {
+			override fun call(vm: VM, args: Array<AnySunliteValue>): AnySunliteValue {
 				val value = args[0]
-				println(if(value is LoxString) value.value else value.toString())
-				return LoxNil
+				println(if(value is SunliteString) value.value else value.toString())
+				return SunliteNil
 			}
 		})
 
 		defineNative(object : SunliteNativeFunction("str",1) {
-			override fun call(vm: VM, args: Array<AnyLoxValue>): AnyLoxValue {
-				return LoxString(args[0].toString())
+			override fun call(vm: VM, args: Array<AnySunliteValue>): AnySunliteValue {
+				return SunliteString(args[0].toString())
 			}
 		})
 	}
@@ -42,7 +44,7 @@ class VM(val sunlite: Sunlite): Runnable {
 	val frameStack: Stack<CallFrame> = Stack()
 
 	fun defineNative(function: SunliteNativeFunction){
-		globals[function.name] = LoxNativeFuncObj(function)
+		globals[function.name] = SunliteNativeFuncObj(function)
 	}
 
 	override fun run(){
@@ -69,7 +71,7 @@ class VM(val sunlite: Sunlite): Runnable {
 					return
 				}
 				Opcodes.RETURN -> {
-					val value: AnyLoxValue = fr.pop()
+					val value: AnySunliteValue = fr.pop()
 					if(frameStack.size == 1){
 						return
 					}
@@ -82,20 +84,20 @@ class VM(val sunlite: Sunlite): Runnable {
 				}
 				Opcodes.CONSTANT -> fr.push(readConstant(fr))
 				Opcodes.NEGATE -> {
-					if(fr.peek() !is LoxNumber){
+					if(fr.peek() !is SunliteNumber){
 						runtimeError("Operand must be a number.")
 						return
 					}
-					fr.push(-(fr.pop() as LoxNumber))
+					fr.push(-(fr.pop() as SunliteNumber))
 				}
 				Opcodes.ADD -> {
-					if(fr.peek() is LoxString && fr.peek(1) is LoxString){
-						val right = fr.pop() as LoxString
-						val left = fr.pop() as LoxString
+					if(fr.peek() is SunliteString && fr.peek(1) is SunliteString){
+						val right = fr.pop() as SunliteString
+						val left = fr.pop() as SunliteString
 						fr.push(left + right)
-					} else if(fr.peek() is LoxNumber && fr.peek(1) is LoxNumber){
-						val right = fr.pop() as LoxNumber
-						val left = fr.pop() as LoxNumber
+					} else if(fr.peek() is SunliteNumber && fr.peek(1) is SunliteNumber){
+						val right = fr.pop() as SunliteNumber
+						val left = fr.pop() as SunliteNumber
 						fr.push(left + right)
 					} else {
 						runtimeError("Operands must be numbers or strings.")
@@ -103,59 +105,59 @@ class VM(val sunlite: Sunlite): Runnable {
 					}
 				}
 				Opcodes.SUB -> {
-					if(fr.peek() !is LoxNumber || fr.peek(1) !is LoxNumber){
+					if(fr.peek() !is SunliteNumber || fr.peek(1) !is SunliteNumber){
 						runtimeError("Operands must be a number.")
 						return
 					}
-					val right = fr.pop() as LoxNumber
-					val left = fr.pop() as LoxNumber
+					val right = fr.pop() as SunliteNumber
+					val left = fr.pop() as SunliteNumber
 					fr.push(left - right)
 				}
 				Opcodes.MULTIPLY -> {
-					if(fr.peek() !is LoxNumber || fr.peek(1) !is LoxNumber){
+					if(fr.peek() !is SunliteNumber || fr.peek(1) !is SunliteNumber){
 						runtimeError("Operands must be a number.")
 						return
 					}
-					val right = fr.pop() as LoxNumber
-					val left = fr.pop() as LoxNumber
+					val right = fr.pop() as SunliteNumber
+					val left = fr.pop() as SunliteNumber
 					fr.push(left * right)
 				}
 				Opcodes.DIVIDE -> {
-					if(fr.peek() !is LoxNumber || fr.peek(1) !is LoxNumber){
+					if(fr.peek() !is SunliteNumber || fr.peek(1) !is SunliteNumber){
 						runtimeError("Operands must be a number.")
 						return
 					}
-					val right = fr.pop() as LoxNumber
-					val left = fr.pop() as LoxNumber
+					val right = fr.pop() as SunliteNumber
+					val left = fr.pop() as SunliteNumber
 					fr.push(left / right)
 				}
-				Opcodes.NIL -> fr.push(LoxNil)
-				Opcodes.TRUE -> fr.push(LoxBool(true))
-				Opcodes.FALSE -> fr.push(LoxBool(false))
-				Opcodes.NOT -> fr.push(LoxBool(isFalse(fr.pop())))
-				Opcodes.EQUAL -> fr.push(LoxBool(fr.pop() == fr.pop()))
+				Opcodes.NIL -> fr.push(SunliteNil)
+				Opcodes.TRUE -> fr.push(SunliteBool(true))
+				Opcodes.FALSE -> fr.push(SunliteBool(false))
+				Opcodes.NOT -> fr.push(SunliteBool(isFalse(fr.pop())))
+				Opcodes.EQUAL -> fr.push(SunliteBool(fr.pop() == fr.pop()))
 				Opcodes.GREATER -> {
-					if(fr.peek() !is LoxNumber || fr.peek(1) !is LoxNumber){
+					if(fr.peek() !is SunliteNumber || fr.peek(1) !is SunliteNumber){
 						runtimeError("Operands must be a number.")
 						return
 					}
-					fr.push(LoxBool(fr.pop() as LoxNumber > fr.pop() as LoxNumber))
+					fr.push(SunliteBool(fr.pop() as SunliteNumber > fr.pop() as SunliteNumber))
 				}
 				Opcodes.LESS -> {
-					if(fr.peek() !is LoxNumber || fr.peek(1) !is LoxNumber){
+					if(fr.peek() !is SunliteNumber || fr.peek(1) !is SunliteNumber){
 						runtimeError("Operands must be a number.")
 						return
 					}
-					fr.push(LoxBool((fr.pop() as LoxNumber) < (fr.pop() as LoxNumber)))
+					fr.push(SunliteBool((fr.pop() as SunliteNumber) < (fr.pop() as SunliteNumber)))
 				}
 				Opcodes.PRINT -> println(fr.pop())
 				Opcodes.POP -> fr.pop()
 				Opcodes.DEF_GLOBAL -> {
-					val constant = readConstant(fr) as LoxString
+					val constant = readConstant(fr) as SunliteString
 					globals[constant.value] = fr.pop()
 				}
 				Opcodes.SET_GLOBAL -> {
-					val constant = readConstant(fr) as LoxString
+					val constant = readConstant(fr) as SunliteString
 					if(!globals.containsKey(constant.value)) {
 						runtimeError("Undefined variable '${constant.value}'.")
 						return
@@ -163,7 +165,7 @@ class VM(val sunlite: Sunlite): Runnable {
 					globals[constant.value] = fr.peek()
 				}
 				Opcodes.GET_GLOBAL -> {
-					val constant = readConstant(fr) as LoxString
+					val constant = readConstant(fr) as SunliteString
 					if(!globals.containsKey(constant.value)) {
 						runtimeError("Undefined variable '${constant.value}'.")
 						return
@@ -194,9 +196,9 @@ class VM(val sunlite: Sunlite): Runnable {
 					fr = frameStack.peek()
 				}
 				Opcodes.CLOSURE -> {
-					val constant = readConstant(fr) as LoxFuncObj
+					val constant = readConstant(fr) as SunliteFuncObj
 					val closure = SunliteClosure(constant.value)
-					fr.push(LoxClosureObj(closure))
+					fr.push(SunliteClosureObj(closure))
 					for (i in 0 until closure.upvalues.size) {
 						val isLocal: Int = readByte(fr)
 						val index: Int = readShort(fr)
@@ -209,23 +211,87 @@ class VM(val sunlite: Sunlite): Runnable {
 				}
 				Opcodes.GET_UPVALUE -> {
 					val slot = readShort(fr)
-					fr.push(fr.closure.upvalues[slot]?.closedValue ?: LoxNil)
+					fr.push(fr.closure.upvalues[slot]?.closedValue ?: SunliteNil)
 				}
 				Opcodes.SET_UPVALUE -> {
 					val slot = readShort(fr)
 					fr.closure.upvalues[slot]?.closedValue = fr.peek(0);
 				}
 				Opcodes.CLASS -> {
-					val constant = readConstant(fr) as LoxString
-					fr.push(LoxClassObj(SunliteClass(constant.value)))
+					val constant = readConstant(fr) as SunliteString
+					fr.push(SunliteClassObj(SunliteClass(constant.value, mutableMapOf())))
 				}
 
-				Opcodes.SET_PROP -> TODO()
-				Opcodes.GET_PROP -> TODO()
+				Opcodes.SET_PROP -> {
+					if(fr.peek(1) !is SunliteClassInstanceObj){
+						runtimeError("Only instances have properties.")
+						return
+					}
+					val instance = (fr.peek(1) as SunliteClassInstanceObj).value
+					val name = readString(fr).value
+					instance.fields[name] = fr.peek(0)
+					val value = fr.pop()
+					fr.pop()
+					fr.push(value)
+				}
+				Opcodes.GET_PROP -> {
+					if (fr.peek(0) !is SunliteClassInstanceObj) {
+						runtimeError("Only instances have properties.")
+						return
+					}
+					val instance = (fr.peek(0) as SunliteClassInstanceObj).value
+					val name = readString(fr).value
+					if (instance.fields.containsKey(name)) {
+						fr.pop()
+						fr.push(instance.fields[name]!!)
+					} else if (bindMethod(fr, instance.clazz, name)) {
+
+					} else {
+						runtimeError("Undefined property '$name'.")
+						return
+					}
+				}
+				Opcodes.METHOD -> {
+					defineMethod(fr,readString(fr).value)
+				}
+				Opcodes.INHERIT -> {
+					val superclass = fr.peek(1)
+
+					if(superclass !is SunliteClassObj){
+						runtimeError("Superclass must be a class.")
+						return
+					}
+
+					val subclass = fr.peek(0)
+
+					if(subclass !is SunliteClassObj){
+						runtimeError("Only classes support inheritance.")
+						return
+					}
+
+					subclass.value.methods.putAll(superclass.value.methods)
+					fr.pop()
+				}
+				Opcodes.GET_SUPER -> {
+					val name = readString(fr)
+					val superclass = fr.pop()
+
+					if(superclass !is SunliteClassObj){
+						runtimeError("Superclass must be a class.")
+						return
+					}
+
+					if(!bindMethod(fr, superclass.value, name.value)){
+						runtimeError("Cannot bind method '${name.value}' to class '$superclass'.")
+						return
+					}
+
+				}
 			}
 		}
 	}
 
+	private fun readString(fr: CallFrame) = readConstant(fr) as SunliteString
 	private fun readConstant(fr: CallFrame) = fr.closure.function.chunk.constants[readShort(fr)]
 
 	private fun captureUpvalue(fr: CallFrame, index: Int): SunliteUpvalue {
@@ -241,19 +307,54 @@ class VM(val sunlite: Sunlite): Runnable {
 		return upvalue
 	}
 
-	private fun callValue(callee: LoxValue<*>, argCount: Int): Boolean {
+	private fun defineMethod(fr: CallFrame, name: String) {
+		val method = fr.peek(0) as SunliteClosureObj
+		val clazz = (fr.peek(1) as SunliteClassObj).value
+		clazz.methods[name] = method
+		fr.pop()
+	}
+
+	private fun bindMethod(fr: CallFrame, clazz: SunliteClass, name: String): Boolean {
+		if(!clazz.methods.containsKey(name)) return false
+
+		val bound = SunliteBoundMethodObj(
+			SunliteBoundMethod(
+				clazz.methods[name]!!.value,
+				fr.peek(0)
+			))
+		fr.pop()
+		fr.push(bound)
+		return true
+	}
+
+	private fun callValue(callee: SunliteValue<*>, argCount: Int): Boolean {
 		if(callee.isObj()){
 			when(callee.value) {
 				is SunliteClosure -> {
-					return call(callee as LoxClosureObj, argCount)
+					return call(callee as SunliteClosureObj, argCount)
 				}
 				is SunliteNativeFunction -> {
-					return callNative(callee as LoxNativeFuncObj, argCount)
+					return callNative(callee as SunliteNativeFuncObj, argCount)
 				}
 				is SunliteClass -> {
 					val stack = frameStack.peek().stack
-					stack.set(stack.size - argCount - 1, LoxClassInstanceObj(SunliteClassInstance(callee.value)))
+					val instance =
+						SunliteClassInstanceObj(SunliteClassInstance(callee.value, mutableMapOf()))
+					stack[stack.size - argCount - 1] = instance
+					if(callee.value.methods.containsKey("init")){
+						val success = call(callee.value.methods["init"]!!, argCount)
+						frameStack.peek().stack.insertElementAt(instance, 0)
+						return success
+					} else if(argCount != 0){
+						runtimeError("Expected 0 arguments but got $argCount.")
+						return false
+					}
 					return true
+				}
+				is SunliteBoundMethod -> {
+					val success = call(SunliteClosureObj(callee.value.method), argCount)
+					frameStack.peek().stack.insertElementAt(callee.value.receiver, 0)
+					return success
 				}
 			}
 		}
@@ -261,7 +362,7 @@ class VM(val sunlite: Sunlite): Runnable {
 		return false
 	}
 
-	fun callNative(callee: LoxNativeFuncObj, argCount: Int): Boolean {
+	fun callNative(callee: SunliteNativeFuncObj, argCount: Int): Boolean {
 		if(argCount != callee.value.arity){
 			runtimeError("Expected ${callee.value.arity} arguments but got ${argCount}.")
 			return false
@@ -272,7 +373,7 @@ class VM(val sunlite: Sunlite): Runnable {
 		return true
 	}
 
-	fun call(callee: LoxClosureObj, argCount: Int): Boolean {
+	fun call(callee: SunliteClosureObj, argCount: Int): Boolean {
 		if(argCount != callee.value.function.arity){
 			runtimeError("Expected ${callee.value.function.arity} arguments but got ${argCount}.")
 			return false
@@ -290,8 +391,8 @@ class VM(val sunlite: Sunlite): Runnable {
 		return true
 	}
 
-	private fun isFalse(value: AnyLoxValue): Boolean {
-		return value is LoxNil || value is LoxBool && !value.value
+	private fun isFalse(value: AnySunliteValue): Boolean {
+		return value is SunliteNil || value is SunliteBool && !value.value
 	}
 
 	private fun readByte(frame: CallFrame): Int {

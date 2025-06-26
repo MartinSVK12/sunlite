@@ -1,8 +1,8 @@
 package sunsetsatellite.vm.sunlite
 
-typealias AnyLoxValue = LoxValue<*>
+typealias AnySunliteValue = SunliteValue<*>
 
-abstract class LoxValue<T>(val value: T) {
+abstract class SunliteValue<T>(val value: T) {
 	fun isBool(): Boolean {
 		return value is Boolean
 	}
@@ -24,9 +24,9 @@ abstract class LoxValue<T>(val value: T) {
 	}
 }
 
-class LoxBool(value: Boolean) : LoxValue<Boolean>(value) {
+class SunliteBool(value: Boolean) : SunliteValue<Boolean>(value) {
 	override fun equals(other: Any?): Boolean {
-		if (other !is LoxBool) return false
+		if (other !is SunliteBool) return false
 		return other.value == value
 	}
 
@@ -34,29 +34,29 @@ class LoxBool(value: Boolean) : LoxValue<Boolean>(value) {
 		return javaClass.hashCode()
 	}
 }
-class LoxNumber(value: Double) : LoxValue<Double>(value) {
-	operator fun unaryMinus(): LoxValue<*> {
-		return LoxNumber(-value)
+class SunliteNumber(value: Double) : SunliteValue<Double>(value) {
+	operator fun unaryMinus(): SunliteValue<*> {
+		return SunliteNumber(-value)
 	}
 
-	operator fun plus(other: LoxNumber): LoxValue<*> {
-		return LoxNumber(this.value + other.value)
+	operator fun plus(other: SunliteNumber): SunliteValue<*> {
+		return SunliteNumber(this.value + other.value)
 	}
 
-	operator fun minus(other: LoxNumber): LoxValue<*> {
-		return LoxNumber(this.value - other.value)
+	operator fun minus(other: SunliteNumber): SunliteValue<*> {
+		return SunliteNumber(this.value - other.value)
 	}
 
-	operator fun times(other: LoxNumber): LoxValue<*> {
-		return LoxNumber(this.value * other.value)
+	operator fun times(other: SunliteNumber): SunliteValue<*> {
+		return SunliteNumber(this.value * other.value)
 	}
 
-	operator fun div(other: LoxNumber): LoxValue<*> {
-		return LoxNumber(this.value / other.value)
+	operator fun div(other: SunliteNumber): SunliteValue<*> {
+		return SunliteNumber(this.value / other.value)
 	}
 
 	override fun equals(other: Any?): Boolean {
-		if (other !is LoxNumber) return false
+		if (other !is SunliteNumber) return false
 		return other.value == value
 	}
 
@@ -64,21 +64,21 @@ class LoxNumber(value: Double) : LoxValue<Double>(value) {
 		return javaClass.hashCode()
 	}
 
-	operator fun compareTo(other: LoxNumber): Int {
+	operator fun compareTo(other: SunliteNumber): Int {
 		return other.value.compareTo(value)
 	}
 }
 
-object LoxNil : LoxValue<Unit>(Unit) {
+object SunliteNil : SunliteValue<Unit>(Unit) {
 	override fun equals(other: Any?): Boolean {
-		return other is LoxNil
+		return other is SunliteNil
 	}
 
 	override fun toString(): String {
 		return "<nil>"
 	}
 }
-abstract class LoxObj<T>(value: T): LoxValue<T>(value) {
+abstract class SunliteObj<T>(value: T): SunliteValue<T>(value) {
 	fun isString(): Boolean {
 		return value is String
 	}
@@ -88,9 +88,9 @@ abstract class LoxObj<T>(value: T): LoxValue<T>(value) {
 	}
 }
 
-class LoxString(value: String) : LoxObj<String>(value) {
+class SunliteString(value: String) : SunliteObj<String>(value) {
 	override fun equals(other: Any?): Boolean {
-		if (other !is LoxString) return false
+		if (other !is SunliteString) return false
 		return other.value == value
 	}
 
@@ -98,8 +98,8 @@ class LoxString(value: String) : LoxObj<String>(value) {
 		return javaClass.hashCode()
 	}
 
-	operator fun plus(loxString: LoxString): LoxValue<*> {
-		return LoxString(this.value + loxString.value)
+	operator fun plus(string: SunliteString): SunliteValue<*> {
+		return SunliteString(this.value + string.value)
 	}
 
 	override fun toString(): String {
@@ -107,9 +107,9 @@ class LoxString(value: String) : LoxObj<String>(value) {
 	}
 }
 
-class LoxFuncObj(value: SunliteFunction) : LoxObj<SunliteFunction>(value) {
+class SunliteFuncObj(value: SunliteFunction) : SunliteObj<SunliteFunction>(value) {
 	override fun equals(other: Any?): Boolean {
-		if (other !is LoxFuncObj) return false
+		if (other !is SunliteFuncObj) return false
 		return other.value == value
 	}
 
@@ -118,9 +118,9 @@ class LoxFuncObj(value: SunliteFunction) : LoxObj<SunliteFunction>(value) {
 	}
 }
 
-class LoxClosureObj(value: SunliteClosure) : LoxObj<SunliteClosure>(value) {
+class SunliteClosureObj(value: SunliteClosure) : SunliteObj<SunliteClosure>(value) {
 	override fun equals(other: Any?): Boolean {
-		if (other !is LoxClosureObj) return false
+		if (other !is SunliteClosureObj) return false
 		return other.value == value
 	}
 
@@ -129,7 +129,7 @@ class LoxClosureObj(value: SunliteClosure) : LoxObj<SunliteClosure>(value) {
 	}
 }
 
-class LoxUpvalueObj(value: SunliteUpvalue) : LoxObj<SunliteUpvalue>(value) {
+class SunliteUpvalueObj(value: SunliteUpvalue) : SunliteObj<SunliteUpvalue>(value) {
 	override fun equals(other: Any?): Boolean {
 		if (other !is SunliteUpvalue) return false
 		return super.equals(other)
@@ -144,9 +144,9 @@ class LoxUpvalueObj(value: SunliteUpvalue) : LoxObj<SunliteUpvalue>(value) {
 	}
 }
 
-class LoxNativeFuncObj(value: SunliteNativeFunction) : LoxObj<SunliteNativeFunction>(value) {
+class SunliteNativeFuncObj(value: SunliteNativeFunction) : SunliteObj<SunliteNativeFunction>(value) {
 	override fun equals(other: Any?): Boolean {
-		if (other !is LoxNativeFuncObj) return false
+		if (other !is SunliteNativeFuncObj) return false
 		return other.value == value
 	}
 
@@ -155,9 +155,9 @@ class LoxNativeFuncObj(value: SunliteNativeFunction) : LoxObj<SunliteNativeFunct
 	}
 }
 
-class LoxClassObj(value: SunliteClass) : LoxObj<SunliteClass>(value) {
+class SunliteClassObj(value: SunliteClass) : SunliteObj<SunliteClass>(value) {
 	override fun equals(other: Any?): Boolean {
-		if (other !is LoxClassObj) return false
+		if (other !is SunliteClassObj) return false
 		return other.value == value
 	}
 
@@ -166,9 +166,20 @@ class LoxClassObj(value: SunliteClass) : LoxObj<SunliteClass>(value) {
 	}
 }
 
-class LoxClassInstanceObj(value: SunliteClassInstance) : LoxObj<SunliteClassInstance>(value) {
+class SunliteClassInstanceObj(value: SunliteClassInstance) : SunliteObj<SunliteClassInstance>(value) {
 	override fun equals(other: Any?): Boolean {
-		if (other !is LoxClassInstanceObj) return false
+		if (other !is SunliteClassInstanceObj) return false
+		return other.value == value
+	}
+
+	override fun hashCode(): Int {
+		return javaClass.hashCode()
+	}
+}
+
+class SunliteBoundMethodObj(value: SunliteBoundMethod) : SunliteObj<SunliteBoundMethod>(value) {
+	override fun equals(other: Any?): Boolean {
+		if (other !is SunliteBoundMethodObj) return false
 		return other.value == value
 	}
 

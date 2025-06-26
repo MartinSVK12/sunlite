@@ -10,7 +10,10 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?): Expr
 
 	class Upvalue(val index: Int, val isLocal: Boolean)
 
+	var currentClass: ClassCompiler? = null
+
 	var currentFile: String? = null
+	var currentFunctionType: FunctionType = FunctionType.FUNCTION
 	val chunk = MutableChunk()
 	val locals: MutableList<Local> = mutableListOf()
 	val upvalues: MutableList<Upvalue> = mutableListOf()
@@ -20,9 +23,16 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?): Expr
 	val incompleteBreaks: MutableList<Int> = mutableListOf()
 	val incompleteContinues: MutableList<Int> = mutableListOf()
 
-	fun compile(statements: List<Stmt>, path: String? = null, name: String = "", arity: Int = 0): SunliteFunction {
+	fun compile(type: FunctionType, statements: List<Stmt>, path: String? = null, name: String = "", arity: Int = 0): SunliteFunction {
 		currentFile = path
 		chunk.debugInfo.file = currentFile
+		currentFunctionType = type
+
+		if(type == FunctionType.METHOD || type == FunctionType.INITIALIZER) {
+			addIdentifier("this",Expr.This(Token.identifier("this")) )
+			locals.add(0,Local(Token.identifier("this", 0, currentFile), 0))
+		}
+
 		for (statement in statements) {
 			compile(statement)
 		}
@@ -32,8 +42,14 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?): Expr
 			chunk.debugInfo.name = name
 		}
 
-		emitByte(Opcodes.NIL,statements.lastOrNull());
-		emitByte(Opcodes.RETURN,statements.lastOrNull());
+		if(type == FunctionType.INITIALIZER){
+			emitByte(Opcodes.GET_LOCAL, statements.lastOrNull())
+			emitShort(0, statements.lastOrNull())
+			emitByte(Opcodes.RETURN, statements.lastOrNull())
+		} else {
+			emitByte(Opcodes.NIL,statements.lastOrNull());
+			emitByte(Opcodes.RETURN,statements.lastOrNull())
+		}
 
 		if(Sunlite.debug){
 			sunlite.printInfo(Disassembler.disassembleChunk(chunk.toImmutable()))
@@ -73,11 +89,11 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?): Expr
 		chunk.debugInfo.lines.add(expr?.getLine() ?: 0)
 	}
 
-	private fun emitShort(short: Int, expr: Element) {
+	private fun emitShort(short: Int, expr: Element?) {
 		chunk.code.add(((short ushr 8) and 0xFF).toByte())
 		chunk.code.add((short and 0xFF).toByte())
-		chunk.debugInfo.lines.add(expr.getLine())
-		chunk.debugInfo.lines.add(expr.getLine())
+		chunk.debugInfo.lines.add(expr?.getLine() ?: 0)
+		chunk.debugInfo.lines.add(expr?.getLine() ?: 0)
 	}
 
 	private fun emitBytes(byte: Opcodes, byte2: Opcodes, expr: Element) {
@@ -95,7 +111,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?): Expr
 		emitByte(byte2, expr)
 	}
 
-	private fun emitConstant(value: AnyLoxValue, expr: Element) {
+	private fun emitConstant(value: AnySunliteValue, expr: Element) {
 		emitByte(Opcodes.CONSTANT, expr)
 		emitShort(addConstant(value, expr), expr)
 	}
@@ -129,7 +145,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?): Expr
 		chunk.code[offset + 1] = (jump and 0xFF).toByte()
 	}
 
-	private fun addConstant(value: AnyLoxValue, e: Element): Int {
+	private fun addConstant(value: AnySunliteValue, e: Element): Int {
 		if(chunk.constants.contains(value)) {
 			return chunk.constants.indexOf(value)
 		}
@@ -140,6 +156,10 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?): Expr
 			return 0
 		}
 		return index
+	}
+
+	private fun addIdentifier(string: String, e: Element): Int {
+		return addConstant(SunliteString(string), e)
 	}
 
 	override fun visitBinaryExpr(expr: Expr.Binary) {
@@ -213,10 +233,10 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?): Expr
 				}
 			}
 			is Double -> {
-				emitConstant(LoxNumber(expr.value),expr)
+				emitConstant(SunliteNumber(expr.value),expr)
 			}
 			is String -> {
-				emitConstant(LoxString(expr.value),expr)
+				emitConstant(SunliteString(expr.value),expr)
 			}
 			null -> {
 				emitByte(Opcodes.NIL, expr)
@@ -236,7 +256,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?): Expr
 			if(arg != -1){
 				getOp = Opcodes.GET_UPVALUE
 			} else {
-				arg = addConstant(LoxString(expr.name.lexeme),expr)
+				arg = addIdentifier(expr.name.lexeme,expr)
 				getOp = Opcodes.GET_GLOBAL
 			}
 		}
@@ -303,7 +323,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?): Expr
 			if(arg != -1){
 				setOp = Opcodes.SET_UPVALUE
 			} else {
-				arg = addConstant(LoxString(expr.name.lexeme),expr);
+				arg = addIdentifier(expr.name.lexeme,expr)
 				setOp = Opcodes.SET_GLOBAL
 			}
 		}
@@ -352,8 +372,10 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?): Expr
 	}
 
 	override fun visitGetExpr(expr: Expr.Get) {
-
-		TODO("Not yet implemented")
+		compile(expr.obj)
+		val name = addIdentifier(expr.name.lexeme, expr)
+		emitByte(Opcodes.GET_PROP, expr)
+		emitShort(name, expr)
 	}
 
 	override fun visitDynamicGetExpr(expr: Expr.DynamicGet) {
@@ -365,15 +387,48 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?): Expr
 	}
 
 	override fun visitSetExpr(expr: Expr.Set) {
-		TODO("Not yet implemented")
+		val name = addIdentifier(expr.name.lexeme, expr)
+		compile(expr.obj)
+		compile(expr.value)
+		emitByte(Opcodes.SET_PROP, expr)
+		emitShort(name, expr)
 	}
 
 	override fun visitThisExpr(expr: Expr.This) {
-		TODO("Not yet implemented")
+		var compiler: Compiler? = this
+		while (compiler != null){
+			if(compiler.currentClass != null) break
+			compiler = compiler.enclosing
+		}
+
+		if(compiler == null) {
+			sunlite.error(expr.getLine(), "Can't refer to 'this' outside of a class.", currentFile)
+			return
+		}
+
+		compile(Expr.Variable(expr.keyword))
 	}
 
 	override fun visitSuperExpr(expr: Expr.Super) {
-		TODO("Not yet implemented")
+		var compiler: Compiler? = this
+		while (compiler != null){
+			if(compiler.currentClass != null) break
+			compiler = compiler.enclosing
+		}
+
+		if(compiler == null) {
+			sunlite.error(expr.getLine(), "Can't refer to 'super' outside of a class.", currentFile)
+			return
+		} else if(compiler.currentClass?.hasSuperclass == false){
+			sunlite.error(expr.getLine(), "Can't refer to 'super' in a class with no superclass.", currentFile)
+			return
+		}
+
+		compile(Expr.Variable(Token.identifier("this",expr.getLine(),expr.getFile())))
+		compile(Expr.Variable(Token.identifier("super",expr.getLine(),expr.getFile())))
+		val name = addIdentifier(expr.method.lexeme, expr)
+		emitByte(Opcodes.GET_SUPER,expr)
+		emitShort(name,expr)
 	}
 
 	override fun visitCheckExpr(expr: Expr.Check) {
@@ -424,7 +479,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?): Expr
 		declareVariable(token, stmt)
 		if(localScopeDepth > 0) return 0;
 
-		return addConstant(LoxString(token.lexeme),stmt)
+		return addConstant(SunliteString(token.lexeme),stmt)
 	}
 
 	private fun declareVariable(token: Token, stmt: Stmt.NamedStmt){
@@ -534,10 +589,12 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?): Expr
 	}
 
 	override fun visitFunctionStmt(stmt: Stmt.Function) {
-		val constantIndex = makeVariable(stmt.name, stmt)
+		val constantIndex: Int = addIdentifier(stmt.name.lexeme,stmt)
 		markInitialized()
 		makeFunction(stmt)
-		defineVariable(constantIndex, stmt)
+		if(stmt.type == FunctionType.FUNCTION){
+			defineVariable(constantIndex, stmt)
+		}
 	}
 
 	private fun makeFunction(stmt: Stmt.Function){
@@ -548,9 +605,9 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?): Expr
 			compiler.defineVariable(constantIndex, stmt)
 		}
 
-		val function: SunliteFunction = compiler.compile(stmt.body, currentFile, stmt.name.lexeme, stmt.params.size)
+		val function: SunliteFunction = compiler.compile(stmt.type, stmt.body, currentFile, stmt.name.lexeme, stmt.params.size)
 		emitByte(Opcodes.CLOSURE, stmt)
-		emitShort(addConstant(LoxFuncObj(function),stmt),stmt)
+		emitShort(addConstant(SunliteFuncObj(function),stmt),stmt)
 		for (upvalue in compiler.upvalues) {
 			emitByte(if(upvalue.isLocal) 1 else 0, stmt)
 			emitShort(upvalue.index, stmt)
@@ -558,6 +615,9 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?): Expr
 	}
 
 	override fun visitReturnStmt(stmt: Stmt.Return) {
+		if(currentFunctionType == FunctionType.INITIALIZER){
+			sunlite.error(stmt.getLine(), "Can't explicitly return from an initializer.", currentFile)
+		}
 		if(stmt.value == null){
 			emitByte(Opcodes.NIL, stmt)
 			emitByte(Opcodes.RETURN, stmt)
@@ -568,11 +628,44 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?): Expr
 	}
 
 	override fun visitClassStmt(stmt: Stmt.Class) {
-		val constantIndex = makeVariable(stmt.name, stmt)
+		val className = stmt.name
+		val nameConstant = addIdentifier(className.lexeme, stmt)
+		declareVariable(className, stmt)
 
 		emitByte(Opcodes.CLASS, stmt)
-		emitShort(constantIndex, stmt)
-		defineVariable(constantIndex,stmt)
+		emitShort(nameConstant, stmt)
+		defineVariable(nameConstant,stmt)
+
+		val classCompiler = ClassCompiler(currentClass)
+		currentClass = classCompiler
+
+		if(stmt.superclass != null){
+			compile(Expr.Variable(stmt.superclass.name))
+
+			beginScope(stmt.superclass)
+			addLocal(Token.identifier("super",stmt.getLine(),stmt.getFile()), stmt)
+			defineVariable(0, stmt)
+			compile(Expr.Variable(className))
+			emitByte(Opcodes.INHERIT,stmt.superclass)
+			classCompiler.hasSuperclass = true;
+		}
+
+		compile(Expr.Variable(className))
+
+		for (method in stmt.methods) {
+			val methodName = addIdentifier(method.name.lexeme, stmt)
+			compile(method)
+			emitByte(Opcodes.METHOD, stmt)
+			emitShort(methodName,stmt)
+		}
+
+		emitByte(Opcodes.POP, stmt)
+
+		if(currentClass?.hasSuperclass == true){
+			endScope(stmt)
+		}
+
+		currentClass = currentClass?.enclosing
 	}
 
 	override fun visitInterfaceStmt(stmt: Stmt.Interface) {

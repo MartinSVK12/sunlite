@@ -13,6 +13,7 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite) {
 	private var current = 0
 
 	var currentFile: String? = null
+	var insideClass: Boolean = false
 
 	private class ParseError : RuntimeException()
 
@@ -31,7 +32,7 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite) {
 		try {
 			return when {
 				match(VAR) -> varDeclaration()
-				match(FUN) -> function("function", null)
+				match(FUN) -> function(FunctionType.FUNCTION, null)
 				match(DYNAMIC) -> classDeclaration(ClassModifier.DYNAMIC)
 				match(CLASS) -> classDeclaration(ClassModifier.NORMAL)
 				match(INTERFACE) -> interfaceDeclaration()
@@ -128,6 +129,7 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite) {
 	}
 
 	private fun classDeclaration(modifier: ClassModifier): Stmt {
+		insideClass = true
 
 		if(modifier == ClassModifier.DYNAMIC) consume(CLASS, "Expected 'class' after class modifier.")
 
@@ -179,14 +181,14 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite) {
 								fields.add(varDeclaration(FieldModifier.STATIC))
 							}
 							match(FUN) -> {
-								methods.add(function("method", currentModifier))
+								methods.add(function(FunctionType.METHOD, currentModifier))
 							}
 							else -> {
 								throw error(peek(), "Expected a field or method declaration.")
 							}
 						}
 					} else if(match(FUN)) {
-						methods.add(function("method", currentModifier))
+						methods.add(function(FunctionType.METHOD, currentModifier))
 					} else {
 						throw error(peek(), "Expected a field or method declaration.")
 					}
@@ -195,7 +197,10 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite) {
 					fields.add(varDeclaration())
 				}
 				match(FUN) -> {
-					methods.add(function("method", null))
+					methods.add(function(FunctionType.METHOD, null))
+				}
+				match(INIT) -> {
+					methods.add(function(FunctionType.INITIALIZER, null))
 				}
 				else -> {
 					throw error(peek(), "Expected a field or method declaration.")
@@ -205,7 +210,7 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite) {
 
 		consume(RIGHT_BRACE, "Expected '}' after class body.")
 
-
+		insideClass = false
 
 		return Stmt.Class(name, methods, fields, superclass, superinterfaces, modifier, typeParameters)
 	}
@@ -252,9 +257,9 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite) {
 		return Stmt.Interface(name, methods, superinterfaces, typeParameters)
 	}
 
-	private fun funcSignature(kind: String): Triple<Token,List<Param>, Type>{
-		val name = consume(IDENTIFIER, "Expected $kind name.")
-		consume(LEFT_PAREN, "Expected '(' after $kind name.")
+	private fun funcSignature(kind: FunctionType): Triple<Token,List<Param>, Type>{
+		val name = if(kind == FunctionType.INITIALIZER) Token.identifier("init") else consume(IDENTIFIER, "Expected ${kind.toString().lowercase()} name.")
+		consume(LEFT_PAREN, "Expected '(' after ${kind.toString().lowercase()} name.")
 		val parameters: MutableList<Param> = ArrayList()
 		if (!checkType(RIGHT_PAREN)) {
 			do {
@@ -290,10 +295,11 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite) {
 			consume(GREATER, "Expected '>' after type parameter declaration.")
 		}
 
-		val signature = funcSignature("abstract method")
+		val signature = funcSignature(FunctionType.METHOD)
 
 		return Stmt.Function(
 			signature.first,
+			FunctionType.METHOD,
 			signature.second,
 			listOf(),
 			FunctionModifier.ABSTRACT,
@@ -302,9 +308,9 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite) {
 		)
 	}
 
-	private fun function(kind: String, modifier: Token?): Stmt.Function {
+	private fun function(kind: FunctionType, modifier: Token?): Stmt.Function {
 		if(modifier != null && FunctionModifier.entries.none { it.name.lowercase() == modifier.type.name.lowercase() }) {
-			error(peek(), "Invalid $kind modifier '${modifier.lexeme}'.")
+			error(peek(), "Invalid ${kind.toString().lowercase()} modifier '${modifier.lexeme}'.")
 		}
 
 		val typeParameters: MutableList<Param> = ArrayList()
@@ -331,7 +337,7 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite) {
 			assert(LEFT_BRACE, "Native $kind cannot have a body.")
 		}
 
-		return Stmt.Function(signature.first, signature.second, body, funcModifier, signature.third, typeParameters)
+		return Stmt.Function(signature.first, kind, signature.second, body, funcModifier, signature.third, typeParameters)
 	}
 
 	private fun returnStatement(): Stmt {
@@ -840,7 +846,7 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite) {
 					token.line,
 					currentFile,
 					token.pos
-				), parameters, body, FunctionModifier.NORMAL, type, typeParameters
+				), FunctionType.LAMBDA, parameters, body, FunctionModifier.NORMAL, type, typeParameters
 			)
 		)
 	}
@@ -883,7 +889,12 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite) {
 			return Super(keyword, method)
 		}
 
-		if (match(THIS)) return This(previous())
+		if (match(THIS)) {
+			/*if(!insideClass){
+				throw error(peek(), "Can't refer to 'this' outside of a class.")
+			}*/
+			return This(previous())
+		}
 
 		if (match(LEFT_PAREN)) {
 			val expr = expression()

@@ -56,6 +56,9 @@ object Disassembler {
 			Opcodes.CLASS -> return constantInstruction(sb, opcode.name, chunk, offset)
 			Opcodes.SET_PROP -> return constantInstruction(sb, opcode.name, chunk, offset)
 			Opcodes.GET_PROP -> return constantInstruction(sb, opcode.name, chunk, offset)
+			Opcodes.METHOD -> return constantInstruction(sb, opcode.name, chunk, offset)
+			Opcodes.INHERIT -> return simpleInstruction(sb, opcode.name, offset)
+			Opcodes.GET_SUPER -> return constantInstruction(sb, opcode.name, chunk, offset)
 		}
 	}
 
@@ -63,14 +66,14 @@ object Disassembler {
 		var offset = startOffset
 		val constant = (chunk.code[offset + 1].toInt() shl 8) or chunk.code[offset + 2].toInt()
 		offset += 3
-		sb.append(String.format("%-16s (%02X) %4d '", name, Opcodes.valueOf(name).ordinal, constant))
+		sb.append(String.format("%-16s (%02X) %4d ", name, Opcodes.valueOf(name).ordinal, constant))
 		if(constant > chunk.constants.size){
 			sb.append("<error reading constant>")
 		} else {
 			sb.append(chunk.constants[constant].toString())
 		}
-		sb.append("'\n")
-		val function = chunk.constants[constant] as LoxFuncObj
+		sb.append("\n")
+		val function = chunk.constants[constant] as SunliteFuncObj
 		for (i in 0 until function.value.upvalueCount) {
 			val isLocal = chunk.code[offset++].toInt()
 			val index = (chunk.code[offset].toInt() shl 8) or chunk.code[offset + 1].toInt()
@@ -100,13 +103,13 @@ object Disassembler {
 
 	private fun constantInstruction(sb: StringBuilder, name: String, chunk: Chunk, offset: Int): Int {
 		val constant = (chunk.code[offset + 1].toInt() shl 8) or chunk.code[offset + 2].toInt()
-		sb.append(String.format("%-16s (%02X) %4d '", name, Opcodes.valueOf(name).ordinal, constant))
+		sb.append(String.format("%-16s (%02X) %4d ", name, Opcodes.valueOf(name).ordinal, constant))
 		if(constant > chunk.constants.size){
 			sb.append("<error reading constant>")
 		} else {
 			sb.append(chunk.constants[constant].toString())
 		}
-		sb.append("'\n")
+		sb.append("\n")
 		return offset + 3
 	}
 

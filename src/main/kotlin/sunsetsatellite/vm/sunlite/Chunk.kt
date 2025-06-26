@@ -11,7 +11,7 @@ class MutableChunkDebugInfo(val lines: MutableList<Int> = mutableListOf(), var f
 	}
 }
 
-class Chunk(val code: ByteArray, val constants: Array<AnyLoxValue>, val debugInfo: ChunkDebugInfo) {
+class Chunk(val code: ByteArray, val constants: Array<AnySunliteValue>, val debugInfo: ChunkDebugInfo) {
 
 	fun size(): Int {
 		return code.size
@@ -28,7 +28,7 @@ class Chunk(val code: ByteArray, val constants: Array<AnyLoxValue>, val debugInf
 	}
 }
 
-class MutableChunk(val code: MutableList<Byte> = mutableListOf(), val constants: MutableList<AnyLoxValue> = mutableListOf(), val debugInfo: MutableChunkDebugInfo = MutableChunkDebugInfo()) {
+class MutableChunk(val code: MutableList<Byte> = mutableListOf(), val constants: MutableList<AnySunliteValue> = mutableListOf(), val debugInfo: MutableChunkDebugInfo = MutableChunkDebugInfo()) {
 
 	fun size(): Int {
 		return code.size
@@ -36,5 +36,15 @@ class MutableChunk(val code: MutableList<Byte> = mutableListOf(), val constants:
 
 	fun toImmutable(): Chunk {
 		return Chunk(code.toByteArray(), constants.toTypedArray(), debugInfo.toImmutable())
+	}
+
+	override fun toString(): String {
+		val sb = StringBuilder()
+		sb.append("==== ${debugInfo.file.toString()}::${debugInfo.name} (mutable) ====\n")
+		for ((index, byte) in code.withIndex()) {
+			sb.append(String.format("%04X: %02X\n", index, byte))
+		}
+		sb.append("=====${"=".repeat(debugInfo.file?.length?.plus(debugInfo.name.length) ?: 0)}=====\n")
+		return sb.toString()
 	}
 }

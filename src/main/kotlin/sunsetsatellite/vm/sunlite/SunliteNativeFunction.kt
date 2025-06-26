@@ -6,6 +6,6 @@ abstract class SunliteNativeFunction(val name: String, val arity: Int = 0) {
 		return "<native fn '${name}'>"
 	}
 
-	abstract fun call(vm: VM, args: Array<AnyLoxValue>): AnyLoxValue
+	abstract fun call(vm: VM, args: Array<AnySunliteValue>): AnySunliteValue
 
 }

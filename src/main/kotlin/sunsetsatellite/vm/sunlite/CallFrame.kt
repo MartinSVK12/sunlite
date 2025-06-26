@@ -4,21 +4,21 @@ import java.util.*
 
 class CallFrame(val closure: SunliteClosure/*, val locals: Array<AnyLoxValue>*/) {
 	var pc: Int = 0
-	val stack: Stack<AnyLoxValue> = Stack()
+	val stack: Stack<AnySunliteValue> = Stack()
 
-	fun pop(): AnyLoxValue {
+	fun pop(): AnySunliteValue {
 		return stack.pop()
 	}
 
-	fun push(value: AnyLoxValue) {
+	fun push(value: AnySunliteValue) {
 		stack.push(value)
 	}
 
-	fun peek(): AnyLoxValue {
+	fun peek(): AnySunliteValue {
 		return stack.peek()
 	}
 
-	fun peek(i: Int): AnyLoxValue {
+	fun peek(i: Int): AnySunliteValue {
 		val len = stack.size
 
 		if (len == 0) throw EmptyStackException()

@@ -32,5 +32,8 @@ enum class Opcodes {
 	SET_UPVALUE,
 	CLASS,
 	SET_PROP,
-	GET_PROP
+	GET_PROP, //todo: INVOKE instruction that combines GET_PROP and CALL
+	METHOD,
+	INHERIT,
+	GET_SUPER
 }

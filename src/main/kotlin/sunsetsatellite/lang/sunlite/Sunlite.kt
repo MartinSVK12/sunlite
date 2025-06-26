@@ -279,12 +279,12 @@ class Sunlite(val args: Array<String>) {
 
 		val compiler = Compiler(this, vm, null)
 
-		val program: SunliteFunction = compiler.compile(statements, shortPath)
+		val program: SunliteFunction = compiler.compile(FunctionType.FUNCTION, statements, shortPath)
 
 		// Stop if there was a compilation error.
 		if (hadError) return
 
-		vm.call(LoxClosureObj(SunliteClosure(program)),0)
+		vm.call(SunliteClosureObj(SunliteClosure(program)),0)
 
 		try {
 			vm.run()

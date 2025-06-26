@@ -24,6 +24,7 @@ class Scanner(private val source: String, val sunlite: Sunlite) {
 			keywords["false"] = FALSE
 			keywords["for"] = FOR
 			keywords["fun"] = FUN
+			keywords["init"] = INIT
 			keywords["if"] = IF
 			keywords["nil"] = NIL
 			keywords["or"] = OR

@@ -117,7 +117,7 @@ object AstPrinter : Expr.Visitor<String>, Stmt.Visitor<String> {
 		val builder = StringBuilder()
 
 		builder.append("(").append(name)
-		if(name == "block" || (name.contains("function") && !name.contains("abstract") && !name.contains("native")) || name.contains("class") || name.contains("interface") || name.contains("lambda")) {
+		if(name == "block" || (FunctionType.entries.any { name.contains(it.toString().lowercase()) } && !name.contains("abstract") && !name.contains("native")) || name.contains("class") || name.contains("interface") || name.contains("lambda")) {
 			builder.append(" {\n")
 			tabs++
 		}
@@ -126,7 +126,7 @@ object AstPrinter : Expr.Visitor<String>, Stmt.Visitor<String> {
 			builder.append(stmt.accept(this))
 			if(stmts.size-1 > i) builder.append(",\n")
 		}
-		if(name == "block" || (name.contains("function") && !name.contains("abstract") && !name.contains("native")) || name.contains("class") || name.contains("interface") || name.contains("lambda")){
+		if(name == "block" || (FunctionType.entries.any { name.contains(it.toString().lowercase()) } && !name.contains("abstract") && !name.contains("native")) || name.contains("class") || name.contains("interface") || name.contains("lambda")){
 			tabs--
 			builder.append("\n").append("\t".repeat(tabs)).append("}")
 		}
@@ -187,7 +187,7 @@ object AstPrinter : Expr.Visitor<String>, Stmt.Visitor<String> {
 	}
 
 	override fun visitFunctionStmt(stmt: Stmt.Function): String {
-		return parenthesize("${stmt.modifier.name.lowercase()} function ${stmt.name.lexeme}( ${stmt.params.toString().replace("[","").replace("]","")} ): ${stmt.returnType.getName()}", stmt.body)
+		return parenthesize("${stmt.modifier.name.lowercase()} ${stmt.type.toString().lowercase()} ${stmt.name.lexeme}( ${stmt.params.toString().replace("[","").replace("]","")} ): ${stmt.returnType.getName()}", stmt.body)
 	}
 
 	override fun visitReturnStmt(stmt: Stmt.Return): String {
