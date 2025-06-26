@@ -1,6 +1,6 @@
 package sunsetsatellite.lang.sunlite
 
-import sunsetsatellite.interpreter.sunlite.*
+import kotlin.collections.find
 
 abstract class Type {
 
@@ -48,7 +48,7 @@ abstract class Type {
             if(other !is Reference) return false
             if(other.type != type) return false
             if(this.type == other.type && this.ref == other.ref) return true
-            val typeHierarchy = sunlite.typeCollector.typeHierarchy
+            /*val typeHierarchy = sunlite.typeCollector.typeHierarchy
             if (!typeHierarchy.map { it.type }.contains(other.ref) || !sunlite.typeCollector.typeHierarchy.map { it.type }.contains(this.ref)) {
                 return false
             } else {
@@ -56,10 +56,11 @@ abstract class Type {
                 node.supertypes ?: return false
                 val supertype = node.supertypes.find { it.type == this.ref }
                 return if (supertype != null) true else isValidSupertype(node,typeHierarchy)
-            }
+            }*/
+            return false
         }
 
-        private fun isValidSupertype(
+        /*private fun isValidSupertype(
             node: TypeCollector.TypeHierarchyNode,
             typeHierarchy: MutableList<TypeCollector.TypeHierarchyNode>,
         ): Boolean {
@@ -74,7 +75,7 @@ abstract class Type {
                 return isValidSupertype(nextNode,typeHierarchy)
             }
             return false
-        }
+        }*/
 
         override fun hashCode(): Int {
             var result = type.hashCode()
@@ -166,11 +167,11 @@ abstract class Type {
                 is Double -> NUMBER
                 is Boolean -> BOOLEAN
                 null -> NIL
-                is LoxFunction -> ofFunction(value.declaration.name.lexeme, sunlite)
+                /*is LoxFunction -> ofFunction(value.declaration.name.lexeme, sunlite)
                 is LoxClass -> ofClass(value.name, sunlite)
                 is LoxInterface -> ofClass(value.name, sunlite)
                 is LoxClassInstance -> ofObject(value.name(), sunlite)
-                is LoxArray -> ARRAY
+                is LoxArray -> ARRAY*/
                 else -> UNKNOWN
             }
         }

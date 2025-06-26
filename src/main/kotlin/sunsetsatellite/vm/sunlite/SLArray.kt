@@ -1,9 +1,7 @@
 package sunsetsatellite.vm.sunlite
 
-import sunsetsatellite.interpreter.sunlite.LoxRuntimeError
 import sunsetsatellite.lang.sunlite.Sunlite
 import sunsetsatellite.lang.sunlite.Token
-import sunsetsatellite.lang.sunlite.Type
 
 class SLArray(var size: Int, val sunlite: Sunlite) {
 	private var array: Array<Any?> = arrayOfNulls(size)

@@ -1,7 +1,10 @@
 package sunsetsatellite.lang.sunlite
 
+import jdk.internal.org.objectweb.asm.tree.analysis.Interpreter
+import org.omg.CORBA.Environment
 import sunsetsatellite.vm.sunlite.*
 import sunsetsatellite.vm.sunlite.SLFunction
+import sunsetsatellite.vm.sunlite.VM.Companion.globals
 import java.io.BufferedReader
 import java.io.IOException
 import java.io.InputStreamReader
@@ -56,6 +59,10 @@ class Sunlite(val args: Array<String>) {
 				runPrompt()
 			}
 		}
+	}
+
+	fun parse(code: String? = null): Pair<List<Token>,List<Stmt>>? {
+		return null
 	}
 
 	@Throws(IOException::class)
