@@ -1,4 +1,8 @@
-package sunsetsatellite.vm.sunlite
+package sunsetsatellite.lang.sunlite
+
+import sunsetsatellite.vm.sunlite.Chunk
+import sunsetsatellite.vm.sunlite.Opcodes
+import sunsetsatellite.vm.sunlite.SLFuncObj
 
 object Disassembler {
 	fun disassembleChunk(chunk: Chunk): String {
@@ -9,8 +13,14 @@ object Disassembler {
 		while (offset < chunk.size()) {
 			offset = disassembleInstruction(sb, chunk, offset)
 		}
+		sb.append("==== Exception Table ====\n")
 
-		sb.append("=====${"=".repeat(chunk.debugInfo.file?.length?.plus(chunk.debugInfo.name.length) ?: 0)}=====\n")
+		for ((index, exception) in chunk.exceptions.entries.withIndex()) {
+			sb.append(exception.key.toString() + " -> " + exception.value.toString() + "\n")
+		}
+
+		sb.append("==== ${chunk.debugInfo.file.toString()}::${chunk.debugInfo.name} ====\n")
+		//sb.append("=====${"=".repeat(chunk.debugInfo.file?.length?.plus(chunk.debugInfo.name.length) ?: 0)}=====\n")
 		return sb.toString()
 	}
 
@@ -57,10 +67,12 @@ object Disassembler {
 			Opcodes.SET_PROP -> return constantInstruction(sb, opcode.name, chunk, offset)
 			Opcodes.GET_PROP -> return constantInstruction(sb, opcode.name, chunk, offset)
 			Opcodes.METHOD -> return constantInstruction(sb, opcode.name, chunk, offset)
+			Opcodes.FIELD -> return constantInstruction(sb, opcode.name, chunk, offset)
 			Opcodes.INHERIT -> return simpleInstruction(sb, opcode.name, offset)
 			Opcodes.GET_SUPER -> return constantInstruction(sb, opcode.name, chunk, offset)
 			Opcodes.ARRAY_GET -> return simpleInstruction(sb, opcode.name, offset)
 			Opcodes.ARRAY_SET -> return simpleInstruction(sb, opcode.name, offset)
+			Opcodes.THROW -> return simpleInstruction(sb, opcode.name, offset)
 		}
 	}
 

@@ -6,4 +6,7 @@ class SLBoundMethod(val method: SLClosure, val receiver: AnySLValue) {
 		return method.toString()
 	}
 
+	fun copy(): SLBoundMethod {
+		return SLBoundMethod(method.copy(), receiver.copy())
+	}
 }

@@ -1,8 +1,9 @@
 package sunsetsatellite.vm.sunlite
 
+import com.sun.org.apache.xalan.internal.lib.ExsltDynamic.closure
 import java.util.*
 
-class CallFrame(val closure: SLClosure/*, val locals: Array<AnyLoxValue>*/) {
+class CallFrame(val closure: SLClosure, val locals: MutableList<AnySLValue>) {
 	var pc: Int = 0
 	val stack: Stack<AnySLValue> = Stack()
 

@@ -13,7 +13,8 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite) {
 	private var current = 0
 
 	var currentFile: String? = null
-	var insideClass: Boolean = false
+	var currentClass: Token? = null
+	var currentFunction: Token? = null
 
 	private class ParseError : RuntimeException()
 
@@ -33,7 +34,7 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite) {
 			return when {
 				match(VAR) -> varDeclaration()
 				match(FUN) -> function(FunctionType.FUNCTION, null)
-				match(DYNAMIC) -> classDeclaration(ClassModifier.DYNAMIC)
+				//match(DYNAMIC) -> classDeclaration(ClassModifier.DYNAMIC)
 				match(CLASS) -> classDeclaration(ClassModifier.NORMAL)
 				match(INTERFACE) -> interfaceDeclaration()
 				match(IMPORT) -> importStatement()
@@ -47,6 +48,7 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite) {
 
 	private fun statement(): Stmt {
 		return when {
+			match(THROW) -> throwStatement()
 			//match(PRINT) -> printStatement()
 			match(LEFT_BRACE) -> Stmt.Block(block(), previous().line, previous().file)
 			match(IF) -> ifStatement()
@@ -55,8 +57,28 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite) {
 			match(BREAK) -> breakStatement()
 			match(CONTINUE) -> continueStatement()
 			match(RETURN) -> returnStatement()
+			match(TRY) -> tryCatchStatement()
 			else -> expressionStatement()
 		}
+	}
+
+	private fun tryCatchStatement(): Stmt {
+		val tryToken = previous()
+		consume(LEFT_BRACE, "Expected '{' before try block.")
+		val tryBlock = block()
+		consume(CATCH, "Expected 'catch' after try block.")
+		val catchToken = previous()
+		consume(LEFT_PAREN, "Expected '(' after 'catch'.")
+		val catchVariable = Param(consume(IDENTIFIER, "Expected catch variable name."), getType())
+		consume(RIGHT_PAREN, "Expected ')' after catch variable.")
+		consume(LEFT_BRACE, "Expected '{' before catch block.")
+		val catchBlock = block()
+		return Stmt.TryCatch(
+			tryToken,
+			catchToken,
+			Stmt.Block(tryBlock, previous().line, previous().file),
+			catchVariable,
+			Stmt.Block(catchBlock, previous().line, previous().file))
 	}
 
 	private fun importStatement(): Stmt? {
@@ -129,9 +151,7 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite) {
 	}
 
 	private fun classDeclaration(modifier: ClassModifier): Stmt {
-		insideClass = true
-
-		if(modifier == ClassModifier.DYNAMIC) consume(CLASS, "Expected 'class' after class modifier.")
+		//if(modifier == ClassModifier.DYNAMIC) consume(CLASS, "Expected 'class' after class modifier.")
 
 		val typeParameters: MutableList<Param> = ArrayList()
 		if(match(LESS)){
@@ -147,6 +167,8 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite) {
 		}
 
 		val name = consume(IDENTIFIER, "Expected class name.")
+
+		currentClass = name
 
 		var superclass: Variable? = null
 		if (match(EXTENDS)) {
@@ -210,7 +232,7 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite) {
 
 		consume(RIGHT_BRACE, "Expected '}' after class body.")
 
-		insideClass = false
+		currentClass = null
 
 		return Stmt.Class(name, methods, fields, superclass, superinterfaces, modifier, typeParameters)
 	}
@@ -259,6 +281,7 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite) {
 
 	private fun funcSignature(kind: FunctionType): Triple<Token,List<Param>, Type>{
 		val name = if(kind == FunctionType.INITIALIZER) Token.identifier("init") else consume(IDENTIFIER, "Expected ${kind.toString().lowercase()} name.")
+		currentFunction = name
 		consume(LEFT_PAREN, "Expected '(' after ${kind.toString().lowercase()} name.")
 		val parameters: MutableList<Param> = ArrayList()
 		if (!checkType(RIGHT_PAREN)) {
@@ -296,6 +319,7 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite) {
 		}
 
 		val signature = funcSignature(FunctionType.METHOD)
+		currentFunction = null
 
 		return Stmt.Function(
 			signature.first,
@@ -331,11 +355,13 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite) {
 
 		var body: List<Stmt> = listOf()
 		if(funcModifier != FunctionModifier.NATIVE){
-			consume(LEFT_BRACE, "Expected '{' before $kind body.")
+			consume(LEFT_BRACE, "Expected '{' before ${kind.toString().lowercase()} body.")
 			body = block()
 		} else {
-			assert(LEFT_BRACE, "Native $kind cannot have a body.")
+			assert(LEFT_BRACE, "Native ${kind.toString().lowercase()} cannot have a body.")
 		}
+
+		currentFunction = null
 
 		return Stmt.Function(signature.first, kind, signature.second, body, funcModifier, signature.third, typeParameters)
 	}
@@ -370,6 +396,12 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite) {
 		/*val value = expression()
 		consume(SEMICOLON, "Expected ';' after value.")
 		return Stmt.Print(value)*/
+	}
+
+	private fun throwStatement(): Stmt {
+		val value = expression()
+		consume(SEMICOLON, "Expected ';' after value.")
+		return Stmt.Throw(value)
 	}
 
 	private fun whileStatement(): Stmt {
@@ -545,7 +577,7 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite) {
 	private fun getType(function: Boolean = false, noColon: Boolean = false): Type {
 		var type: Type = if(function) Type.NIL else Type.ANY
 		if (match(COLON) || noColon) {
-			type = Type.of(getTypeTokens(false), sunlite)
+			type = Type.of(getTypeTokens(false))
 		}
 		return type
 	}
@@ -582,11 +614,11 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite) {
 
 				if (expr is Variable) {
 					val name = expr.name
-					return Assign(name, value, EQUAL)
+					return Assign(name, value, EQUAL, expr.getExprType())
 				} else if (expr is Get) {
-					return Set(expr.obj, expr.name, value, EQUAL)
+					return Set(expr.obj, expr.name, value, EQUAL, expr.getExprType())
 				} else if(expr is ArrayGet) {
-					return ArraySet(expr.obj, expr.what, value, previous(), EQUAL)
+					return ArraySet(expr.obj, expr.what, value, previous(), EQUAL, expr.getExprType())
 				}
 
 				error(equals, "Invalid assignment target.")
@@ -597,11 +629,11 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite) {
 
 				if (expr is Variable) {
 					val name = expr.name
-					return Assign(name, value, PLUS_EQUAL)
+					return Assign(name, value, PLUS_EQUAL, expr.getExprType())
 				} else if (expr is Get) {
-					return Set(expr.obj, expr.name, value, PLUS_EQUAL)
+					return Set(expr.obj, expr.name, value, PLUS_EQUAL, expr.getExprType())
 				} else if(expr is ArrayGet) {
-					return ArraySet(expr.obj, expr.what, value, previous(), PLUS_EQUAL)
+					return ArraySet(expr.obj, expr.what, value, previous(), PLUS_EQUAL, expr.getExprType())
 				}
 
 				error(equals, "Invalid assignment target.")
@@ -612,11 +644,11 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite) {
 
 				if (expr is Variable) {
 					val name = expr.name
-					return Assign(name, value, MINUS_EQUAL)
+					return Assign(name, value, MINUS_EQUAL, expr.getExprType())
 				} else if (expr is Get) {
-					return Set(expr.obj, expr.name, value, MINUS_EQUAL)
+					return Set(expr.obj, expr.name, value, MINUS_EQUAL, expr.getExprType())
 				} else if(expr is ArrayGet) {
-					return ArraySet(expr.obj, expr.what, value, previous(), MINUS_EQUAL)
+					return ArraySet(expr.obj, expr.what, value, previous(), MINUS_EQUAL, expr.getExprType())
 				}
 
 				error(equals, "Invalid assignment target.")
@@ -739,6 +771,7 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite) {
 	private fun lambda(): Expr {
 		val token = peek()
 		if(match(FUN)){
+			currentFunction = previous()
 			//while (true) {
 
 			val typeParameters: MutableList<Param> = ArrayList()
@@ -766,27 +799,6 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite) {
 		var expr = primary()
 
 		while (true) {
-//			if(check(LESS)){
-//				if(!matchNext(TYPE_BOOLEAN, TYPE_STRING, TYPE_NUMBER, TYPE_FUNCTION, CLASS, TYPE_ANY, IDENTIFIER, NIL)) {
-//					break
-//				}
-//				advance()
-//				val parameters: MutableList<Type> = ArrayList()
-//				if (!check(GREATER)) {
-//					do {
-//						if (parameters.size >= 255) {
-//							error(peek(), "Can't have more than 255 type parameters.")
-//						}
-//
-//						parameters.add(
-//							getType(function = false, noColon = true)
-//						)
-//					} while (match(COMMA))
-//				}
-//				consume(GREATER, "Expected '>' after type parameter.")
-//				consume(LEFT_PAREN, "Expected '(' after '>'.")
-//				expr = finishCall(expr, parameters)
-//			}
 			if (match(LEFT_PAREN)) {
 
 				val typeParameters: MutableList<Type> = ArrayList()
@@ -804,7 +816,12 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite) {
 				expr = finishCall(expr, typeParameters)
 			} else if (match(DOT)) {
 				val name: Token = consume(IDENTIFIER, "Expected expression after '.'.")
-				expr = Get(expr, name)
+				if(sunlite.collector != null){
+					val type = sunlite.collector?.findType(name, Token.identifier(expr.getExprType().getName(),-1,currentFile))?.getElementType() ?: Type.UNKNOWN
+					expr = Get(expr, name, type)
+				} else {
+					expr = Get(expr, name)
+				}
 			} else if(match(LEFT_BRACKET)) {
 				val name = expression()
 				consume(RIGHT_BRACKET, "Expected ']' after expression.")
@@ -836,6 +853,8 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite) {
 
 		consume(LEFT_BRACE, "Expected '{' before lambda body.")
 		val body = block()
+
+		currentFunction = null
 
 		return Lambda(
 			Stmt.Function(
@@ -871,28 +890,41 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite) {
 	}
 
 	private fun primary(): Expr {
-		if (match(FALSE)) return Literal(false,previous().line,previous().file)
-		if (match(TRUE)) return Literal(true,previous().line,previous().file)
-		if (match(NIL)) return Literal(null,previous().line,previous().file)
+		if (match(FALSE)) return Literal(false,previous().line,previous().file, Type.BOOLEAN)
+		if (match(TRUE)) return Literal(true,previous().line,previous().file, Type.BOOLEAN)
+		if (match(NIL)) return Literal(null,previous().line,previous().file, Type.NIL)
 
 		if (match(NUMBER, STRING)) {
-			return Literal(previous().literal,previous().line,previous().file)
+			if(previous().type == NUMBER){
+				return Literal(previous().literal,previous().line,previous().file, Type.NUMBER)
+			} else {
+				return Literal(previous().literal,previous().line,previous().file, Type.STRING)
+			}
 		}
 
 		if (match(SUPER)) {
 			val keyword = previous()
 			consume(DOT, "Expected '.' after 'super'.")
-			val method = consume(
-				IDENTIFIER,
-				"Expected superclass method name."
-			)
-			return Super(keyword, method)
+			if(!match(IDENTIFIER, INIT)){
+				throw error(peek(), "Expected superclass method name.")
+			}
+			val method = previous()
+			if(sunlite.collector != null){
+				val type = sunlite.collector?.findType(Token.identifier("<superclass>",-1, keyword.file), currentClass)?.getElementType() ?: Type.UNKNOWN
+				val methodType = sunlite.collector?.findType(Token.identifier(method.lexeme,-1, keyword.file), Token.identifier(type.getName(),-1,keyword.file))?.getElementType() ?: Type.UNKNOWN
+				return Super(keyword, method, methodType)
+			} else {
+				return Super(keyword, method)
+			}
 		}
 
 		if (match(THIS)) {
-			/*if(!insideClass){
-				throw error(peek(), "Can't refer to 'this' outside of a class.")
-			}*/
+            sunlite.collector?.let {
+                val type = currentClass?.let {
+                    sunlite.collector?.findType(currentClass!!, Token.identifier(currentFile ?: "<global>",-1,currentFile))
+                }
+				return This(previous(), (type?.getElementType() as Type.Reference?)?.returnType ?: Type.UNKNOWN)
+            }
 			return This(previous())
 		}
 
@@ -903,7 +935,12 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite) {
 		}
 
 		if (match(IDENTIFIER)) {
-			return Variable(previous())
+			val varToken = previous()
+			if(sunlite.collector != null){
+				val type = sunlite.collector?.findType(varToken, Token.identifier(currentFile ?: "<global>",-1,currentFile))
+				return Variable(varToken, type?.getElementType() ?: Type.UNKNOWN)
+			}
+			return Variable(varToken)
 		}
 
 		throw error(peek(), "Expected expression.")

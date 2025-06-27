@@ -25,16 +25,19 @@ object AstPrinter : Expr.Visitor<String>, Stmt.Visitor<String> {
 	}
 
 	override fun visitLiteralExpr(expr: Expr.Literal): String {
-		if (expr.value == null) return "nil"
-		return "\"${expr.value}\""
+		if (expr.value == null) return "<nil>"
+		if(expr.getExprType() == Type.STRING){
+			return "\"${expr.value}\""
+		}
+		return expr.value.toString()
 	}
 
 	override fun visitVariableExpr(expr: Expr.Variable): String {
-		return "(var ${expr.name.lexeme})"
+		return "(var ${expr.name.lexeme}: ${expr.type})"
 	}
 
 	override fun visitAssignExpr(expr: Expr.Assign): String {
-		return "(assignment ${expr.name} -> ${expr.value.accept(this)})"
+		return "(assignment: ${expr.getExprType()} -> ${expr.name.lexeme} -> ${expr.value.accept(this)})"
 	}
 
 	override fun visitLogicalExpr(expr: Expr.Logical): String {
@@ -42,7 +45,7 @@ object AstPrinter : Expr.Visitor<String>, Stmt.Visitor<String> {
 	}
 
 	override fun visitCallExpr(expr: Expr.Call): String {
-		return "(call ${print(expr.callee)} ${if (expr.arguments.isEmpty()) "(no args)" else parenthesizeList("args", expr.arguments)})"
+		return "(call ${print(expr.callee)} -> ${expr.getExprType()} ${if (expr.arguments.isEmpty()) "(no args)" else parenthesizeList("args", expr.arguments)})"
 	}
 
 	override fun visitLambdaExpr(expr: Expr.Lambda): String {
@@ -50,7 +53,7 @@ object AstPrinter : Expr.Visitor<String>, Stmt.Visitor<String> {
 	}
 
 	override fun visitGetExpr(expr: Expr.Get): String {
-		return "(get '${expr.name.lexeme}' ${print(expr.obj)})"
+		return "(get '${expr.name.lexeme}: ${expr.type}' ${print(expr.obj)})"
 	}
 
 	override fun visitArrayGetExpr(expr: Expr.ArrayGet): String {
@@ -62,15 +65,15 @@ object AstPrinter : Expr.Visitor<String>, Stmt.Visitor<String> {
 	}
 
 	override fun visitSetExpr(expr: Expr.Set): String {
-		return "(set '${expr.name.lexeme}' to ${print(expr.value)} on ${print(expr.obj)})"
+		return "(set '${expr.name.lexeme}' to (${print(expr.value)}: ${expr.getExprType()}) on ${print(expr.obj)})"
 	}
 
 	override fun visitThisExpr(expr: Expr.This): String {
-		return "(this)"
+		return "(this: ${expr.getExprType()})"
 	}
 
 	override fun visitSuperExpr(expr: Expr.Super): String {
-		return "(super)"
+		return "(super ${expr.method.lexeme}: ${expr.getExprType()})"
 	}
 
 	override fun visitCheckExpr(expr: Expr.Check): String {
@@ -117,7 +120,7 @@ object AstPrinter : Expr.Visitor<String>, Stmt.Visitor<String> {
 		val builder = StringBuilder()
 
 		builder.append("(").append(name)
-		if(name == "block" || (FunctionType.entries.any { name.contains(it.toString().lowercase()) } && !name.contains("abstract") && !name.contains("native")) || name.contains("class") || name.contains("interface") || name.contains("lambda")) {
+		if(name == "block" || name == "try" || name == "catch" || (FunctionType.entries.any { name.contains(it.toString().lowercase()) } && !name.contains("abstract") && !name.contains("native")) || name.contains("class") || name.contains("interface") || name.contains("lambda")) {
 			builder.append(" {\n")
 			tabs++
 		}
@@ -126,7 +129,7 @@ object AstPrinter : Expr.Visitor<String>, Stmt.Visitor<String> {
 			builder.append(stmt.accept(this))
 			if(stmts.size-1 > i) builder.append(",\n")
 		}
-		if(name == "block" || (FunctionType.entries.any { name.contains(it.toString().lowercase()) } && !name.contains("abstract") && !name.contains("native")) || name.contains("class") || name.contains("interface") || name.contains("lambda")){
+		if(name == "block" || name == "try" || name == "catch" || (FunctionType.entries.any { name.contains(it.toString().lowercase()) } && !name.contains("abstract") && !name.contains("native")) || name.contains("class") || name.contains("interface") || name.contains("lambda")){
 			tabs--
 			builder.append("\n").append("\t".repeat(tabs)).append("}")
 		}
@@ -162,7 +165,7 @@ object AstPrinter : Expr.Visitor<String>, Stmt.Visitor<String> {
 	}
 
 	override fun visitVarStmt(stmt: Stmt.Var): String {
-		return stmt.initializer?.let { parenthesize("${stmt.modifier.name.lowercase()} var '${stmt.name.lexeme}' (type '${stmt.type.getName().lowercase()}')", it) } ?: "(${stmt.modifier.name.lowercase()} var '${stmt.name.lexeme}' (type '${stmt.type.getName().lowercase()}') nil)"
+		return stmt.initializer?.let { parenthesize("${stmt.modifier.name.lowercase()} var '${stmt.name.lexeme}': ${stmt.type.getName().lowercase()} =", it) } ?: "(${stmt.modifier.name.lowercase()} var '${stmt.name.lexeme}' (type '${stmt.type.getName().lowercase()}') nil)"
 	}
 
 	override fun visitBlockStmt(stmt: Stmt.Block): String {
@@ -205,5 +208,13 @@ object AstPrinter : Expr.Visitor<String>, Stmt.Visitor<String> {
 
 	override fun visitImportStmt(stmt: Stmt.Import): String {
 		return "(import ${stmt.what.lexeme})"
+	}
+
+	override fun visitTryCatchStmt(stmt: Stmt.TryCatch): String {
+		return parenthesize("try",stmt.tryBody.statements) + parenthesize("catch (${stmt.catchVariable})", stmt.catchBody.statements)
+	}
+
+	override fun visitThrowStmt(stmt: Stmt.Throw): String {
+		return parenthesize("throw", stmt.expr)
 	}
 }

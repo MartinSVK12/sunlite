@@ -13,6 +13,18 @@ abstract class Expr: Element {
 		override fun getFile(): String? {
 			return operator.file
 		}
+
+		override fun getExprType(): Type {
+			if(operator.type != TokenType.PLUS) {
+				return Type.NUMBER
+			} else {
+				if(left.getExprType() == Type.NUMBER && right.getExprType() == Type.NUMBER) {
+					return Type.NUMBER
+				} else {
+					return Type.STRING
+				}
+			}
+        }
 	}
 
 	data class Grouping(val expression: Expr) : Expr() {
@@ -26,6 +38,10 @@ abstract class Expr: Element {
 
 		override fun getFile(): String? {
 			return expression.getFile()
+		}
+
+		override fun getExprType(): Type {
+			return expression.getExprType()
 		}
 	}
 
@@ -41,9 +57,18 @@ abstract class Expr: Element {
 		override fun getFile(): String? {
 			return operator.file
 		}
+
+		override fun getExprType(): Type {
+			if(operator.type == TokenType.BANG) {
+				return Type.BOOLEAN
+			} else if(operator.type == TokenType.MINUS) {
+				return Type.NUMBER
+			}
+			return Type.UNKNOWN
+		}
 	}
 
-	data class Literal(val value: Any?, val lineNumber: Int, val currentFile: String?): Expr() {
+	data class Literal(val value: Any?, val lineNumber: Int, val currentFile: String?, val type: Type = Type.UNKNOWN): Expr() {
 		override fun <R> accept(visitor: Visitor<R>): R? {
 			return visitor.visitLiteralExpr(this)
 		}
@@ -55,9 +80,13 @@ abstract class Expr: Element {
 		override fun getFile(): String? {
 			return currentFile
 		}
+
+		override fun getExprType(): Type {
+			return type
+		}
 	}
 
-	data class Variable(val name: Token): Expr(), NamedExpr {
+	data class Variable(val name: Token, val type: Type = Type.UNKNOWN): Expr(), NamedExpr {
 		override fun <R> accept(visitor: Visitor<R>): R? {
 			return visitor.visitVariableExpr(this)
 		}
@@ -72,6 +101,10 @@ abstract class Expr: Element {
 
 		override fun getNameToken(): Token {
 			return name
+		}
+
+		override fun getExprType(): Type {
+			return type
 		}
 	}
 
@@ -93,7 +126,7 @@ abstract class Expr: Element {
 		}
 	}*/
 
-	data class Assign(val name: Token, val value: Expr, val operator: TokenType): Expr(), NamedExpr {
+	data class Assign(val name: Token, val value: Expr, val operator: TokenType, val type: Type): Expr(), NamedExpr {
 		override fun <R> accept(visitor: Visitor<R>): R? {
 			return visitor.visitAssignExpr(this)
 		}
@@ -109,6 +142,11 @@ abstract class Expr: Element {
 		override fun getNameToken(): Token {
 			return name
 		}
+
+		override fun getExprType(): Type {
+			return type
+		}
+
 	}
 
 	data class Logical(val left: Expr, val operator: Token, val right: Expr): Expr() {
@@ -122,6 +160,10 @@ abstract class Expr: Element {
 
 		override fun getFile(): String? {
 			return operator.file
+		}
+
+		override fun getExprType(): Type {
+			return Type.BOOLEAN
 		}
 	}
 
@@ -137,6 +179,14 @@ abstract class Expr: Element {
 		override fun getFile(): String? {
 			return paren.file
 		}
+
+		override fun getExprType(): Type {
+			val type = callee.getExprType()
+			if(type is Type.Reference){
+				return type.returnType
+			}
+			return Type.UNKNOWN
+        }
 	}
 
 	data class Lambda(val function: Stmt.Function): Expr(), NamedExpr {
@@ -155,9 +205,13 @@ abstract class Expr: Element {
 		override fun getNameToken(): Token {
 			return function.name
 		}
+
+		override fun getExprType(): Type {
+			return Type.ofFunction(function.name.lexeme, function.returnType, function.params)
+		}
 	}
 
-	data class Get(val obj: Expr, val name: Token): Expr(), NamedExpr {
+	data class Get(val obj: Expr, val name: Token, val type: Type = Type.UNKNOWN): Expr(), NamedExpr {
 		override fun <R> accept(visitor: Visitor<R>): R? {
 			return visitor.visitGetExpr(this)
 		}
@@ -173,9 +227,13 @@ abstract class Expr: Element {
 		override fun getNameToken(): Token {
 			return name
 		}
+
+		override fun getExprType(): Type {
+			return type
+		}
 	}
 
-	data class ArrayGet(val obj: Expr, val what: Expr, val token: Token): Expr() {
+	data class ArrayGet(val obj: Expr, val what: Expr, val token: Token, val type: Type = Type.UNKNOWN): Expr() {
 		override fun <R> accept(visitor: Visitor<R>): R? {
 			return visitor.visitArrayGetExpr(this)
 		}
@@ -187,9 +245,14 @@ abstract class Expr: Element {
 		override fun getFile(): String? {
 			return token.file
 		}
+
+		override fun getExprType(): Type {
+			//todo
+			return Type.NULLABLE_ANY
+		}
 	}
 
-	data class Set(val obj: Expr, val name: Token, val value: Expr, val operator: TokenType): Expr(), NamedExpr {
+	data class Set(val obj: Expr, val name: Token, val value: Expr, val operator: TokenType, val type: Type = Type.UNKNOWN): Expr(), NamedExpr {
 		override fun <R> accept(visitor: Visitor<R>): R? {
 			return visitor.visitSetExpr(this)
 		}
@@ -205,9 +268,14 @@ abstract class Expr: Element {
 		override fun getNameToken(): Token {
 			return name
 		}
+
+		override fun getExprType(): Type {
+			return type
+		}
+
 	}
 
-	data class ArraySet(val obj: Expr, val what: Expr, val value: Expr, val token: Token, val operator: TokenType): Expr() {
+	data class ArraySet(val obj: Expr, val what: Expr, val value: Expr, val token: Token, val operator: TokenType, val type: Type = Type.UNKNOWN): Expr() {
 		override fun <R> accept(visitor: Visitor<R>): R? {
 			return visitor.visitArraySetExpr(this)
 		}
@@ -219,9 +287,13 @@ abstract class Expr: Element {
 		override fun getFile(): String? {
 			return token.file
 		}
+
+		override fun getExprType(): Type {
+			return type
+		}
 	}
 
-	data class This(val keyword: Token): Expr() {
+	data class This(val keyword: Token, val type: Type = Type.UNKNOWN): Expr() {
 		override fun <R> accept(visitor: Visitor<R>): R? {
 			return visitor.visitThisExpr(this)
 		}
@@ -233,9 +305,13 @@ abstract class Expr: Element {
 		override fun getFile(): String? {
 			return keyword.file
 		}
+
+		override fun getExprType(): Type {
+			return type
+		}
 	}
 
-	data class Super(val keyword: Token, val method: Token): Expr(), NamedExpr {
+	data class Super(val keyword: Token, val method: Token, val type: Type = Type.UNKNOWN): Expr(), NamedExpr {
 		override fun <R> accept(visitor: Visitor<R>): R? {
 			return visitor.visitSuperExpr(this)
 		}
@@ -251,6 +327,10 @@ abstract class Expr: Element {
 		override fun getNameToken(): Token {
 			return method
 		}
+
+		override fun getExprType(): Type {
+			return type
+		}
 	}
 
 	data class Check(val left: Expr, val operator: Token, val right: Type): Expr() {
@@ -265,6 +345,10 @@ abstract class Expr: Element {
 		override fun getFile(): String? {
 			return operator.file
 		}
+
+		override fun getExprType(): Type {
+			return Type.BOOLEAN
+		}
 	}
 
 	data class Cast(val left: Expr, val operator: Token, val right: Type): Expr() {
@@ -278,6 +362,10 @@ abstract class Expr: Element {
 
 		override fun getFile(): String? {
 			return operator.file
+		}
+
+		override fun getExprType(): Type {
+			return right
 		}
 	}
 
@@ -306,4 +394,5 @@ abstract class Expr: Element {
 	}
 
 	abstract fun <R> accept(visitor: Visitor<R>): R?
+	abstract fun getExprType(): Type
 }

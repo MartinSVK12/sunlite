@@ -5,6 +5,11 @@ import sunsetsatellite.lang.sunlite.Sunlite
 class SLArray(var size: Int, val sunlite: Sunlite) {
 	private var array: Array<AnySLValue> = VM.arrayOfNils(size)
 
+	private fun overwrite(arr: Array<AnySLValue>): SLArray {
+		array = arr
+		return this
+	}
+
 	fun set(index: Int, value: AnySLValue) {
 		if(index >= size) {
 			sunlite.vm.runtimeError("Array index $index is out of bounds for an array of size $size.")
@@ -24,6 +29,10 @@ class SLArray(var size: Int, val sunlite: Sunlite) {
 		System.arraycopy(array, 0, newArray, 0, array.size.coerceAtMost(newSize))
 		size = newSize
 		array = newArray
+	}
+
+	fun copy(): SLArray {
+		return SLArray(size, sunlite).overwrite(array.map { it.copy() }.toTypedArray())
 	}
 
 	override fun toString(): String {

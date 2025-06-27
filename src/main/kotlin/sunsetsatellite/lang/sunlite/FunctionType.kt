@@ -5,5 +5,6 @@ enum class FunctionType {
     FUNCTION,
     INITIALIZER,
     LAMBDA,
-    METHOD
+    METHOD,
+    CATCH
 }

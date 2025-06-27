@@ -1,6 +1,9 @@
 package sunsetsatellite.lang.sunlite
 
-import kotlin.collections.find
+import sunsetsatellite.vm.sunlite.SLArray
+import sunsetsatellite.vm.sunlite.SLClass
+import sunsetsatellite.vm.sunlite.SLClassInstance
+import sunsetsatellite.vm.sunlite.SLFunction
 
 abstract class Type {
 
@@ -35,47 +38,31 @@ abstract class Type {
         }
     }
 
-    class Reference(type: PrimitiveType, ref: String, val typeParameters: List<Type> = listOf(), val sunlite: Sunlite) : Singular(type, ref) {
+    class Reference(type: PrimitiveType, ref: String, val returnType: Type, val params: List<Param> = listOf()) : Singular(type, ref) {
         override fun getName(): String {
-            return "${type.name.lowercase()}<${ref}${if(typeParameters.isNotEmpty()) "<${typeParameters.joinToString(", ")}>" else ""}>"
+            return ref
         }
 
         override fun toString(): String {
-            return "${type.name.lowercase()}<${ref}${if(typeParameters.isNotEmpty()) "<${typeParameters.joinToString(", ")}>" else ""}>"
+            if(type == PrimitiveType.FUNCTION){
+                return "${type.name.lowercase()} '${ref}(${params.map { it.type }.joinToString()}): ${returnType}'"
+            } else {
+                return "${type.name.lowercase()} '${ref}'"
+            }
         }
 
         override fun equals(other: Any?): Boolean {
             if(other !is Reference) return false
             if(other.type != type) return false
-            if(this.type == other.type && this.ref == other.ref) return true
-            /*val typeHierarchy = sunlite.typeCollector.typeHierarchy
-            if (!typeHierarchy.map { it.type }.contains(other.ref) || !sunlite.typeCollector.typeHierarchy.map { it.type }.contains(this.ref)) {
-                return false
-            } else {
-                val node: TypeCollector.TypeHierarchyNode = typeHierarchy.find { it.type == other.ref }!!
-                node.supertypes ?: return false
-                val supertype = node.supertypes.find { it.type == this.ref }
-                return if (supertype != null) true else isValidSupertype(node,typeHierarchy)
-            }*/
-            return false
-        }
-
-        /*private fun isValidSupertype(
-            node: TypeCollector.TypeHierarchyNode,
-            typeHierarchy: MutableList<TypeCollector.TypeHierarchyNode>,
-        ): Boolean {
-            node.supertypes ?: return false
-            node.supertypes.forEach { nextSupertype ->
-                val nextNode = typeHierarchy.find { it.type == nextSupertype.type }!!
-                nextNode.supertypes ?: return false
-                val supertype = nextNode.supertypes.find { it.type == this.ref }
-                if (supertype != null) {
-                    return true
-                }
-                return isValidSupertype(nextNode,typeHierarchy)
+            if(this.type == other.type && this.returnType == other.returnType) {
+                if(this.params.size != other.params.size) return false
+                val types = params.map { it.type }
+                val otherTypes = other.params.map { it.type }
+                if(types.zip(otherTypes).any { !it.first.equals(it.second) }) return false
+                return true
             }
             return false
-        }*/
+        }
 
         override fun hashCode(): Int {
             var result = type.hashCode()
@@ -109,37 +96,43 @@ abstract class Type {
 
     companion object {
 
-        fun ofClass(name: String, sunlite: Sunlite): Reference {
-            return Reference(PrimitiveType.CLASS, name, listOf(), sunlite)
+        fun ofClass(name: String): Reference {
+            return Reference(PrimitiveType.CLASS, name, ofObject(name), listOf())
         }
 
-        fun ofFunction(name: String, sunlite: Sunlite): Reference {
-            return Reference(PrimitiveType.FUNCTION, name, listOf(), sunlite)
+        fun ofFunction(name: String, returnType: Type, params: List<Param>): Reference {
+            return Reference(PrimitiveType.FUNCTION, name, returnType, params)
         }
 
-        fun ofObject(name: String, sunlite: Sunlite): Reference {
-            return Reference(PrimitiveType.OBJECT, name, listOf(), sunlite)
+        fun ofObject(name: String): Reference {
+            val reference = let {
+                val reference = Reference(PrimitiveType.OBJECT, name, OBJECT, listOf())
+                Reference(PrimitiveType.OBJECT, name, reference, listOf())
+            }
+
+            return reference
         }
 
-        fun of(tokens: List<TypeToken>, sunlite: Sunlite): Type {
+        fun of(tokens: List<TypeToken>): Type {
             if(tokens.size == 1){
                 if(tokens[0].pure){
                     return Parameter(tokens[0].token)
                 }
                 if(tokens[0].token.type != TokenType.IDENTIFIER){
-                    if(tokens[0].token.type == TokenType.CLASS && tokens[0].typeParameters.isNotEmpty()){
-                        return Reference(PrimitiveType.get(tokens[0].token), tokens[0].token.lexeme, listOf(of(tokens[0].typeParameters,sunlite)),sunlite)
+                    if(tokens[0].token.type == TokenType.CLASS){
+                        return ofClass(tokens[0].token.lexeme)
+                    }
+                    if(tokens[0].token.type == TokenType.TYPE_FUNCTION){
+                        val tokenParams = tokens[0].typeParameters
+                        val params = if(tokenParams.size < 2) listOf() else tokenParams.map { Param(Token.identifier(""), of(listOf(it))) }
+                        return ofFunction("", if(tokenParams.isEmpty()) NIL else of(listOf(tokenParams.last())), params)
                     }
                     return Singular(PrimitiveType.get(tokens[0].token))
                 } else {
-                    if(tokens[0].typeParameters.isNotEmpty()){
-                        return Reference(PrimitiveType.get(tokens[0].token), tokens[0].token.lexeme, listOf(of(tokens[0].typeParameters,sunlite)),sunlite)
-                    } else {
-                        return Reference(PrimitiveType.get(tokens[0].token), tokens[0].token.lexeme, listOf(), sunlite)
-                    }
+                    return ofObject(tokens[0].token.lexeme)
                 }
             } else if (tokens.size > 1) {
-                val types: List<Singular> = tokens.map { of(listOf(it),sunlite) } as List<Singular>
+                val types: List<Singular> = tokens.map { of(listOf(it)) } as List<Singular>
                 return Union(types)
             } else {
                 throw IllegalArgumentException("No types provided.")
@@ -167,11 +160,11 @@ abstract class Type {
                 is Double -> NUMBER
                 is Boolean -> BOOLEAN
                 null -> NIL
-                /*is LoxFunction -> ofFunction(value.declaration.name.lexeme, sunlite)
-                is LoxClass -> ofClass(value.name, sunlite)
-                is LoxInterface -> ofClass(value.name, sunlite)
-                is LoxClassInstance -> ofObject(value.name(), sunlite)
-                is LoxArray -> ARRAY*/
+                is SLFunction -> ofFunction(value.name, value.returnType, value.params)
+                is SLClass -> ofClass(value.name)
+                //is LoxInterface -> ofClass(value.name, sunlite)
+                is SLClassInstance -> ofObject(value.clazz.name)
+                is SLArray -> ARRAY
                 else -> UNKNOWN
             }
         }
@@ -180,6 +173,7 @@ abstract class Type {
         val NIL = Singular(PrimitiveType.NIL)
         val ANY = Singular(PrimitiveType.ANY)
         val CLASS = Singular(PrimitiveType.CLASS)
+        val FUNCTION = Singular(PrimitiveType.FUNCTION)
         val OBJECT = Singular(PrimitiveType.OBJECT)
         val ARRAY = Singular(PrimitiveType.ARRAY)
         val NULLABLE_ANY = Union(listOf(ANY, NIL))

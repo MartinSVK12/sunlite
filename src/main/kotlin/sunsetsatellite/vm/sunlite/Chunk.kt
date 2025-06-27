@@ -11,7 +11,7 @@ class MutableChunkDebugInfo(val lines: MutableList<Int> = mutableListOf(), var f
 	}
 }
 
-class Chunk(val code: ByteArray, val constants: Array<AnySLValue>, val debugInfo: ChunkDebugInfo) {
+class Chunk(val code: ByteArray, val exceptions: Map<IntRange, IntRange>, val constants: Array<AnySLValue>, val debugInfo: ChunkDebugInfo) {
 
 	fun size(): Int {
 		return code.size
@@ -28,14 +28,14 @@ class Chunk(val code: ByteArray, val constants: Array<AnySLValue>, val debugInfo
 	}
 }
 
-class MutableChunk(val code: MutableList<Byte> = mutableListOf(), val constants: MutableList<AnySLValue> = mutableListOf(), val debugInfo: MutableChunkDebugInfo = MutableChunkDebugInfo()) {
+class MutableChunk(val code: MutableList<Byte> = mutableListOf(), val exceptions: MutableMap<IntRange, IntRange> = mutableMapOf(), val constants: MutableList<AnySLValue> = mutableListOf(), val debugInfo: MutableChunkDebugInfo = MutableChunkDebugInfo()) {
 
 	fun size(): Int {
 		return code.size
 	}
 
 	fun toImmutable(): Chunk {
-		return Chunk(code.toByteArray(), constants.toTypedArray(), debugInfo.toImmutable())
+		return Chunk(code.toByteArray(), exceptions.toMap(), constants.toTypedArray(), debugInfo.toImmutable())
 	}
 
 	override fun toString(): String {

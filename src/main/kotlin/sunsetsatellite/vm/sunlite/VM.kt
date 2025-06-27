@@ -1,14 +1,21 @@
 package sunsetsatellite.vm.sunlite
 
+import sunsetsatellite.lang.sunlite.Disassembler
 import sunsetsatellite.lang.sunlite.Sunlite
 import sunsetsatellite.lang.sunlite.Sunlite.Companion.stacktrace
+import sunsetsatellite.lang.sunlite.Type
 import java.util.*
 
 class VM(val sunlite: Sunlite): Runnable {
 
+	var ignoreBreakpoints: Boolean = false
 	var breakpointHit: Boolean = false
 	var continueExecution: Boolean = false
 	var lastBreakpointLine: Int = -1
+	var overrideFunction: SLFunction? = null
+
+	var currentException: AnySLValue? = null
+	val exceptionStacktrace: Stack<CallFrame> = Stack()
 
 	companion object {
 		const val MAX_FRAMES: Int = 255
@@ -22,13 +29,13 @@ class VM(val sunlite: Sunlite): Runnable {
 	}
 
 	init {
-		defineNative(object : SLNativeFunction("clock",0) {
+		defineNative(object : SLNativeFunction("clock", Type.NUMBER,0) {
 			override fun call(vm: VM, args: Array<AnySLValue>): AnySLValue {
 				return SLNumber(System.currentTimeMillis().toDouble() / 1000)
 			}
 		})
 
-		defineNative(object : SLNativeFunction("print",1) {
+		defineNative(object : SLNativeFunction("print",Type.NIL,1) {
 			override fun call(vm: VM, args: Array<AnySLValue>): AnySLValue {
 				val value = args[0]
 				sunlite.printInfo(if(value is SLString) value.value else value.toString())
@@ -36,13 +43,13 @@ class VM(val sunlite: Sunlite): Runnable {
 			}
 		})
 
-		defineNative(object : SLNativeFunction("str",1) {
+		defineNative(object : SLNativeFunction("str",Type.STRING,1) {
 			override fun call(vm: VM, args: Array<AnySLValue>): AnySLValue {
 				return SLString(args[0].toString())
 			}
 		})
 
-		defineNative(object : SLNativeFunction("arrayOf",1) {
+		defineNative(object : SLNativeFunction("arrayOf",Type.ARRAY,1) {
 			override fun call(
 				vm: VM,
 				args: Array<AnySLValue>
@@ -51,7 +58,7 @@ class VM(val sunlite: Sunlite): Runnable {
 			}
 		})
 
-		defineNative(object : SLNativeFunction("resize",2) {
+		defineNative(object : SLNativeFunction("resize",Type.NIL,2) {
 			override fun call(
 				vm: VM,
 				args: Array<AnySLValue>
@@ -62,9 +69,27 @@ class VM(val sunlite: Sunlite): Runnable {
 				return SLNil
 			}
 		})
+
+		defineNative(object : SLNativeFunction("sizeOf",Type.NUMBER,1) {
+			override fun call(
+				vm: VM,
+				args: Array<AnySLValue>
+			): AnySLValue {
+				val array = args[0] as SLArrayObj
+				return SLNumber(array.value.size.toDouble())
+			}
+		})
 	}
 
 	val frameStack: Stack<CallFrame> = Stack()
+
+	fun <E>Stack<E>.peek(i: Int): E{
+		val len = this.size
+
+		if (len == 0) throw EmptyStackException()
+		return this.elementAt(len - i - 1)
+	}
+
 
 	fun defineNative(function: SLNativeFunction){
 		globals[function.name] = SLNativeFuncObj(function)
@@ -82,6 +107,19 @@ class VM(val sunlite: Sunlite): Runnable {
 					sb.append(value)
 					sb.append(" ]")
 				}
+				if(fr.stack.isEmpty()){
+					sb.append("[ ]")
+				}
+				sb.append("\n")
+				sb.append("LOCALS @ ${fr.closure.function.chunk.debugInfo.file}::${fr.closure.function.chunk.debugInfo.name}: ")
+				for (value in fr.locals) {
+					sb.append("[ ")
+					sb.append(value)
+					sb.append(" ]")
+				}
+				if(fr.locals.isEmpty()){
+					sb.append("[ ]")
+				}
 				sb.append("\n")
 				Disassembler.disassembleInstruction(sb, fr.closure.function.chunk, fr.pc)
 				sunlite.printInfo(sb.toString())
@@ -90,7 +128,7 @@ class VM(val sunlite: Sunlite): Runnable {
 			val currentLine = fr.closure.function.chunk.debugInfo.lines[fr.pc]
 			val currentFile = fr.closure.function.chunk.debugInfo.file
 
-			if (sunlite.breakpoints[currentFile]?.contains(currentLine) == true) {
+			if (sunlite.breakpoints[currentFile]?.contains(currentLine) == true && !ignoreBreakpoints) {
 				if(lastBreakpointLine != currentLine){
 					if(!breakpointHit){
 						sunlite.breakpointListeners.forEach { it.breakpointHit(currentLine, currentFile, sunlite) }
@@ -103,6 +141,15 @@ class VM(val sunlite: Sunlite): Runnable {
 					breakpointHit = false
 					continueExecution = false
 				} else if(breakpointHit) {
+					/*if(overrideFunction != null){
+						val pc = fr.pc
+						ignoreBreakpoints = true
+						call(SLClosureObj(SLClosure(overrideFunction!!)),0)
+						run()
+						ignoreBreakpoints = false
+						overrideFunction = null
+						fr.pc = pc
+					}*/
 					continue
 				}
 			}
@@ -214,8 +261,8 @@ class VM(val sunlite: Sunlite): Runnable {
 					}
 					fr.push(globals[constant.value]!!)
 				}
-				Opcodes.SET_LOCAL -> fr.stack[readShort(fr)] = fr.peek()
-				Opcodes.GET_LOCAL -> fr.push(fr.stack[readShort(fr)])
+				Opcodes.SET_LOCAL -> fr.locals[readShort(fr)] = fr.peek()
+				Opcodes.GET_LOCAL -> fr.push(fr.locals[readShort(fr)])
 				Opcodes.JUMP_IF_FALSE -> {
 					val short = readShort(fr)
 					if(isFalse(fr.peek())) {
@@ -261,7 +308,7 @@ class VM(val sunlite: Sunlite): Runnable {
 				}
 				Opcodes.CLASS -> {
 					val constant = readConstant(fr) as SLString
-					fr.push(SLClassObj(SLClass(constant.value, mutableMapOf())))
+					fr.push(SLClassObj(SLClass(constant.value, mutableMapOf(), mutableMapOf())))
 				}
 
 				Opcodes.SET_PROP -> {
@@ -323,6 +370,9 @@ class VM(val sunlite: Sunlite): Runnable {
 				Opcodes.METHOD -> {
 					defineMethod(fr,readString(fr).value)
 				}
+				Opcodes.FIELD -> {
+					defineField(fr, readString(fr).value)
+				}
 				Opcodes.INHERIT -> {
 					val superclass = fr.peek(1)
 
@@ -356,6 +406,10 @@ class VM(val sunlite: Sunlite): Runnable {
 					}
 
 				}
+				Opcodes.THROW -> {
+					throwException(frameStack.size-1, fr.pop())
+					fr = frameStack.peek()
+				}
 			}
 		}
 	}
@@ -383,6 +437,13 @@ class VM(val sunlite: Sunlite): Runnable {
 		fr.pop()
 	}
 
+	private fun defineField(fr: CallFrame, name: String) {
+		val value = fr.peek(0)
+		val clazz = (fr.peek(1) as SLClassObj).value
+		clazz.fieldDefaults[name] = value
+		fr.pop()
+	}
+
 	private fun bindMethod(fr: CallFrame, clazz: SLClass, name: String): Boolean {
 		if(!clazz.methods.containsKey(name)) return false
 
@@ -407,13 +468,14 @@ class VM(val sunlite: Sunlite): Runnable {
 				}
 				is SLClass -> {
 					val stack = frameStack.peek().stack
+					val fields: MutableMap<String, AnySLValue> = callee.value.fieldDefaults.mapValues { it.value.copy() }.toMutableMap()
 					val instance =
-						SLClassInstanceObj(SLClassInstance(callee.value, mutableMapOf()))
+						SLClassInstanceObj(SLClassInstance(callee.value, fields))
 					stack[stack.size - argCount - 1] = instance
 					if(callee.value.methods.containsKey("init")){
 						val success = call(callee.value.methods["init"]!!, argCount)
 						if(!success) return false
-						frameStack.peek().stack.insertElementAt(instance, 0)
+						frameStack.peek().locals.add(0,instance)
 						return true
 					} else if(argCount != 0){
 						runtimeError("Expected 0 arguments but got $argCount.")
@@ -424,7 +486,7 @@ class VM(val sunlite: Sunlite): Runnable {
 				is SLBoundMethod -> {
 					val success = call(SLClosureObj(callee.value.method), argCount)
 					if(!success) return false
-					frameStack.peek().stack.insertElementAt(callee.value.receiver, 0)
+					frameStack.peek().locals.add(0,callee.value.receiver)
 					return true
 				}
 			}
@@ -455,8 +517,11 @@ class VM(val sunlite: Sunlite): Runnable {
 			return false
 		}
 
-		val frame = CallFrame(callee.value)
-		frame.stack.addAll(Array(argCount) { i -> frameStack.peek().peek(i) })
+		val locals = mutableListOf<AnySLValue>()
+		locals.addAll(Array(argCount) { i -> frameStack.peek().peek(i) })
+		locals.reverse()
+		val frame = CallFrame(callee.value, locals)
+
 
 		frameStack.push(frame)
 		return true
@@ -477,26 +542,76 @@ class VM(val sunlite: Sunlite): Runnable {
 		return (upperByte.toInt() shl 8 or lowerByte.toInt())
 	}
 
+	fun throwException(index: Int, e: AnySLValue){
+		if(index >= frameStack.size) {
+			throw Exception("Unhandled exception in vm: $e")
+		}
+		val fr = frameStack[index]
+		var closest = Integer.MAX_VALUE
+		var exceptionHandler: Map.Entry<IntRange, IntRange>? = null
+		fr.closure.function.chunk.exceptions.forEach {
+			if (it.key.contains(fr.pc)) {
+				val distance = it.value.start - fr.pc
+				if(closest > distance){
+					exceptionHandler = it
+					closest = distance
+				}
+			}
+		}
+		if(exceptionHandler != null){
+			val stack: Stack<CallFrame> = Stack()
+			frameStack.forEachIndexed { i, callFrame ->
+				if(i <= index) stack.push(callFrame)
+			}
+			frameStack.clear()
+			stack.forEach { frameStack.push(it) }
+			if(fr != frameStack.peek()) {
+				error("Frames were unwinded incorrectly! $fr != ${frameStack.peek()}")
+			}
+			fr.stack.clear()
+			fr.locals.add(e)
+			fr.pc = exceptionHandler.value.start
+			if(currentException != null) currentException = null
+		} else {
+			if(currentException == null){
+				exceptionStacktrace.clear()
+				exceptionStacktrace.addAll(frameStack)
+			}
+			currentException = e
+			throwException(index-1, e)
+		}
+	}
+
 	fun runtimeError(message: String) {
 
-		val fr = frameStack.peek()
+		val fr = frameStack.lastOrNull()
 
 		sunlite.printErr(message)
 
-		for (frame in frameStack) {
-			sunlite.printErr("[line ${frame.closure.function.chunk.debugInfo.lines[frame.pc]}] in ${if(frame.closure.function.name == "") "script" else "${frame.closure.function.name}()"}")
-		}
-
 		val sb = StringBuilder()
-		sb.append("stack @ ${fr.closure.function.chunk.debugInfo.file}::${fr.closure.function.chunk.debugInfo.name}: ")
-		for (value in fr.stack) {
-			sb.append("[ ")
-			sb.append(value)
-			sb.append(" ]")
+		for (frame in frameStack) {
+			sb.append("\tat ")
+			sb.append(frame)
+			sb.append("\n")
 		}
 		sb.append("\n")
-		sb.append("-> ")
-		var offset = Disassembler.disassembleInstruction(sb, fr.closure.function.chunk, fr.pc)
+
+		if(fr != null){
+			sb.append("stack @ ${fr.closure.function.chunk.debugInfo.file}::${fr.closure.function.chunk.debugInfo.name}: ")
+			for (value in fr.stack) {
+				sb.append("[ ")
+				sb.append(value)
+				sb.append(" ]")
+			}
+			sb.append("\n")
+			sb.append("-> ")
+			val offset = Disassembler.disassembleInstruction(sb, fr.closure.function.chunk, fr.pc)
+		} else {
+			sb.append("<empty stack>")
+			sb.append("\n")
+		}
+
+
 		sunlite.printErr(sb.toString())
 
 		frameStack.clear()

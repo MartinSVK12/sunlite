@@ -49,7 +49,7 @@ abstract class Stmt: Element {
 		}
 	}
 
-	data class Block(val statements: List<Stmt>, val lineNumber: Int, val currentFile: String?) : Stmt() {
+	data class Block(val statements: List<Stmt>, val lineNumber: Int, val currentFile: String?) : Stmt(), NamedStmt {
 		override fun <R> accept(visitor: Visitor<R>): R {
 			return visitor.visitBlockStmt(this)
 		}
@@ -60,6 +60,10 @@ abstract class Stmt: Element {
 
 		override fun getFile(): String? {
 			return currentFile
+		}
+
+		override fun getNameToken(): Token {
+			return Token.identifier("<block>",getLine(),getFile())
 		}
 	}
 
@@ -205,6 +209,35 @@ abstract class Stmt: Element {
 		}
 	}
 
+	data class TryCatch(val tryToken: Token, val catchToken: Token, val tryBody: Block, val catchVariable: Param, val catchBody: Block): Stmt() {
+		override fun <R> accept(visitor: Visitor<R>): R {
+			return visitor.visitTryCatchStmt(this)
+		}
+
+		override fun getLine(): Int {
+			return tryToken.line
+		}
+
+		override fun getFile(): String? {
+			return tryToken.file
+		}
+
+	}
+
+	data class Throw(val expr: Expr) : Stmt() {
+		override fun <R> accept(visitor: Visitor<R>): R {
+			return visitor.visitThrowStmt(this)
+		}
+
+		override fun getLine(): Int {
+			return expr.getLine()
+		}
+
+		override fun getFile(): String? {
+			return expr.getFile()
+		}
+	}
+
 	interface Visitor<R> {
 		fun visitExprStmt(stmt: Expression): R
 		fun visitPrintStmt(stmt: Print): R
@@ -219,6 +252,8 @@ abstract class Stmt: Element {
 		fun visitClassStmt(stmt: Class): R
 		fun visitInterfaceStmt(stmt: Interface): R
 		fun visitImportStmt(stmt: Import): R
+		fun visitTryCatchStmt(stmt: TryCatch): R
+		fun visitThrowStmt(stmt: Throw): R
 	}
 
 	interface NamedStmt: Element {

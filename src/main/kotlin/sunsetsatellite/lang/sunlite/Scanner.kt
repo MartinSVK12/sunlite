@@ -53,6 +53,9 @@ class Scanner(private val source: String, val sunlite: Sunlite) {
 			keywords["as"] = AS
 			keywords["extends"] = EXTENDS
 			keywords["implements"] = IMPLEMENTS
+			keywords["try"] = TRY
+			keywords["catch"] = CATCH
+			keywords["throw"] = THROW
 		}
 	}
 

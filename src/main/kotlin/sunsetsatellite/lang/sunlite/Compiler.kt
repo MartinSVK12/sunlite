@@ -1,7 +1,14 @@
-package sunsetsatellite.vm.sunlite
+package sunsetsatellite.lang.sunlite
 
 import sunsetsatellite.lang.sunlite.TokenType.*
-import sunsetsatellite.lang.sunlite.*
+import sunsetsatellite.vm.sunlite.AnySLValue
+import sunsetsatellite.vm.sunlite.MutableChunk
+import sunsetsatellite.vm.sunlite.Opcodes
+import sunsetsatellite.vm.sunlite.SLFuncObj
+import sunsetsatellite.vm.sunlite.SLFunction
+import sunsetsatellite.vm.sunlite.SLNumber
+import sunsetsatellite.vm.sunlite.SLString
+import sunsetsatellite.vm.sunlite.VM
 
 
 class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?): Expr.Visitor<Unit>, Stmt.Visitor<Unit> {
@@ -23,14 +30,14 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?): Expr
 	val incompleteBreaks: MutableList<Int> = mutableListOf()
 	val incompleteContinues: MutableList<Int> = mutableListOf()
 
-	fun compile(type: FunctionType, statements: List<Stmt>, path: String? = null, name: String = "", arity: Int = 0): SLFunction {
+	fun compile(type: FunctionType, returnType: Type, params: List<Param>, statements: List<Stmt>, path: String? = null, name: String = "", arity: Int = 0): SLFunction {
 		currentFile = path
 		chunk.debugInfo.file = currentFile
 		currentFunctionType = type
 
 		if(type == FunctionType.METHOD || type == FunctionType.INITIALIZER) {
 			addIdentifier("this",Expr.This(Token.identifier("this")) )
-			locals.add(0,Local(Token.identifier("this", 0, currentFile), 0))
+			locals.add(0,Local(Token.identifier("this", -1, currentFile), 0))
 		}
 
 		for (statement in statements) {
@@ -62,7 +69,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?): Expr
 			sunlite.error(chunk.debugInfo.lines[it], "Unexpected 'continue' outside of loop.", chunk.debugInfo.file)
 		}
 
-		return SLFunction(name, chunk.toImmutable(), arity, upvalues.size)
+		return SLFunction(name, returnType, params, chunk.toImmutable(), arity, upvalues.size)
 	}
 
 	private fun compile(stmt: Stmt) {
@@ -443,7 +450,8 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?): Expr
 	}
 
 	override fun visitCastExpr(expr: Expr.Cast) {
-		TODO("Not yet implemented")
+		//todo
+		compile(expr.left)
 	}
 
 	override fun visitExprStmt(stmt: Stmt.Expression) {
@@ -467,7 +475,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?): Expr
 		defineVariable(constantIndex, stmt)
 	}
 
-	private fun defineVariable(constantIndex: Int, stmt: Stmt.NamedStmt) {
+	private fun defineVariable(constantIndex: Int, stmt: Stmt) {
 		if(localScopeDepth > 0){
 			markInitialized()
 			return
@@ -482,14 +490,14 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?): Expr
 		locals[locals.size - 1].depth = localScopeDepth
 	}
 
-	private fun makeVariable(token: Token, stmt: Stmt.NamedStmt): Int {
+	private fun makeVariable(token: Token, stmt: Stmt): Int {
 		declareVariable(token, stmt)
 		if(localScopeDepth > 0) return 0;
 
 		return addConstant(SLString(token.lexeme),stmt)
 	}
 
-	private fun declareVariable(token: Token, stmt: Stmt.NamedStmt){
+	private fun declareVariable(token: Token, stmt: Stmt){
 		if(localScopeDepth == 0) return
 
 		for (local in locals) {
@@ -503,7 +511,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?): Expr
 		addLocal(token, stmt)
 	}
 
-	private fun addLocal(token: Token, stmt: Stmt.NamedStmt) {
+	private fun addLocal(token: Token, stmt: Stmt) {
 		if(locals.size >= Short.MAX_VALUE){
 			sunlite.error(stmt.getLine(), "Too many local variables in function.")
 			return
@@ -527,7 +535,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?): Expr
 		localScopeDepth--
 		locals.removeIf {
 			if(it.depth > localScopeDepth){
-				emitByte(Opcodes.POP, e)
+				//emitByte(Opcodes.POP, e)
 				return@removeIf true
 			}
 			return@removeIf false
@@ -612,7 +620,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?): Expr
 			compiler.defineVariable(constantIndex, stmt)
 		}
 
-		val function: SLFunction = compiler.compile(stmt.type, stmt.body, currentFile, stmt.name.lexeme, stmt.params.size)
+		val function: SLFunction = compiler.compile(stmt.type, stmt.returnType, stmt.params, stmt.body, currentFile, stmt.name.lexeme, stmt.params.size)
 		emitByte(Opcodes.CLOSURE, stmt)
 		emitShort(addConstant(SLFuncObj(function),stmt),stmt)
 		for (upvalue in compiler.upvalues) {
@@ -659,6 +667,13 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?): Expr
 
 		compile(Expr.Variable(className))
 
+		for (vars in stmt.fieldDefaults) {
+			val name = addIdentifier(vars.name.lexeme, stmt)
+			vars.initializer?.let { compile(it) }
+			emitByte(Opcodes.FIELD, stmt)
+			emitShort(name, stmt)
+		}
+
 		for (method in stmt.methods) {
 			val methodName = addIdentifier(method.name.lexeme, stmt)
 			compile(method)
@@ -681,5 +696,26 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?): Expr
 
 	override fun visitImportStmt(stmt: Stmt.Import) {
 		TODO("Not yet implemented")
+	}
+
+	override fun visitTryCatchStmt(stmt: Stmt.TryCatch) {
+		val tryBegin = chunk.code.size
+		compile(stmt.tryBody)
+		val tryEnd = chunk.code.size
+		val jmp = emitJump(Opcodes.JUMP, stmt)
+		val catchBegin = chunk.code.size
+		beginScope(stmt)
+		makeVariable(stmt.catchVariable.token, stmt)
+		defineVariable(0, stmt)
+		stmt.catchBody.statements.forEach { compile(it) }
+		endScope(stmt)
+		val catchEnd = chunk.code.size
+		patchJump(jmp, stmt)
+		chunk.exceptions[tryBegin .. tryEnd] = catchBegin .. catchEnd
+	}
+
+	override fun visitThrowStmt(stmt: Stmt.Throw) {
+		compile(stmt.expr)
+		emitByte(Opcodes.THROW, stmt)
 	}
 }

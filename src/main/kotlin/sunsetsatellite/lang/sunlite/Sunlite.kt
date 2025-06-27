@@ -1,10 +1,7 @@
 package sunsetsatellite.lang.sunlite
 
-import jdk.internal.org.objectweb.asm.tree.analysis.Interpreter
-import org.omg.CORBA.Environment
 import sunsetsatellite.vm.sunlite.*
 import sunsetsatellite.vm.sunlite.SLFunction
-import sunsetsatellite.vm.sunlite.VM.Companion.globals
 import java.io.BufferedReader
 import java.io.IOException
 import java.io.InputStreamReader
@@ -30,6 +27,7 @@ class Sunlite(val args: Array<String>) {
 
 	var uninitialized: Boolean = true
 	lateinit var vm: VM
+	var collector: TypeCollector? = null
 
 	fun start() {
 		when {
@@ -48,7 +46,7 @@ class Sunlite(val args: Array<String>) {
 				args[2].split(";").forEach {
 					when (it) {
 						"debug" -> debug = true
-						"byteDebug" -> bytecodeDebug = true
+						"trace" -> bytecodeDebug = true
 						"stacktrace" -> stacktrace = true
 						"warnStacktrace" -> warnStacktrace = true
 						"stdout" -> logToStdout = true
@@ -83,6 +81,15 @@ class Sunlite(val args: Array<String>) {
 		return tokens to statements
 	}
 
+	fun compile(statements: List<Stmt>): SLFunction {
+		val filePath = args[0]
+		path.addAll(args[1].split(";"))
+		val shortPath = filePath.split("/").last()
+
+		val compiler = Compiler(this, vm, null)
+		return compiler.compile(FunctionType.FUNCTION, Type.NIL, listOf(), statements, shortPath)
+	}
+
 	@Throws(IOException::class)
 	private fun runFile(path: String) {
 		val bytes = Files.readAllBytes(Paths.get(path))
@@ -102,7 +109,7 @@ class Sunlite(val args: Array<String>) {
 		while (true) {
 			print("> ")
 			val line = reader.readLine() ?: break
-			runString(line, null)
+			runString("print($line);", null)
 			hadError = false
 		}
 	}
@@ -118,11 +125,33 @@ class Sunlite(val args: Array<String>) {
 		val scanner = Scanner(source, this)
 		val tokens: List<Token> = scanner.scanTokens(shortPath)
 
-		val parser = Parser(tokens,this)
-		val statements = parser.parse(shortPath)
+		var parser = Parser(tokens,this)
+		var statements = parser.parse(shortPath)
 
 		// Stop if there was a syntax error.
 		if (hadError) return
+
+		vm = VM(this)
+		uninitialized = false
+
+		collector = TypeCollector(this, vm)
+		collector?.collect(statements, shortPath)
+
+		// Stop if there was a type collection error.
+		if (hadError) return
+
+		if(debug) {
+			printInfo("Types: ")
+			printInfo("--------")
+			collector?.typeScopes?.forEach { printTypeScopes(it, 0) }
+			printInfo("--------")
+		}
+
+		// Stop if there was a type collection error.
+		if (hadError) return
+
+		parser = Parser(tokens,this)
+		statements = parser.parse(shortPath)
 
 		if(debug) {
 			printInfo("AST: ")
@@ -134,12 +163,15 @@ class Sunlite(val args: Array<String>) {
 			printInfo()
 		}
 
-		vm = VM(this)
-		uninitialized = false
+		// Stop if there was a syntax error.
+		if (hadError) return
+
+		val checker = TypeChecker(this, vm)
+		checker.check(statements)
 
 		val compiler = Compiler(this, vm, null)
 
-		val program: SLFunction = compiler.compile(FunctionType.FUNCTION, statements, shortPath)
+		val program: SLFunction = compiler.compile(FunctionType.FUNCTION, Type.NIL, listOf(), statements, shortPath)
 
 		// Stop if there was a compilation error.
 		if (hadError) return
@@ -154,6 +186,25 @@ class Sunlite(val args: Array<String>) {
 		}
 
 	}
+
+	fun printTypeScopes(it: TypeCollector.Scope?,depth: Int = 0){
+		if(it == null) return
+		val sb = StringBuilder()
+		sb.append("\t".repeat(depth))
+		sb.append("${it.name.lexeme} {")
+		it.contents.forEach {
+			sb.append("\n")
+			sb.append("\t".repeat(depth+1))
+			sb.append("${it.key.lexeme}${it.value}")
+		}
+		printInfo(sb.toString())
+		it.inner.forEach { printTypeScopes(it,depth+1) }
+		sb.clear()
+		sb.append("\t".repeat(depth))
+		sb.append("}")
+		printInfo(sb.toString())
+	}
+
 
 	fun error(line: Int, message: String, file: String? = null) {
 		reportError(line, "", message, file ?: "<unknown file>")
