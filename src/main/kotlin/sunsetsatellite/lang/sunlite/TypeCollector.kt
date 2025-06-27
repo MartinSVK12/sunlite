@@ -3,7 +3,7 @@ package sunsetsatellite.lang.sunlite
 import sunsetsatellite.vm.sunlite.SLNativeFuncObj
 import sunsetsatellite.vm.sunlite.VM
 
-class TypeCollector(val sunlite: Sunlite, val vm: VM): Stmt.Visitor<Unit> {
+class TypeCollector(val sunlite: Sunlite): Stmt.Visitor<Unit> {
 
     abstract inner class ElementPrototype {
        abstract fun getElementType(): Type

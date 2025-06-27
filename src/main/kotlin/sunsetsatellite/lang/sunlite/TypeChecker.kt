@@ -7,7 +7,7 @@ import sunsetsatellite.vm.sunlite.VM
 import java.util.Stack
 import kotlin.math.exp
 
-class TypeChecker(val sunlite: Sunlite, val vm: VM): Expr.Visitor<Unit>, Stmt.Visitor<Unit> {
+class TypeChecker(val sunlite: Sunlite, val vm: VM?): Expr.Visitor<Unit>, Stmt.Visitor<Unit> {
 
     val scopes: Stack<Stmt.NamedStmt> = Stack()
     var path: Token? = null
@@ -36,7 +36,7 @@ class TypeChecker(val sunlite: Sunlite, val vm: VM): Expr.Visitor<Unit>, Stmt.Vi
         }
         val valid = Type.contains(actual, expected)
         if(!valid){
-            if(runtime){
+            if(runtime && vm != null){
                 vm.throwException(0, SLString("Expected '$expected' but got '$actual'."))
             } else {
                 sunlite.error(token, "Expected '$expected' but got '$actual'.")

@@ -72,10 +72,28 @@ class Sunlite(val args: Array<String>) {
 		val scanner = Scanner(data, this)
 		val tokens: List<Token> = scanner.scanTokens(shortPath)
 
-		val parser = Parser(tokens,this)
-		val statements = parser.parse(shortPath)
+		var parser = Parser(tokens,this)
+		var statements = parser.parse(shortPath)
 
 		// Stop if there was a syntax error.
+		if (hadError) return null
+
+		collector = TypeCollector(this)
+		collector?.collect(statements, shortPath)
+
+		// Stop if there was a type collection error.
+		if (hadError) return null
+
+		parser = Parser(tokens,this)
+		statements = parser.parse(shortPath)
+
+		// Stop if there was a syntax error.
+		if (hadError) return null
+
+		val checker = TypeChecker(this, null)
+		checker.check(statements)
+
+		// Stop if there was a type error.
 		if (hadError) return null
 
 		return tokens to statements
@@ -134,7 +152,7 @@ class Sunlite(val args: Array<String>) {
 		vm = VM(this)
 		uninitialized = false
 
-		collector = TypeCollector(this, vm)
+		collector = TypeCollector(this)
 		collector?.collect(statements, shortPath)
 
 		// Stop if there was a type collection error.
@@ -168,6 +186,9 @@ class Sunlite(val args: Array<String>) {
 
 		val checker = TypeChecker(this, vm)
 		checker.check(statements)
+
+		// Stop if there was a type error.
+		if (hadError) return
 
 		val compiler = Compiler(this, vm, null)
 
