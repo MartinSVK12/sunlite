@@ -15,8 +15,11 @@ abstract class Expr: Element {
 		}
 
 		override fun getExprType(): Type {
+            if (operator.type == TokenType.STAR || operator.type == TokenType.SLASH || operator.type == TokenType.MINUS) {
+                return Type.NUMBER
+            }
 			if(operator.type != TokenType.PLUS) {
-				return Type.NUMBER
+				return Type.BOOLEAN
 			} else {
 				if(left.getExprType() == Type.NUMBER && right.getExprType() == Type.NUMBER) {
 					return Type.NUMBER
