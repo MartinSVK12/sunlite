@@ -167,7 +167,7 @@ abstract class Expr: Element {
 		}
 	}
 
-	data class Call(val callee: Expr, val paren: Token, val arguments: List<Expr>, val typeArguments: List<Type>): Expr() {
+	data class Call(val callee: Expr, val paren: Token, val arguments: List<Expr>, val typeParams: List<Type>): Expr(), GenericExpr {
 		override fun <R> accept(visitor: Visitor<R>): R? {
 			return visitor.visitCallExpr(this)
 		}
@@ -183,10 +183,20 @@ abstract class Expr: Element {
 		override fun getExprType(): Type {
 			val type = callee.getExprType()
 			if(type is Type.Reference){
+				if(type.type == PrimitiveType.CLASS){
+					if(!typeParams.isEmpty()){
+						val rawType = type.returnType
+						return Type.ofGenericObject(rawType.getName(), typeParams)
+					}
+				}
 				return type.returnType
 			}
 			return Type.UNKNOWN
         }
+
+		override fun getTypeArguments(): List<Type> {
+			return typeParams
+		}
 	}
 
 	data class Lambda(val function: Stmt.Function): Expr(), NamedExpr {
@@ -211,7 +221,21 @@ abstract class Expr: Element {
 		}
 	}
 
-	data class Get(val obj: Expr, val name: Token, val type: Type = Type.UNKNOWN): Expr(), NamedExpr {
+	data class Get(val obj: Expr, val name: Token, val type: Type = Type.UNKNOWN,
+				   var typeParams: List<Type> =
+					   if(obj.getExprType() is Type.Reference) {
+						   val ref = obj.getExprType() as Type.Reference
+						   if(ref.type == PrimitiveType.OBJECT){
+							   ref.typeParams
+						   } else {
+							   listOf()
+						   }
+						} else {
+							listOf()
+					   })
+		: Expr(), NamedExpr, GenericExpr {
+
+
 		override fun <R> accept(visitor: Visitor<R>): R? {
 			return visitor.visitGetExpr(this)
 		}
@@ -230,6 +254,10 @@ abstract class Expr: Element {
 
 		override fun getExprType(): Type {
 			return type
+		}
+
+		override fun getTypeArguments(): List<Type> {
+			return typeParams
 		}
 	}
 
@@ -391,6 +419,10 @@ abstract class Expr: Element {
 
 	interface NamedExpr: Element {
 		fun getNameToken(): Token
+	}
+
+	interface GenericExpr: Element {
+		fun getTypeArguments(): List<Type>
 	}
 
 	abstract fun <R> accept(visitor: Visitor<R>): R?

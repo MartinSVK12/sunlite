@@ -9,12 +9,13 @@ import java.nio.file.Path
 import java.nio.file.Paths
 
 
-class Parser(val tokens: List<Token>, val sunlite: Sunlite) {
+class Parser(val tokens: List<Token>, val sunlite: Sunlite, val importing: Boolean = false) {
 	private var current = 0
 
 	var currentFile: String? = null
 	var currentClass: Token? = null
 	var currentFunction: Token? = null
+	var currentBlockDepth: Int = 0
 
 	private class ParseError : RuntimeException()
 
@@ -38,7 +39,7 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite) {
 				match(CLASS) -> classDeclaration(ClassModifier.NORMAL)
 				match(INTERFACE) -> interfaceDeclaration()
 				match(IMPORT) -> importStatement()
-				else -> statement()
+				else -> if(!importing) statement() else null
 			}
 		} catch (error: ParseError) {
 			synchronize()
@@ -86,7 +87,14 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite) {
 		val what = consume(STRING, "Expected import location string.")
 		consume(SEMICOLON, "Expected ';' after import statement.")
 
-		if(sunlite.imports.contains(what.literal as String)){
+		sunlite.error(keyword, "Importing not yet supported!")
+		return null
+
+		/*if(sunlite.imports.contains(what.literal as String)){
+			return null
+		}
+
+		if(sunlite.collector == null){
 			return null
 		}
 
@@ -104,50 +112,46 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite) {
 		}
 
 		if(bytes == null) {
-			sunlite.error(keyword, "Load error, couldn't find '${what.literal}' on the load path list.")
+			sunlite.error(keyword, "import error, couldn't find '${what.literal}' on the load path list.")
 		}
 
-		val scanner = Scanner(String(bytes!!, Charset.defaultCharset()),sunlite)
+		val code = String(bytes!!, Charset.defaultCharset())
+
+		val scanner = Scanner(code, sunlite)
 		val tokens: List<Token> = scanner.scanTokens(what.literal)
 
-		if(Sunlite.debug){
-			println("Tokens: ")
-			println("--------")
-			val builder: StringBuilder = StringBuilder()
-			tokens.forEachIndexed { i, it ->
-				builder.append("($it)")
-				if(tokens.size-1 > i) builder.append(", ")
-				if(i != 0 && i % 10 == 0) builder.append("\n")
-			}
-			println(builder.toString())
-			println()
-		}
-
-		val parser = Parser(tokens,sunlite)
-		val statements = parser.parse(what.literal)
+		var parser = Parser(tokens,sunlite)
+		var statements = parser.parse(what.literal)
 
 		// Stop if there was a syntax error.
-		if (sunlite.hadError) sunlite.error(keyword, "Load error at '${what.literal}' (details above).")
+		if (sunlite.hadError) sunlite.error(keyword, "import error, failed to parse '${what.literal}' due to syntax errors in pre-parsing.")
+
+        sunlite.collector?.collect(statements, what.literal)
+
+		// Stop if there was a type collection error.
+		if (sunlite.hadError) sunlite.error(keyword, "import error, failed to parse '${what.literal}' due to type collection errors.")
+
+		parser = Parser(tokens,sunlite,true)
+		statements = parser.parse(what.literal)
+
+		// Stop if there was a syntax error.
+		if (sunlite.hadError) sunlite.error(keyword, "import error, failed to parse '${what.literal}' duo to syntax errors in parsing.")
+
+		val checker = TypeChecker(sunlite, null)
+		checker.check(statements)
+
+		// Stop if there was a type error.
+		if (sunlite.hadError) sunlite.error(keyword, "import error, failed to parse '${what.literal}' due to type errors.")
 
 		sunlite.imports[what.literal] = statements
 
-		if(Sunlite.debug) {
-			println("AST: ")
-			println("-----")
-			statements.forEach {
-				println(AstPrinter.print(it))
-			}
-			println("-----")
-			println()
+		if(Sunlite.debug){
+			sunlite.printInfo("Parsed and imported '${what.literal}'!")
+			sunlite.printInfo()
 		}
 
-		if(Sunlite.debug) {
-			println("parsed '${what.literal}'")
-			println("------------------------")
-			println()
-		}
 
-		return Stmt.Import(keyword, what)
+		return Stmt.Import(keyword, what)*/
 	}
 
 	private fun classDeclaration(modifier: ClassModifier): Stmt {
@@ -492,7 +496,7 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite) {
 
 	private fun getTypeTokens(insideUnion: Boolean = false): List<TypeToken> {
 		val mainToken = peek()
-		if (!match(TYPE_BOOLEAN, TYPE_STRING, TYPE_NUMBER, TYPE_FUNCTION, CLASS, TYPE_ANY, TYPE_ARRAY, IDENTIFIER, NIL)) {
+		if (!match(TYPE_BOOLEAN, TYPE_STRING, TYPE_NUMBER, TYPE_FUNCTION, CLASS, TYPE_ANY, TYPE_ARRAY, TYPE_GENERIC, IDENTIFIER, NIL)) {
 			throw error(mainToken, "Expected type.")
 		}
 
@@ -500,7 +504,7 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite) {
 		val types: MutableList<TypeToken> = mutableListOf()
 
 		val unionTypes: MutableMap<Token, List<TypeToken>> = mutableMapOf()
-		var typeParameters: MutableList<TypeToken> = mutableListOf()
+		val typeParameters: MutableList<TypeToken> = mutableListOf()
 
 		if(match(LESS)){
 			do {
@@ -508,7 +512,7 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite) {
 					error(peek(), "Can't have more than 255 type parameters.")
 				}
 				val typeParamToken = peek()
-				if (!checkType(TYPE_BOOLEAN, TYPE_STRING, TYPE_NUMBER, TYPE_FUNCTION, CLASS, TYPE_ANY, TYPE_ARRAY, IDENTIFIER, NIL)) {
+				if (!checkType(TYPE_BOOLEAN, TYPE_STRING, TYPE_NUMBER, TYPE_FUNCTION, CLASS, TYPE_ANY, TYPE_GENERIC, TYPE_ARRAY, IDENTIFIER, NIL)) {
 					throw error(typeParamToken, "Expected type for type parameter.")
 				}
 				typeParameters.addAll(getTypeTokens(false))
@@ -524,7 +528,7 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite) {
 					error(peek(), "Can't have more than 255 types in a union.")
 				}
 				val unionMemberToken = peek()
-				if (!checkType(TYPE_BOOLEAN, TYPE_STRING, TYPE_NUMBER, TYPE_FUNCTION, CLASS, TYPE_ANY, TYPE_ARRAY, IDENTIFIER, NIL)) {
+				if (!checkType(TYPE_BOOLEAN, TYPE_STRING, TYPE_NUMBER, TYPE_FUNCTION, CLASS, TYPE_ANY, TYPE_GENERIC, TYPE_ARRAY, IDENTIFIER, NIL)) {
 					throw error(unionMemberToken, "Expected type after '|'.")
 				}
 				val unionTypeTokens = getTypeTokens(true)
@@ -555,13 +559,15 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite) {
 	}
 
 	private fun block(): List<Stmt> {
+		currentBlockDepth++;
 		val statements: MutableList<Stmt> = ArrayList()
 
 		while (!checkType(RIGHT_BRACE) && !isAtEnd()) {
-			declaration()?.let { statements.add(it) }
+			declaration()?.let { statements.add(it) } ?: break
 		}
 
 		consume(RIGHT_BRACE, "Expected '}' after block.")
+		currentBlockDepth--;
 		return statements
 	}
 
@@ -779,6 +785,10 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite) {
 					consume(GREATER, "Expected '>' after type parameter declaration.")
 				}
 
+				if(expr is GenericExpr){
+					typeParameters.addAll(expr.getTypeArguments())
+				}
+
 				expr = finishCall(expr, typeParameters)
 			} else if (match(DOT)) {
 				val name: Token = consume(IDENTIFIER, "Expected expression after '.'.")
@@ -903,7 +913,7 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite) {
 		if (match(IDENTIFIER)) {
 			val varToken = previous()
 			if(sunlite.collector != null){
-				val type = sunlite.collector?.findType(varToken, Token.identifier(currentFile ?: "<global>",-1,currentFile))
+				val type = sunlite.collector?.findType(varToken, if(currentFunction != null) currentFunction else Token.identifier(currentFile ?: "<global>",-1,currentFile),currentBlockDepth)
 				return Variable(varToken, type?.getElementType() ?: Type.UNKNOWN)
 			}
 			return Variable(varToken)

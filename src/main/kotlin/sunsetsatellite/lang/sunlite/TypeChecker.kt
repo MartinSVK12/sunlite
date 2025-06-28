@@ -1,11 +1,8 @@
 package sunsetsatellite.lang.sunlite
 
-import com.sun.beans.TypeResolver
-import sunsetsatellite.lang.sunlite.TypeCollector.Scope
 import sunsetsatellite.vm.sunlite.SLString
 import sunsetsatellite.vm.sunlite.VM
 import java.util.Stack
-import kotlin.math.exp
 
 class TypeChecker(val sunlite: Sunlite, val vm: VM?): Expr.Visitor<Unit>, Stmt.Visitor<Unit> {
 
@@ -82,10 +79,17 @@ class TypeChecker(val sunlite: Sunlite, val vm: VM?): Expr.Visitor<Unit>, Stmt.V
 
         val calleeType = expr.callee.getExprType()
         if(calleeType is Type.Reference){
-            if(calleeType.type == PrimitiveType.FUNCTION){
+            if (calleeType.type == PrimitiveType.FUNCTION || calleeType.type == PrimitiveType.CLASS) {
+                val typeArgs = expr.typeParams.toMutableList()
                 val params = calleeType.params
+                var i = 0
                 expr.arguments.zip(params).forEach {
-                    checkType(it.second.type, it.first.getExprType(), expr.paren, false)
+                    if(it.second.type is Type.Parameter){
+                        checkType(typeArgs[i], it.first.getExprType(), expr.paren, false)
+                        i++
+                    } else {
+                        checkType(it.second.type, it.first.getExprType(), expr.paren, false)
+                    }
                 }
             }
         }

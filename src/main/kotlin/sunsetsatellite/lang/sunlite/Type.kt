@@ -1,9 +1,14 @@
 package sunsetsatellite.lang.sunlite
 
 import sunsetsatellite.vm.sunlite.SLArray
+import sunsetsatellite.vm.sunlite.SLBoundMethod
 import sunsetsatellite.vm.sunlite.SLClass
 import sunsetsatellite.vm.sunlite.SLClassInstance
+import sunsetsatellite.vm.sunlite.SLClosure
 import sunsetsatellite.vm.sunlite.SLFunction
+import sunsetsatellite.vm.sunlite.SLNativeFunction
+import sunsetsatellite.vm.sunlite.SLType
+import sunsetsatellite.vm.sunlite.SLUpvalue
 import kotlin.math.sin
 
 abstract class Type {
@@ -39,18 +44,25 @@ abstract class Type {
         }
     }
 
-    class Reference(type: PrimitiveType, ref: String, val returnType: Type, val params: List<Param> = listOf()) : Singular(type, ref) {
+    class Reference(type: PrimitiveType, ref: String, val returnType: Type, val params: List<Param> = listOf(), val typeParams: List<Type> = listOf()) : Singular(type, ref) {
         override fun getName(): String {
             return ref
         }
 
         override fun toString(): String {
-            if(type == PrimitiveType.FUNCTION){
-                return "${type.name.lowercase()} '${ref}(${params.map { it.type }.joinToString()}): ${returnType}'"
-            } else if(type == PrimitiveType.ARRAY){
-                return "${type.name.lowercase()} '${returnType}'"
-            } else {
-                return "${type.name.lowercase()}${if (ref != "") " '${ref}'" else ""}"
+            when (type) {
+                PrimitiveType.FUNCTION -> {
+                    return "${type.name.lowercase()}${if(typeParams.isNotEmpty()) "<${typeParams.joinToString()}>" else ""} '${ref}(${params.map { it.type }.joinToString()}): ${returnType}'"
+                }
+                PrimitiveType.ARRAY -> {
+                    return "${type.name.lowercase()} '${returnType}'"
+                }
+                PrimitiveType.OBJECT -> {
+                    return "${type.name.lowercase()}${if(typeParams.isNotEmpty()) "<${typeParams.joinToString()}>" else ""}${if (ref != "") " '${ref}'" else ""}"
+                }
+                else -> {
+                    return "${type.name.lowercase()}${if (ref != "") " '${ref}'" else ""}"
+                }
             }
         }
 
@@ -76,7 +88,7 @@ abstract class Type {
                 }
                 return false
             } else if(this.type == PrimitiveType.ARRAY) {
-                if(this.returnType.equals(other.returnType)) return true
+                if(contains(other.returnType, returnType, currentInterpreter!!)) return true
                 return false
             } else if(this.type == PrimitiveType.CLASS) {
                 if(this.ref == "") return true
@@ -107,7 +119,7 @@ abstract class Type {
 
     class Parameter(val name: Token) : Type() {
         override fun getName(): String {
-            return "<${name.lexeme}>"
+            return "type parameter '${name.lexeme}'"
         }
 
         override fun toString(): String {
@@ -121,8 +133,8 @@ abstract class Type {
 
         var currentInterpreter: Sunlite? = null
 
-        fun ofClass(name: String): Reference {
-            return Reference(PrimitiveType.CLASS, name, ofObject(name), listOf())
+        fun ofClass(name: String, params: List<Param> = listOf()): Reference {
+            return Reference(PrimitiveType.CLASS, name, ofObject(name), params)
         }
 
         fun ofArray(elementType: Type): Reference {
@@ -142,6 +154,19 @@ abstract class Type {
             return reference
         }
 
+        fun ofGenericObject(name: String, typeParams: List<Type>): Reference {
+            val reference = let {
+                val reference = Reference(PrimitiveType.OBJECT, name, OBJECT, listOf(), typeParams)
+                Reference(PrimitiveType.OBJECT, name, reference, listOf(), typeParams)
+            }
+
+            return reference
+        }
+
+        fun ofGenericFunction(name: String, returnType: Type, params: List<Param>, typeParams: List<Type>): Reference {
+            return Reference(PrimitiveType.FUNCTION, name, returnType, params, typeParams)
+        }
+
         fun of(tokens: List<TypeToken>, topmost: Boolean = true): Type {
             if(tokens.isEmpty()) {
                 throw IllegalArgumentException("No types provided.")
@@ -152,25 +177,34 @@ abstract class Type {
                     val topmostType = tokens.first()
                     if(topmostType.tokens.size == 1) {
                         val singleToken = topmostType.tokens.entries.first()
-                        if(singleToken.key.type == TokenType.TYPE_FUNCTION){
-                            val returnType = if(topmostType.typeParameters.isEmpty()) Type.NIL else of(listOf(topmostType.typeParameters.last()), false)
-                            val paramTokens = topmostType.typeParameters.dropLast(1)
-                            val params = paramTokens.map { Param(Token.identifier(""), of(listOf(it), false)) }
-                            return ofFunction("", returnType, params)
-                        } else if(singleToken.key.type == TokenType.TYPE_ARRAY){
-                            val elementType = if(topmostType.typeParameters.isEmpty()) NULLABLE_ANY else of(topmostType.typeParameters, false)
-                            return ofArray(elementType)
-                        } else if(singleToken.key.type == TokenType.CLASS){
-                            if(topmostType.typeParameters.isEmpty()) {
-                                return ofClass("")
+                        when (singleToken.key.type) {
+                            TokenType.TYPE_FUNCTION -> {
+                                val returnType = if(topmostType.typeParameters.isEmpty()) Type.NIL else of(listOf(topmostType.typeParameters.last()), false)
+                                val paramTokens = topmostType.typeParameters.dropLast(1)
+                                val params = paramTokens.map { Param(Token.identifier(""), of(listOf(it), false)) }
+                                return ofFunction("", returnType, params)
                             }
-                            val className =
-                                topmostType.typeParameters.first().tokens.entries.first().key.lexeme
-                            return ofClass(className)
-                        } else if(singleToken.key.type == TokenType.IDENTIFIER){
-                            return ofObject(singleToken.key.lexeme)
-                        } else {
-                            return Singular(PrimitiveType.get(singleToken.key))
+                            TokenType.TYPE_ARRAY -> {
+                                val elementType = if(topmostType.typeParameters.isEmpty()) NULLABLE_ANY else of(topmostType.typeParameters, false)
+                                return ofArray(elementType)
+                            }
+                            TokenType.CLASS -> {
+                                if(topmostType.typeParameters.isEmpty()) {
+                                    return ofClass("")
+                                }
+                                val className =
+                                    topmostType.typeParameters.first().tokens.entries.first().key.lexeme
+                                return ofClass(className)
+                            }
+                            TokenType.IDENTIFIER -> {
+                                return ofObject(singleToken.key.lexeme)
+                            }
+                            TokenType.TYPE_GENERIC -> {
+                                return Parameter(topmostType.typeParameters.first().tokens.keys.first())
+                            }
+                            else -> {
+                                return Singular(PrimitiveType.get(singleToken.key))
+                            }
                         }
                     } else {
                         val types = topmostType.tokens.values.map { of(it, false) as Singular }
@@ -181,25 +215,34 @@ abstract class Type {
                         val singleType = tokens.first()
                         if(singleType.tokens.size == 1) {
                             val singleToken = singleType.tokens.entries.first()
-                            if(singleToken.key.type == TokenType.TYPE_FUNCTION){
-                                val returnType = if(singleType.typeParameters.isEmpty()) Type.NIL else of(listOf(singleType.typeParameters.last()), false)
-                                val paramTokens = singleType.typeParameters.dropLast(1)
-                                val params = paramTokens.map { Param(Token.identifier(""), of(listOf(it), false)) }
-                                return ofFunction("", returnType, params)
-                            } else if(singleToken.key.type == TokenType.TYPE_ARRAY){
-                                val elementType = if(singleType.typeParameters.isEmpty()) NULLABLE_ANY else of(singleType.typeParameters, false)
-                                return ofArray(elementType)
-                            } else if(singleToken.key.type == TokenType.CLASS) {
-                                if(singleType.typeParameters.isEmpty()) {
-                                    return ofClass("")
+                            when (singleToken.key.type) {
+                                TokenType.TYPE_FUNCTION -> {
+                                    val returnType = if(singleType.typeParameters.isEmpty()) Type.NIL else of(listOf(singleType.typeParameters.last()), false)
+                                    val paramTokens = singleType.typeParameters.dropLast(1)
+                                    val params = paramTokens.map { Param(Token.identifier(""), of(listOf(it), false)) }
+                                    return ofFunction("", returnType, params)
                                 }
-                                val className =
-                                    singleType.typeParameters.first().tokens.entries.first().key.lexeme
-                                return ofClass(className)
-                            } else if(singleToken.key.type == TokenType.IDENTIFIER){
-                                return ofObject(singleToken.key.lexeme)
-                            } else {
-                                return Singular(PrimitiveType.get(singleToken.key))
+                                TokenType.TYPE_ARRAY -> {
+                                    val elementType = if(singleType.typeParameters.isEmpty()) NULLABLE_ANY else of(singleType.typeParameters, false)
+                                    return ofArray(elementType)
+                                }
+                                TokenType.CLASS -> {
+                                    if(singleType.typeParameters.isEmpty()) {
+                                        return ofClass("")
+                                    }
+                                    val className =
+                                        singleType.typeParameters.first().tokens.entries.first().key.lexeme
+                                    return ofClass(className)
+                                }
+                                TokenType.IDENTIFIER -> {
+                                    return ofObject(singleToken.key.lexeme)
+                                }
+                                TokenType.TYPE_GENERIC -> {
+                                    return Parameter(singleType.typeParameters.first().tokens.keys.first())
+                                }
+                                else -> {
+                                    return Singular(PrimitiveType.get(singleToken.key))
+                                }
                             }
                         } else {
                             val types = singleType.tokens.map { of(it.value, false) as Singular }
@@ -235,11 +278,23 @@ abstract class Type {
                 is Double -> NUMBER
                 is Boolean -> BOOLEAN
                 null -> NIL
+                is SLClosure -> {
+                    val function = value.function
+                    ofFunction(function.name, function.returnType, function.params)
+                }
+                is SLBoundMethod -> {
+                    val function = value.method.function
+                    ofFunction(function.name, function.returnType, function.params)
+                }
+                is SLUpvalue -> {
+                    fromValue(value.closedValue, sunlite)
+                }
+                is SLNativeFunction ->  ofFunction(value.name, value.returnType, listOf())
                 is SLFunction -> ofFunction(value.name, value.returnType, value.params)
                 is SLClass -> ofClass(value.name)
-                //is LoxInterface -> ofClass(value.name, sunlite)
                 is SLClassInstance -> ofObject(value.clazz.name)
                 is SLArray -> ARRAY
+                is SLType -> value.value
                 else -> UNKNOWN
             }
         }

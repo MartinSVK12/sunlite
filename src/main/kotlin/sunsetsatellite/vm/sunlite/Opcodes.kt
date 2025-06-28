@@ -39,5 +39,6 @@ enum class Opcodes {
 	GET_SUPER,
 	ARRAY_SET,
 	ARRAY_GET,
-	THROW
+	THROW,
+	CHECK,
 }

@@ -73,7 +73,8 @@ object Disassembler {
 			Opcodes.ARRAY_GET -> return simpleInstruction(sb, opcode.name, offset)
 			Opcodes.ARRAY_SET -> return simpleInstruction(sb, opcode.name, offset)
 			Opcodes.THROW -> return simpleInstruction(sb, opcode.name, offset)
-		}
+            Opcodes.CHECK -> return constantInstruction(sb, opcode.name, chunk, offset)
+        }
 	}
 
 	private fun closureInstruction(sb: StringBuilder, name: String, chunk: Chunk, startOffset: Int): Int {

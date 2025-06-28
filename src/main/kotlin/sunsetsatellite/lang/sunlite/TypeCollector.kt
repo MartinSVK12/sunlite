@@ -5,6 +5,8 @@ import sunsetsatellite.vm.sunlite.VM
 
 class TypeCollector(val sunlite: Sunlite): Stmt.Visitor<Unit> {
 
+    var currentClass: Stmt.Class? = null
+
     abstract inner class ElementPrototype {
        abstract fun getElementType(): Type
     }
@@ -19,12 +21,20 @@ class TypeCollector(val sunlite: Sunlite): Stmt.Visitor<Unit> {
         }
     }
 
-    inner class FunctionPrototype(val name: Token, val params: List<Param>, val returnType: Type): ElementPrototype(){
+    inner class FunctionPrototype(
+        val name: Token,
+        val params: List<Param>,
+        val returnType: Type,
+        val typeParams: List<Type> = listOf()
+    ): ElementPrototype(){
         override fun toString(): String {
             return "(${params.joinToString()}): $returnType"
         }
 
         override fun getElementType(): Type {
+            if(typeParams.isNotEmpty()){
+                return Type.ofGenericFunction(name.lexeme, returnType, params, typeParams)
+            }
             return Type.ofFunction(name.lexeme, returnType, params)
         }
     }
@@ -50,8 +60,8 @@ class TypeCollector(val sunlite: Sunlite): Stmt.Visitor<Unit> {
     fun addVariable(name: Token, type: Type) {
         currentScope?.contents?.put(name, VariablePrototype(type))
     }
-    fun addFunction(name: Token, params: List<Param>, returnType: Type) {
-        currentScope?.contents?.put(name, FunctionPrototype(name, params, returnType))
+    fun addFunction(name: Token, params: List<Param>, returnType: Type, typeParams: List<Type> = listOf()) {
+        currentScope?.contents?.put(name, FunctionPrototype(name, params, returnType, typeParams))
     }
 
     fun addScope(name: Token){
@@ -77,26 +87,30 @@ class TypeCollector(val sunlite: Sunlite): Stmt.Visitor<Unit> {
         removeScope()
     }
 
-    fun getValidScope(scope: Scope?, name: Token, enclosing: Token? = null): Scope? {
+    fun getValidScope(scope: Scope?, name: Token, enclosing: Token? = null, offset: Int = 0, enclosingScope: Scope? = null): Scope? {
+        var enclosingS: Scope? = enclosingScope
         if(scope == null) return null
-        if(scope.name.lexeme == enclosing?.lexeme && scope.contents.keys.map { it.lexeme }.contains(name.lexeme)){
+        if(scope.name.lexeme == enclosing?.lexeme){
+            enclosingS = scope
+        }
+        if(enclosingS != null && scope.depth <= enclosingS.depth + offset && scope.contents.keys.map { it.lexeme }.contains(name.lexeme)){
             return scope
         } else {
             var valid: Scope? = null
             scope.inner.forEach {
-                valid = getValidScope(it, name, enclosing)
+                valid = getValidScope(it, name, enclosing, offset, enclosingS)
                 if(valid != null) return valid
             }
             return valid
         }
     }
 
-    fun findType(name: Token, enclosing: Token? = null): ElementPrototype? {
+    fun findType(name: Token, enclosing: Token? = null, offset: Int = 0): ElementPrototype? {
         val globalScope = typeScopes[0]
         if(globalScope.contents.keys.map { it.lexeme }.contains(name.lexeme)){
             return globalScope.contents.mapKeys { it.key.lexeme }[name.lexeme]
         }
-        val scope = getValidScope(typeScopes.firstOrNull(), name, enclosing)
+        val scope = getValidScope(typeScopes.firstOrNull(), name, enclosing, offset)
         if(scope == null) return null
         return scope.contents.mapKeys { it.key.lexeme }[name.lexeme]
     }
@@ -137,7 +151,9 @@ class TypeCollector(val sunlite: Sunlite): Stmt.Visitor<Unit> {
     }
 
     override fun visitFunctionStmt(stmt: Stmt.Function) {
-        addFunction(stmt.name, stmt.params, stmt.returnType)
+        val typeParams = stmt.typeParams.map { it.type }.toMutableList()
+        currentClass?.typeParameters?.map { it.type }?.forEach { typeParams.add(it) }
+        addFunction(stmt.name, stmt.params, stmt.returnType, typeParams)
         addScope(stmt.name)
         stmt.params.forEach { addVariable(it.token, it.type) }
         stmt.body.forEach { it.accept(this) }
@@ -149,14 +165,18 @@ class TypeCollector(val sunlite: Sunlite): Stmt.Visitor<Unit> {
     }
 
     override fun visitClassStmt(stmt: Stmt.Class) {
-        addVariable(stmt.name, Type.ofClass(stmt.name.lexeme))
+        val classParams = stmt.methods.find { it.name.lexeme == "init" }?.params ?: listOf()
+        addVariable(stmt.name, Type.ofClass(stmt.name.lexeme, classParams))
         addScope(stmt.name)
+        currentClass = stmt
         typeHierarchy[stmt.name.lexeme] = stmt.superclass?.name?.lexeme ?: "<nil>"
         stmt.superclass?.let {
             addVariable(Token.identifier("<superclass>",it.getLine(),it.getFile()),Type.ofClass(it.name.lexeme))
         }
         stmt.fieldDefaults.forEach { it.accept(this) }
         stmt.methods.forEach { it.accept(this) }
+        stmt.typeParameters.forEach { addVariable(Token.identifier("<${it.token.lexeme}>",it.token.line, it.token.file), Type.Parameter(it.token)) }
+        currentClass = null
         removeScope()
     }
 

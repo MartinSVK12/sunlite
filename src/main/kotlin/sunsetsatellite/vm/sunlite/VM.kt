@@ -7,7 +7,7 @@ import sunsetsatellite.lang.sunlite.Sunlite.Companion.stacktrace
 import sunsetsatellite.lang.sunlite.Type
 import java.util.*
 
-class VM(val sunlite: Sunlite): Runnable {
+class VM(val sunlite: Sunlite, val launchArgs: Array<String>): Runnable {
 
 	var ignoreBreakpoints: Boolean = false
 	var breakpointHit: Boolean = false
@@ -78,6 +78,25 @@ class VM(val sunlite: Sunlite): Runnable {
 			): AnySLValue {
 				val array = args[0] as SLArrayObj
 				return SLNumber(array.value.size.toDouble())
+			}
+		})
+
+		defineNative(object : SLNativeFunction("typeOf",Type.STRING,1) {
+			override fun call(
+				vm: VM,
+				args: Array<AnySLValue>
+			): AnySLValue {
+				val type = Type.fromValue(args[0].value, vm.sunlite)
+				return SLString(type.toString())
+			}
+		})
+
+		defineNative(object : SLNativeFunction("launchArgs",Type.ofArray(Type.STRING),0) {
+			override fun call(
+				vm: VM,
+				args: Array<AnySLValue>
+			): AnySLValue {
+				return SLArrayObj(SLArray(launchArgs.size, sunlite).overwrite(launchArgs.map { SLString(it) }.toTypedArray()))
 			}
 		})
 	}
@@ -411,7 +430,14 @@ class VM(val sunlite: Sunlite): Runnable {
 					throwException(frameStack.size-1, fr.pop())
 					fr = frameStack.peek()
 				}
-			}
+
+                Opcodes.CHECK -> {
+					val type = readConstant(fr) as SLType
+					val checking = fr.pop()
+					val checkingType = Type.fromValue(checking.value, sunlite)
+					fr.push(SLBool(Type.contains(type.value, checkingType, sunlite)))
+				}
+            }
 		}
 	}
 
@@ -519,6 +545,7 @@ class VM(val sunlite: Sunlite): Runnable {
 		}
 
 		val locals = mutableListOf<AnySLValue>()
+		locals.addAll(Array(callee.value.function.localsCount - argCount) { i -> SLNil })
 		locals.addAll(Array(argCount) { i -> frameStack.peek().peek(i) })
 		locals.reverse()
 		val frame = CallFrame(callee.value, locals)
@@ -609,6 +636,19 @@ class VM(val sunlite: Sunlite): Runnable {
 			val offset = Disassembler.disassembleInstruction(sb, fr.closure.function.chunk, fr.pc)
 		} else {
 			sb.append("<empty stack>")
+			sb.append("\n")
+		}
+
+		if(fr != null){
+			sb.append("locals @ ${fr.closure.function.chunk.debugInfo.file}::${fr.closure.function.chunk.debugInfo.name}: ")
+			for (value in fr.locals) {
+				sb.append("[ ")
+				sb.append(value)
+				sb.append(" ]")
+			}
+			if(fr.locals.isEmpty()){
+				sb.append("[ ]")
+			}
 			sb.append("\n")
 		}
 

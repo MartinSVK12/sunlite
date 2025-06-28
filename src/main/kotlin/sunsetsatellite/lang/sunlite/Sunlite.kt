@@ -31,8 +31,8 @@ class Sunlite(val args: Array<String>) {
 
 	fun start() {
 		when {
-			args.size > 3 -> {
-				println("Usage: sunlite [script] (path) (options)")
+			args.size > 4 -> {
+				println("Usage: sunlite [script] (path) (options) (args)")
 				exitProcess(64)
 			}
 			args.size == 1 -> {
@@ -43,6 +43,19 @@ class Sunlite(val args: Array<String>) {
 				runFile(args[0])
 			}
 			args.size == 3 -> {
+				args[2].split(";").forEach {
+					when (it) {
+						"debug" -> debug = true
+						"trace" -> bytecodeDebug = true
+						"stacktrace" -> stacktrace = true
+						"warnStacktrace" -> warnStacktrace = true
+						"stdout" -> logToStdout = true
+					}
+				}
+				path.addAll(args[1].split(";"))
+				runFile(args[0])
+			}
+			args.size == 4 -> {
 				args[2].split(";").forEach {
 					when (it) {
 						"debug" -> debug = true
@@ -144,12 +157,12 @@ class Sunlite(val args: Array<String>) {
 		val tokens: List<Token> = scanner.scanTokens(shortPath)
 
 		var parser = Parser(tokens,this)
-		var statements = parser.parse(shortPath)
+		var statements: MutableList<Stmt> = parser.parse(shortPath).toMutableList()
 
 		// Stop if there was a syntax error.
 		if (hadError) return
 
-		vm = VM(this)
+		vm = VM(this, if(args.size == 4)args[3].split(";").toTypedArray() else arrayOf())
 		uninitialized = false
 
 		collector = TypeCollector(this)
@@ -157,6 +170,19 @@ class Sunlite(val args: Array<String>) {
 
 		// Stop if there was a type collection error.
 		if (hadError) return
+
+		parser = Parser(tokens,this)
+		statements = parser.parse(shortPath).toMutableList()
+
+		if(debug) {
+			printInfo("AST: ")
+			printInfo("-----")
+			statements.forEach {
+				printInfo(AstPrinter.print(it))
+			}
+			printInfo("-----")
+			printInfo()
+		}
 
 		if(debug) {
 			printInfo("Type Collection: ")
@@ -172,22 +198,6 @@ class Sunlite(val args: Array<String>) {
 
 		}
 
-		// Stop if there was a type collection error.
-		if (hadError) return
-
-		parser = Parser(tokens,this)
-		statements = parser.parse(shortPath)
-
-		if(debug) {
-			printInfo("AST: ")
-			printInfo("-----")
-			statements.forEach {
-				printInfo(AstPrinter.print(it))
-			}
-			printInfo("-----")
-			printInfo()
-		}
-
 		// Stop if there was a syntax error.
 		if (hadError) return
 
@@ -199,7 +209,9 @@ class Sunlite(val args: Array<String>) {
 
 		val compiler = Compiler(this, vm, null)
 
-		val program: SLFunction = compiler.compile(FunctionType.FUNCTION, Type.NIL, listOf(), statements, shortPath)
+		//imports.values.forEach { statements.addAll(0,it) }
+
+		val program: SLFunction = compiler.compile(FunctionType.NONE, Type.NIL, listOf(), statements, shortPath)
 
 		// Stop if there was a compilation error.
 		if (hadError) return
@@ -319,6 +331,10 @@ class Sunlite(val args: Array<String>) {
 			val sunlite = Sunlite(args)
 			logToStdout = true
 			sunlite.start()
+		}
+
+		fun <T>test(t: T){
+			val s: String = t as String
 		}
 	}
 }

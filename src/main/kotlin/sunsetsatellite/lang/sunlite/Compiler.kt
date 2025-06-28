@@ -8,6 +8,7 @@ import sunsetsatellite.vm.sunlite.SLFuncObj
 import sunsetsatellite.vm.sunlite.SLFunction
 import sunsetsatellite.vm.sunlite.SLNumber
 import sunsetsatellite.vm.sunlite.SLString
+import sunsetsatellite.vm.sunlite.SLType
 import sunsetsatellite.vm.sunlite.VM
 
 
@@ -23,6 +24,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?): Expr
 	var currentFunctionType: FunctionType = FunctionType.FUNCTION
 	val chunk = MutableChunk()
 	val locals: MutableList<Local> = mutableListOf()
+	var localsCount = 0
 	val upvalues: MutableList<Upvalue> = mutableListOf()
 	var localScopeDepth: Int = 0
 	var topLevel: Boolean = false
@@ -31,6 +33,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?): Expr
 	val incompleteContinues: MutableList<Int> = mutableListOf()
 
 	fun compile(type: FunctionType, returnType: Type, params: List<Param>, statements: List<Stmt>, path: String? = null, name: String = "", arity: Int = 0): SLFunction {
+		localsCount = arity
 		currentFile = path
 		chunk.debugInfo.file = currentFile
 		currentFunctionType = type
@@ -38,6 +41,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?): Expr
 		if(type == FunctionType.METHOD || type == FunctionType.INITIALIZER) {
 			addIdentifier("this",Expr.This(Token.identifier("this")) )
 			locals.add(0,Local(Token.identifier("this", -1, currentFile), 0))
+			localsCount++
 		}
 
 		for (statement in statements) {
@@ -69,7 +73,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?): Expr
 			sunlite.error(chunk.debugInfo.lines[it], "Unexpected 'continue' outside of loop.", chunk.debugInfo.file)
 		}
 
-		return SLFunction(name, returnType, params, chunk.toImmutable(), arity, upvalues.size)
+		return SLFunction(name, returnType, params, chunk.toImmutable(), arity, upvalues.size, localsCount)
 	}
 
 	private fun compile(stmt: Stmt) {
@@ -446,7 +450,10 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?): Expr
 	}
 
 	override fun visitCheckExpr(expr: Expr.Check) {
-		TODO("Not yet implemented")
+		compile(expr.left)
+		val index = addConstant(SLType(expr.right), expr)
+		emitByte(Opcodes.CHECK,expr)
+		emitShort(index, expr)
 	}
 
 	override fun visitCastExpr(expr: Expr.Cast) {
@@ -472,11 +479,15 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?): Expr
 			emitByte(Opcodes.NIL, stmt)
 		}
 
-		defineVariable(constantIndex, stmt)
+		defineVariable(constantIndex, stmt, true)
 	}
 
-	private fun defineVariable(constantIndex: Int, stmt: Stmt) {
+	private fun defineVariable(constantIndex: Int, stmt: Stmt, isVar: Boolean = false) {
 		if(localScopeDepth > 0){
+			if(isVar){
+				emitByte(Opcodes.SET_LOCAL, stmt)
+				emitShort(constantIndex, stmt)
+			}
 			markInitialized()
 			return
 		}
@@ -491,14 +502,14 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?): Expr
 	}
 
 	private fun makeVariable(token: Token, stmt: Stmt): Int {
-		declareVariable(token, stmt)
-		if(localScopeDepth > 0) return 0;
+		val localIndex = declareVariable(token, stmt)
+		if(localScopeDepth > 0) return localIndex
 
 		return addConstant(SLString(token.lexeme),stmt)
 	}
 
-	private fun declareVariable(token: Token, stmt: Stmt){
-		if(localScopeDepth == 0) return
+	private fun declareVariable(token: Token, stmt: Stmt): Int {
+		if(localScopeDepth == 0) return -1
 
 		for (local in locals) {
 			if(local.depth != -1 && local.depth < localScopeDepth) break
@@ -508,16 +519,18 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?): Expr
 			}
 		}
 
-		addLocal(token, stmt)
+		return addLocal(token, stmt)
 	}
 
-	private fun addLocal(token: Token, stmt: Stmt) {
+	private fun addLocal(token: Token, stmt: Stmt): Int {
 		if(locals.size >= Short.MAX_VALUE){
 			sunlite.error(stmt.getLine(), "Too many local variables in function.")
-			return
+			return -1
 		}
 
 		locals.add(Local(token, -1))
+		localsCount++
+		return localsCount-1
 	}
 
 
@@ -695,7 +708,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?): Expr
 	}
 
 	override fun visitImportStmt(stmt: Stmt.Import) {
-		TODO("Not yet implemented")
+
 	}
 
 	override fun visitTryCatchStmt(stmt: Stmt.TryCatch) {
