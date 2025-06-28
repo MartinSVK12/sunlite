@@ -226,7 +226,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?): Expr
 		compile(expr.right)
 		when (expr.operator.type) {
 			MINUS -> {
-				emitByte(Opcodes.SUB, expr)
+				emitByte(Opcodes.NEGATE, expr)
 			}
 			BANG -> {
 				emitByte(Opcodes.NOT, expr)
