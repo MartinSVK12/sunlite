@@ -87,6 +87,8 @@ class TypeCollector(val sunlite: Sunlite): Stmt.Visitor<Unit> {
         removeScope()
     }
 
+    // todo: rework so that if name matches on lower depth non-enclosing scope it gets picked if it doesn't exist in the enclosing scope
+    // todo: and any results that get picked up from lower depth non-enclosing scopes get thrown away if it *does* exist in the enclosing scope
     fun getValidScope(scope: Scope?, name: Token, enclosing: Token? = null, offset: Int = 0, enclosingScope: Scope? = null): Scope? {
         var enclosingS: Scope? = enclosingScope
         if(scope == null) return null

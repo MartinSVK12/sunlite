@@ -897,8 +897,19 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite, val importing: Boole
 		if (match(THIS)) {
             sunlite.collector?.let {
                 val type = currentClass?.let {
-                    sunlite.collector?.findType(currentClass!!, Token.identifier(currentFile ?: "<global>",-1,currentFile))
+                    sunlite.collector!!.findType(currentClass!!, Token.identifier(currentFile ?: "<global>",-1,currentFile))
                 }
+
+				val scope =
+					sunlite.collector?.getValidScope(sunlite.collector!!.typeScopes.first(), currentClass!!,Token.identifier(currentFile ?: "<global>",-1,currentFile))?.inner?.find { it.name.lexeme == currentClass?.lexeme }
+
+				val typeParams = scope?.contents?.keys?.filter { it.lexeme.startsWith("<") }
+
+				if(typeParams?.isNotEmpty() == true){
+					val baseGenericType = Type.ofGenericObject(scope.name.lexeme, typeParams.map { Type.NULLABLE_ANY })
+					return This(previous(), baseGenericType)
+				}
+
 				return This(previous(), (type?.getElementType() as Type.Reference?)?.returnType ?: Type.UNKNOWN)
             }
 			return This(previous())

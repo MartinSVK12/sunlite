@@ -69,32 +69,39 @@ abstract class Type {
         override fun equals(other: Any?): Boolean {
             if(other !is Reference) return false
             if(other.type != type) return false
-            if(this.type == PrimitiveType.FUNCTION) {
-               if(this.returnType == other.returnType) {
-                   if(this.params.size != other.params.size) return false
-                   val types = params.map { it.type }
-                   val otherTypes = other.params.map { it.type }
-                   if(types.zip(otherTypes).any { !it.first.equals(it.second) }) return false
-                   return true
-               }
-            } else if(this.type == PrimitiveType.OBJECT) {
-                if(currentInterpreter == null) return false
-                var currentRef = other.ref
-                while (currentRef != "<nil>"){
-                    val superclass = currentInterpreter?.collector?.typeHierarchy[currentRef]
-                    if(superclass == null || superclass == "<nil>" || superclass == "") return false
-                    if(superclass == this.ref) return true
-                    currentRef = superclass
+            when (this.type) {
+                PrimitiveType.FUNCTION -> {
+                    if(this.returnType == other.returnType) {
+                        if(this.params.size != other.params.size) return false
+                        val types = params.map { it.type }
+                        val otherTypes = other.params.map { it.type }
+                        if(types.zip(otherTypes).any { !contains(it.second, it.first, currentInterpreter!!) }) return false
+                        return true
+                    }
                 }
-                return false
-            } else if(this.type == PrimitiveType.ARRAY) {
-                if(contains(other.returnType, returnType, currentInterpreter!!)) return true
-                return false
-            } else if(this.type == PrimitiveType.CLASS) {
-                if(this.ref == "") return true
-                if(this.ref == other.ref) return true
-            } else {
-                return true
+                PrimitiveType.OBJECT -> {
+                    if(currentInterpreter == null) return false
+                    var currentRef = other.ref
+                    if(ref == currentRef) return true
+                    while (currentRef != "<nil>"){
+                        val superclass = currentInterpreter?.collector?.typeHierarchy[currentRef]
+                        if(superclass == null || superclass == "<nil>" || superclass == "") return false
+                        if(superclass == this.ref) return true
+                        currentRef = superclass
+                    }
+                    return false
+                }
+                PrimitiveType.ARRAY -> {
+                    if(contains(other.returnType, returnType, currentInterpreter!!)) return true
+                    return false
+                }
+                PrimitiveType.CLASS -> {
+                    if(this.ref == "") return true
+                    if(this.ref == other.ref) return true
+                }
+                else -> {
+                    return true
+                }
             }
             return false
         }
@@ -125,6 +132,21 @@ abstract class Type {
         override fun toString(): String {
             return getName()
         }
+
+        override fun equals(other: Any?): Boolean {
+            if (this === other) return true
+            if (other !is Parameter) return false
+
+            if (name.lexeme != other.name.lexeme) return false
+
+            return true
+        }
+
+        override fun hashCode(): Int {
+            return name.hashCode()
+        }
+
+
     }
 
     abstract fun getName(): String
@@ -197,6 +219,10 @@ abstract class Type {
                                 return ofClass(className)
                             }
                             TokenType.IDENTIFIER -> {
+                                if(topmostType.typeParameters.isNotEmpty()) {
+                                    val types = topmostType.typeParameters.map { of(listOf(it), false) }
+                                    return ofGenericObject(singleToken.key.lexeme, types)
+                                }
                                 return ofObject(singleToken.key.lexeme)
                             }
                             TokenType.TYPE_GENERIC -> {
@@ -235,6 +261,10 @@ abstract class Type {
                                     return ofClass(className)
                                 }
                                 TokenType.IDENTIFIER -> {
+                                    if(singleType.typeParameters.isNotEmpty()) {
+                                        val types = singleType.typeParameters.map { of(listOf(it), false) }
+                                        return ofGenericObject(singleToken.key.lexeme, types)
+                                    }
                                     return ofObject(singleToken.key.lexeme)
                                 }
                                 TokenType.TYPE_GENERIC -> {

@@ -83,8 +83,13 @@ class TypeChecker(val sunlite: Sunlite, val vm: VM?): Expr.Visitor<Unit>, Stmt.V
                 val typeArgs = expr.typeParams.toMutableList()
                 val params = calleeType.params
                 var i = 0
-                expr.arguments.zip(params).forEach {
+                for (it in expr.arguments.zip(params)) {
                     if(it.second.type is Type.Parameter){
+                        if(typeArgs.isEmpty()){
+                            sunlite.warn(expr.paren,"Cannot determine concrete type of ${it.second.type}")
+                            //sunlite.error(expr.paren, "Missing ${it.second.type}")
+                            continue
+                        }
                         checkType(typeArgs[i], it.first.getExprType(), expr.paren, false)
                         i++
                     } else {

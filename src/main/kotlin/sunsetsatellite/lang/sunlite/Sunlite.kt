@@ -220,7 +220,9 @@ class Sunlite(val args: Array<String>) {
 
 		try {
 			vm.run()
-		} catch (e: Exception) {
+		} /*catch (e: ClassCastException) {
+			vm.throwException(vm.frameStack.size, SLString("Type error"))
+		}*/ catch (e: Exception) {
 			vm.runtimeError("internal vm error: $e")
 			e.printStackTrace()
 		}
