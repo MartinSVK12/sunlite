@@ -159,10 +159,17 @@ class Sunlite(val args: Array<String>) {
 		if (hadError) return
 
 		if(debug) {
-			printInfo("Types: ")
+			printInfo("Type Collection: ")
 			printInfo("--------")
 			collector?.typeScopes?.forEach { printTypeScopes(it, 0) }
 			printInfo("--------")
+			printInfo()
+			printInfo("Type Hierarchy: ")
+			printInfo("--------")
+			collector?.typeHierarchy?.forEach { printInfo("${it.key} extends ${it.value}") }
+			printInfo("--------")
+			printInfo()
+
 		}
 
 		// Stop if there was a type collection error.

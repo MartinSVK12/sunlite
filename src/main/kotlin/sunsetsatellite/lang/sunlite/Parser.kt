@@ -490,94 +490,60 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite) {
 		return Stmt.Var(name, type, initializer, modifier)
 	}
 
-	private fun getTypeTokens(oneOnly: Boolean): List<TypeToken> {
-		var firstToken = peek()
-		var firstTypeParameter: List<TypeToken> = listOf()
-		var firstPureTypeParameter = false
+	private fun getTypeTokens(insideUnion: Boolean = false): List<TypeToken> {
+		val mainToken = peek()
 		if (!match(TYPE_BOOLEAN, TYPE_STRING, TYPE_NUMBER, TYPE_FUNCTION, CLASS, TYPE_ANY, TYPE_ARRAY, IDENTIFIER, NIL)) {
-			if(match(LESS)){
-				if(oneOnly){
-					throw error(firstToken, "Only bounds can be specified for pure type parameter.")
-				}
-				firstToken = peek()
-				firstTypeParameter = getTypeTokens(true)
-				consume(GREATER, "Expected '>' after type parameter.")
-				firstPureTypeParameter = true
-			} else {
-				throw error(firstToken, "Expected type.")
-			}
+			throw error(mainToken, "Expected type.")
 		}
-		if(!firstPureTypeParameter && match(LESS)) {
-			if(oneOnly){
-				throw error(firstToken, "Only bounds can be specified for pure type parameter.")
-			}
-			if (!checkType(TYPE_BOOLEAN, TYPE_STRING, TYPE_NUMBER, TYPE_FUNCTION, CLASS, TYPE_ANY, TYPE_ARRAY, IDENTIFIER, NIL, LESS)) {
-				throw error(firstToken, "Expected type for type parameter.")
-			}
-			firstTypeParameter = getTypeTokens(false)
-			consume(GREATER, "Expected '>' after type parameter.")
+
+		//there should be only one top most type (probably)
+		val types: MutableList<TypeToken> = mutableListOf()
+
+		val unionTypes: MutableMap<Token, List<TypeToken>> = mutableMapOf()
+		var typeParameters: MutableList<TypeToken> = mutableListOf()
+
+		if(match(LESS)){
+			do {
+				if (typeParameters.size >= 255) {
+					error(peek(), "Can't have more than 255 type parameters.")
+				}
+				val typeParamToken = peek()
+				if (!checkType(TYPE_BOOLEAN, TYPE_STRING, TYPE_NUMBER, TYPE_FUNCTION, CLASS, TYPE_ANY, TYPE_ARRAY, IDENTIFIER, NIL)) {
+					throw error(typeParamToken, "Expected type for type parameter.")
+				}
+				typeParameters.addAll(getTypeTokens(false))
+
+			} while (match(COMMA))
+			consume(GREATER, "Expected '>' after type parameters.")
 		}
-		val types: MutableList<TypeToken> = mutableListOf(TypeToken(firstToken, if(firstPureTypeParameter) listOf() else firstTypeParameter, firstPureTypeParameter))
 
-		do {
-			if (types.size >= 255) {
-				error(peek(), "Can't have more than 255 types in a union type.")
-			}
+		if(checkType(PIPE) && !insideUnion){
+			advance()
+			do {
+				if (unionTypes.size >= 255) {
+					error(peek(), "Can't have more than 255 types in a union.")
+				}
+				val unionMemberToken = peek()
+				if (!checkType(TYPE_BOOLEAN, TYPE_STRING, TYPE_NUMBER, TYPE_FUNCTION, CLASS, TYPE_ANY, TYPE_ARRAY, IDENTIFIER, NIL)) {
+					throw error(unionMemberToken, "Expected type after '|'.")
+				}
+				val unionTypeTokens = getTypeTokens(true)
+				unionTypes[unionMemberToken] = unionTypeTokens
+			} while (match(PIPE))
+		}
 
-			if(match(PIPE)) {
-				var additionalToken = peek()
-				var additionalPureTypeParameter = false
-				var additionalTypeParameter: List<TypeToken> = listOf()
-				if (!match(
-						TYPE_BOOLEAN,
-						TYPE_STRING,
-						TYPE_NUMBER,
-						TYPE_FUNCTION,
-						CLASS,
-						TYPE_ANY,
-						TYPE_ARRAY,
-						IDENTIFIER,
-						NIL,
-					)
-				) {
-					if(match(LESS)){
-						if(oneOnly){
-							throw error(firstToken, "Only bounds can be specified for pure type parameter.")
-						}
-						additionalToken = peek()
-						additionalTypeParameter = getTypeTokens(true)
-						consume(GREATER, "Expected '>' after type parameter.")
-						additionalPureTypeParameter = true
-					} else {
-						throw error(additionalToken, "Expected type.")
-					}
-				} else {
-					if(match(LESS)){
-						if(oneOnly){
-							throw error(firstToken, "Only bounds can be specified for pure type parameter.")
-						}
-						if (!checkType(TYPE_BOOLEAN, TYPE_STRING, TYPE_NUMBER, TYPE_FUNCTION, CLASS, TYPE_ANY, TYPE_ARRAY, IDENTIFIER, NIL, LESS)) {
-							throw error(firstToken, "Expected type for type parameter.")
-						}
-						additionalTypeParameter = getTypeTokens(false)
-						consume(GREATER, "Expected '>' after type parameter.")
-					}
-					types.add(TypeToken(additionalToken, additionalTypeParameter, false))
-				}
-				if(additionalPureTypeParameter) {
-					types.add(TypeToken(additionalToken, listOf(), true))
-				}
-			} else {
-				break
-			}
-		} while (match(PIPE))
+		unionTypes[mainToken] = listOf(TypeToken(mapOf(mainToken to listOf(TypeToken(mapOf(mainToken to listOf()),typeParameters))),typeParameters))
+
+		types.add(TypeToken(unionTypes, typeParameters))
+
 		return types
 	}
 
 	private fun getType(function: Boolean = false, noColon: Boolean = false): Type {
 		var type: Type = if(function) Type.NIL else Type.ANY
 		if (match(COLON) || noColon) {
-			type = Type.of(getTypeTokens(false))
+			val typeTokens = getTypeTokens()
+			type = Type.of(typeTokens)
 		}
 		return type
 	}

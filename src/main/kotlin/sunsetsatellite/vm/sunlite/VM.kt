@@ -1,6 +1,7 @@
 package sunsetsatellite.vm.sunlite
 
 import sunsetsatellite.lang.sunlite.Disassembler
+import sunsetsatellite.lang.sunlite.PrimitiveType
 import sunsetsatellite.lang.sunlite.Sunlite
 import sunsetsatellite.lang.sunlite.Sunlite.Companion.stacktrace
 import sunsetsatellite.lang.sunlite.Type
@@ -49,7 +50,7 @@ class VM(val sunlite: Sunlite): Runnable {
 			}
 		})
 
-		defineNative(object : SLNativeFunction("arrayOf",Type.ARRAY,1) {
+		defineNative(object : SLNativeFunction("arrayOf",Type.Reference(PrimitiveType.ARRAY, "<array>",Type.NULLABLE_ANY),1) {
 			override fun call(
 				vm: VM,
 				args: Array<AnySLValue>

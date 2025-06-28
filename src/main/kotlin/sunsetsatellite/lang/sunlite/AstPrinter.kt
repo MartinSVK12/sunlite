@@ -165,7 +165,7 @@ object AstPrinter : Expr.Visitor<String>, Stmt.Visitor<String> {
 	}
 
 	override fun visitVarStmt(stmt: Stmt.Var): String {
-		return stmt.initializer?.let { parenthesize("${stmt.modifier.name.lowercase()} var '${stmt.name.lexeme}': ${stmt.type.getName().lowercase()} =", it) } ?: "(${stmt.modifier.name.lowercase()} var '${stmt.name.lexeme}' (type '${stmt.type.getName().lowercase()}') nil)"
+		return stmt.initializer?.let { parenthesize("${stmt.modifier.name.lowercase()} var '${stmt.name.lexeme}': ${stmt.type} =", it) } ?: "(${stmt.modifier.name.lowercase()} var '${stmt.name.lexeme}' (type '${stmt.type.getName().lowercase()}') nil)"
 	}
 
 	override fun visitBlockStmt(stmt: Stmt.Block): String {

@@ -1,3 +1,3 @@
 package sunsetsatellite.lang.sunlite
 
-data class TypeToken(val token: Token, val typeParameters: List<TypeToken>, val pure: Boolean)
+data class TypeToken(val tokens: Map<Token, List<TypeToken>>, val typeParameters: List<TypeToken>)

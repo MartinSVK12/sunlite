@@ -34,7 +34,7 @@ class TypeChecker(val sunlite: Sunlite, val vm: VM?): Expr.Visitor<Unit>, Stmt.V
         if(Sunlite.debug){
             println("Checking if type '$expected' matches '$actual' at '${token.lexeme}'")
         }
-        val valid = Type.contains(actual, expected)
+        val valid = Type.contains(actual, expected, sunlite)
         if(!valid){
             if(runtime && vm != null){
                 vm.throwException(0, SLString("Expected '$expected' but got '$actual'."))

@@ -35,7 +35,7 @@ class TypeCollector(val sunlite: Sunlite): Stmt.Visitor<Unit> {
         }
     }
 
-
+    val typeHierarchy: MutableMap<String, String> = mutableMapOf()
     val typeScopes: MutableList<Scope> = mutableListOf()
     var path: String? = null
     var currentScope: Scope? = Scope(Token.identifier("<global>",-1,"<global>"), mutableMapOf())
@@ -151,6 +151,7 @@ class TypeCollector(val sunlite: Sunlite): Stmt.Visitor<Unit> {
     override fun visitClassStmt(stmt: Stmt.Class) {
         addVariable(stmt.name, Type.ofClass(stmt.name.lexeme))
         addScope(stmt.name)
+        typeHierarchy[stmt.name.lexeme] = stmt.superclass?.name?.lexeme ?: "<nil>"
         stmt.superclass?.let {
             addVariable(Token.identifier("<superclass>",it.getLine(),it.getFile()),Type.ofClass(it.name.lexeme))
         }
