@@ -1,5 +1,7 @@
 package sunsetsatellite.lang.sunlite
 
+import com.sun.org.apache.xpath.internal.operations.Bool
+
 abstract class Expr: Element {
 	data class Binary(val left: Expr, val operator: Token, val right: Expr) : Expr() {
 		override fun <R> accept(visitor: Visitor<R>): R? {
@@ -89,7 +91,7 @@ abstract class Expr: Element {
 		}
 	}
 
-	data class Variable(val name: Token, val type: Type = Type.UNKNOWN): Expr(), NamedExpr {
+	data class Variable(val name: Token, val type: Type = Type.UNKNOWN, val constant: Boolean = false): Expr(), NamedExpr {
 		override fun <R> accept(visitor: Visitor<R>): R? {
 			return visitor.visitVariableExpr(this)
 		}
@@ -224,7 +226,7 @@ abstract class Expr: Element {
 		}
 	}
 
-	data class Get(val obj: Expr, val name: Token, val type: Type = Type.UNKNOWN,
+	data class Get(val obj: Expr, val name: Token, val type: Type = Type.UNKNOWN, val constant: Boolean = false,
 				   var typeParams: List<Type> =
 					   if(obj.getExprType() is Type.Reference) {
 						   val ref = obj.getExprType() as Type.Reference

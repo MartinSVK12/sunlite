@@ -18,6 +18,8 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>): Runnable {
 	var currentException: AnySLValue? = null
 	val exceptionStacktrace: Stack<CallFrame> = Stack()
 
+	var currentFrame: CallFrame? = null
+
 	companion object {
 		const val MAX_FRAMES: Int = 255
 
@@ -115,10 +117,17 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>): Runnable {
 		globals[function.name] = SLNativeFuncObj(function)
 	}
 
-	override fun run(){
-		var fr: CallFrame = frameStack.peek()
+	fun isInitialized(): Boolean {
+		return currentFrame != null
+	}
 
-		while (fr.pc < fr.closure.function.chunk.code.size) {
+	fun tick(){
+		if(currentFrame == null) {
+			runtimeError("VM uninitialized.")
+			return
+		}
+		var fr: CallFrame = currentFrame!!
+		if(fr.pc < fr.closure.function.chunk.code.size){
 			if(Sunlite.bytecodeDebug){
 				val sb = StringBuilder()
 				sb.append("STACK @ ${fr.closure.function.chunk.debugInfo.file}::${fr.closure.function.chunk.debugInfo.name}: ")
@@ -145,35 +154,6 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>): Runnable {
 				sunlite.printInfo(sb.toString())
 			}
 
-			val currentLine = fr.closure.function.chunk.debugInfo.lines[fr.pc]
-			val currentFile = fr.closure.function.chunk.debugInfo.file
-
-			if (sunlite.breakpoints[currentFile]?.contains(currentLine) == true && !ignoreBreakpoints) {
-				if(lastBreakpointLine != currentLine){
-					if(!breakpointHit){
-						sunlite.breakpointListeners.forEach { it.breakpointHit(currentLine, currentFile, sunlite) }
-						lastBreakpointLine = currentLine
-					}
-
-					breakpointHit = true
-				}
-				if(breakpointHit && continueExecution) {
-					breakpointHit = false
-					continueExecution = false
-				} else if(breakpointHit) {
-					/*if(overrideFunction != null){
-						val pc = fr.pc
-						ignoreBreakpoints = true
-						call(SLClosureObj(SLClosure(overrideFunction!!)),0)
-						run()
-						ignoreBreakpoints = false
-						overrideFunction = null
-						fr.pc = pc
-					}*/
-					continue
-				}
-			}
-
 			val instruction = readByte(fr);
 			when (Opcodes.entries[instruction]) {
 				Opcodes.NOP -> {
@@ -186,6 +166,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>): Runnable {
 					}
 					val frame = frameStack.pop()
 					fr = frameStack.peek()
+					currentFrame = fr
 					for (i in 0 until (frame.closure.function.arity + 1)) {
 						fr.pop()
 					}
@@ -303,6 +284,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>): Runnable {
 						return
 					}
 					fr = frameStack.peek()
+					currentFrame = fr
 				}
 				Opcodes.CLOSURE -> {
 					val constant = readConstant(fr) as SLFuncObj
@@ -429,15 +411,53 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>): Runnable {
 				Opcodes.THROW -> {
 					throwException(frameStack.size-1, fr.pop())
 					fr = frameStack.peek()
+					currentFrame = fr
 				}
 
-                Opcodes.CHECK -> {
+				Opcodes.CHECK -> {
 					val type = readConstant(fr) as SLType
 					val checking = fr.pop()
 					val checkingType = Type.fromValue(checking.value, sunlite)
 					fr.push(SLBool(Type.contains(type.value, checkingType, sunlite)))
 				}
-            }
+			}
+		}
+	}
+
+	override fun run(){
+		val fr = frameStack.peek()
+		currentFrame = fr
+
+		while (fr.pc < fr.closure.function.chunk.code.size) {
+			val currentLine = fr.closure.function.chunk.debugInfo.lines[fr.pc]
+			val currentFile = fr.closure.function.chunk.debugInfo.file
+
+			if (sunlite.breakpoints[currentFile]?.contains(currentLine) == true && !ignoreBreakpoints) {
+				if(lastBreakpointLine != currentLine){
+					if(!breakpointHit){
+						sunlite.breakpointListeners.forEach { it.breakpointHit(currentLine, currentFile, sunlite) }
+						lastBreakpointLine = currentLine
+					}
+
+					breakpointHit = true
+				}
+				if(breakpointHit && continueExecution) {
+					breakpointHit = false
+					continueExecution = false
+				} else if(breakpointHit) {
+					/*if(overrideFunction != null){
+						val pc = fr.pc
+						ignoreBreakpoints = true
+						call(SLClosureObj(SLClosure(overrideFunction!!)),0)
+						run()
+						ignoreBreakpoints = false
+						overrideFunction = null
+						fr.pc = pc
+					}*/
+					continue
+				}
+			}
+			tick()
 		}
 	}
 

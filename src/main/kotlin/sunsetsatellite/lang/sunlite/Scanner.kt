@@ -34,6 +34,7 @@ class Scanner(private val source: String, val sunlite: Sunlite) {
 			keywords["this"] = THIS
 			keywords["true"] = TRUE
 			keywords["var"] = VAR
+			keywords["val"] = VAL
 			keywords["while"] = WHILE
 			keywords["break"] = BREAK
 			keywords["continue"] = CONTINUE
@@ -44,13 +45,15 @@ class Scanner(private val source: String, val sunlite: Sunlite) {
 			keywords["isnt"] = IS_NOT
 			keywords["import"] = IMPORT
 			keywords["dynamic"] = DYNAMIC
-			keywords["any"] = TYPE_ANY
-			keywords["string"] = TYPE_STRING
-			keywords["number"] = TYPE_NUMBER
-			keywords["boolean"] = TYPE_BOOLEAN
-			keywords["function"] = TYPE_FUNCTION
-			keywords["array"] = TYPE_ARRAY
-			keywords["generic"] = TYPE_GENERIC
+			keywords["Any"] = TYPE_ANY
+			keywords["String"] = TYPE_STRING
+			keywords["Number"] = TYPE_NUMBER
+			keywords["Boolean"] = TYPE_BOOLEAN
+			keywords["Function"] = TYPE_FUNCTION
+			keywords["Array"] = TYPE_ARRAY
+			keywords["Generic"] = TYPE_GENERIC
+			keywords["Class"] = TYPE_CLASS
+			keywords["Nil"] = TYPE_NIL
 			keywords["as"] = AS
 			keywords["extends"] = EXTENDS
 			keywords["implements"] = IMPLEMENTS
@@ -95,6 +98,7 @@ class Scanner(private val source: String, val sunlite: Sunlite) {
 			'*' -> addToken(STAR)
 			':' -> addToken(COLON)
 			'|' -> addToken(PIPE)
+			'?' -> addToken(QUESTION)
 			'!' -> addToken(if(match('=')) BANG_EQUAL else BANG)
 			'=' -> addToken(if(match('=')) EQUAL_EQUAL else EQUAL)
 			'<' -> addToken(if(match('=')) LESS_EQUAL else LESS)

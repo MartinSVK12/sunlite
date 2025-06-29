@@ -1,27 +1,27 @@
-fun inc(arr: array<any|nil>) {
+fun inc(arr: Array<Any|Nil>) {
     resize(arr,sizeOf(arr)+1);
 }
 
-fun dec(arr: array<any|nil>) {
+fun dec(arr: Array<Any|Nil>) {
     resize(arr,sizeOf(arr)-1);
 }
 
 class<T> List {
     
-    var _l: number = 0;
-    var _a: array<generic<T>> = arrayOf(10);
+    var _l: Number = 0;
+    var _a: Array<Generic<T>> = arrayOf(10);
     
     init(){
-        
+        print("hi");
     }
     
-    fun size(): number { return this._l; }
+    fun size(): Number { return this._l; }
     
-    fun isEmpty(): boolean {
+    fun isEmpty(): Boolean {
         return this.size() == 0;
     }
     
-    fun insert(index: number, o: generic<T>): boolean {
+    fun insert(index: Number, o: Generic<T>): Boolean {
         if(this._l <= index) return false;
         if(this._l > sizeOf(this._a)){
             inc(this._a);
@@ -34,7 +34,7 @@ class<T> List {
         return true;
     }
     
-    fun add(o: generic<T>): boolean {
+    fun add(o: Generic<T>): Boolean {
         if(this._l > sizeOf(this._a)){
             inc(this._a);
         }
@@ -43,13 +43,13 @@ class<T> List {
         return true;
     }
     
-    fun remove(o: generic<T>): boolean {
+    fun remove(o: Generic<T>): Boolean {
         if(!this.contains(o)) return false;
-        var index: number = this.indexOf(o);
+        var index: Number = this.indexOf(o);
         return this.removeAt(index);
     }
     
-    fun removeAt(index: number): boolean {
+    fun removeAt(index: Number): Boolean {
         if(index != -1){
             this._a[index] = nil;
             for(var i = index; i < this._l; i = i + 1){
@@ -62,12 +62,12 @@ class<T> List {
         return false;
     }
     
-    fun get(i: number): generic<T> {
-        return this._a[i] as generic<T>;
+    fun get(i: Number): Generic<T> {
+        return this._a[i] as Generic<T>;
     }
     
-    fun indexOf(o: generic<T>): number {
-        for(var i: number = 0; i < this._l; i = i + 1){
+    fun indexOf(o: Generic<T>): Number {
+        for(var i: Number = 0; i < this._l; i = i + 1){
             if(this.get(i) == o){
                 return i;
             }
@@ -75,8 +75,8 @@ class<T> List {
         return -1;
     }
 
-    fun contains(o: generic<T>): boolean {
-        for(var i: number = 0; i < this._l; i = i + 1){
+    fun contains(o: Generic<T>): Boolean {
+        for(var i: Number = 0; i < this._l; i = i + 1){
             if(this.get(i) == o){
                 return true;
             }
@@ -85,22 +85,22 @@ class<T> List {
     }
 
     
-    fun forEach(callback: function<any|nil, nil>) {
-        for(var i: number = 0; i < this._l; i = i + 1){
+    fun forEach(callback: Function<Any|Nil, Nil>) {
+        for(var i: Number = 0; i < this._l; i = i + 1){
             callback(this.get(i));
         }
     }
 
-    fun forEachIndexed(callback: function<number, any|nil, nil>) {
-        for(var i: number = 0; i < this._l; i = i + 1){
+    fun forEachIndexed(callback: Function<Number, Any|Nil, Nil>) {
+        for(var i: Number = 0; i < this._l; i = i + 1){
             callback(i,this.get(i));
         }
     }
 }
 
-var list: List<number> = List(<number>);
+var list: List<Number> = List(<Number>);
 list.add(5);
 //list.removeAt(1);
 print(list);
 
-list.forEach( fun(o: number) { print(o); });
+list.forEach( fun(kek: Number) { print(kek); });

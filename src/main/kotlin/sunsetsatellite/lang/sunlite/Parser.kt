@@ -2,11 +2,6 @@ package sunsetsatellite.lang.sunlite
 
 import sunsetsatellite.lang.sunlite.Expr.*
 import sunsetsatellite.lang.sunlite.TokenType.*
-import java.io.IOException
-import java.nio.charset.Charset
-import java.nio.file.Files
-import java.nio.file.Path
-import java.nio.file.Paths
 
 
 class Parser(val tokens: List<Token>, val sunlite: Sunlite, val importing: Boolean = false) {
@@ -16,6 +11,7 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite, val importing: Boole
 	var currentClass: Token? = null
 	var currentFunction: Token? = null
 	var currentBlockDepth: Int = 0
+	var lambdaAmount = 0
 
 	private class ParseError : RuntimeException()
 
@@ -34,6 +30,7 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite, val importing: Boole
 		try {
 			return when {
 				match(VAR) -> varDeclaration()
+				match(VAL) -> varDeclaration(FieldModifier.CONST)
 				match(FUN) -> function(FunctionType.FUNCTION, null)
 				//match(DYNAMIC) -> classDeclaration(ClassModifier.DYNAMIC)
 				match(CLASS) -> classDeclaration(ClassModifier.NORMAL)
@@ -197,7 +194,7 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite, val importing: Boole
 
 		val methods: MutableList<Stmt.Function> = ArrayList()
 		val fields: MutableList<Stmt.Var> = ArrayList()
-		while (!checkType(RIGHT_BRACE) && !isAtEnd()) {
+		while (!checkToken(RIGHT_BRACE) && !isAtEnd()) {
 			val currentModifier = peek()
 			when {
 				match(STATIC) || match(NATIVE) -> {
@@ -221,6 +218,9 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite, val importing: Boole
 				}
 				match(VAR) -> {
 					fields.add(varDeclaration())
+				}
+				match(VAL) -> {
+					fields.add(varDeclaration(FieldModifier.CONST))
 				}
 				match(FUN) -> {
 					methods.add(function(FunctionType.METHOD, null))
@@ -274,7 +274,7 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite, val importing: Boole
 		consume(LEFT_BRACE, "Expected '{' before class body.")
 
 		val methods: MutableList<Stmt.Function> = ArrayList()
-		while (!checkType(RIGHT_BRACE) && !isAtEnd()) {
+		while (!checkToken(RIGHT_BRACE) && !isAtEnd()) {
 			methods.add(abstractMethod())
 		}
 
@@ -288,7 +288,7 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite, val importing: Boole
 		currentFunction = name
 		consume(LEFT_PAREN, "Expected '(' after ${kind.toString().lowercase()} name.")
 		val parameters: MutableList<Param> = ArrayList()
-		if (!checkType(RIGHT_PAREN)) {
+		if (!checkToken(RIGHT_PAREN)) {
 			do {
 				if (parameters.size >= 255) {
 					error(peek(), "Can't have more than 255 parameters.")
@@ -373,7 +373,7 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite, val importing: Boole
 	private fun returnStatement(): Stmt {
 		val keyword = previous()
 		var value: Expr? = null
-		if (!checkType(SEMICOLON)) {
+		if (!checkToken(SEMICOLON)) {
 			value = expression()
 		}
 
@@ -430,13 +430,13 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite, val importing: Boole
 		}
 
 		var condition: Expr? = null
-		if (!checkType(SEMICOLON)) {
+		if (!checkToken(SEMICOLON)) {
 			condition = expression()
 		}
 		consume(SEMICOLON, "Expected ';' after loop condition.")
 
 		var increment: Expr? = null
-		if (!checkType(RIGHT_PAREN)) {
+		if (!checkToken(RIGHT_PAREN)) {
 			increment = expression()
 		}
 		consume(RIGHT_PAREN, "Expected ')' after 'for' clauses.")
@@ -496,7 +496,7 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite, val importing: Boole
 
 	private fun getTypeTokens(insideUnion: Boolean = false): List<TypeToken> {
 		val mainToken = peek()
-		if (!match(TYPE_BOOLEAN, TYPE_STRING, TYPE_NUMBER, TYPE_FUNCTION, CLASS, TYPE_ANY, TYPE_ARRAY, TYPE_GENERIC, IDENTIFIER, NIL)) {
+		if (!match(TYPE_BOOLEAN, TYPE_STRING, TYPE_NUMBER, TYPE_FUNCTION, TYPE_CLASS, TYPE_ANY, TYPE_ARRAY, TYPE_GENERIC, IDENTIFIER, TYPE_NIL)) {
 			throw error(mainToken, "Expected type.")
 		}
 
@@ -512,7 +512,7 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite, val importing: Boole
 					error(peek(), "Can't have more than 255 type parameters.")
 				}
 				val typeParamToken = peek()
-				if (!checkType(TYPE_BOOLEAN, TYPE_STRING, TYPE_NUMBER, TYPE_FUNCTION, CLASS, TYPE_ANY, TYPE_GENERIC, TYPE_ARRAY, IDENTIFIER, NIL)) {
+				if (!checkTokens(TYPE_BOOLEAN, TYPE_STRING, TYPE_NUMBER, TYPE_FUNCTION, TYPE_CLASS, TYPE_ANY, TYPE_GENERIC, TYPE_ARRAY, IDENTIFIER, TYPE_NIL)) {
 					throw error(typeParamToken, "Expected type for type parameter.")
 				}
 				typeParameters.addAll(getTypeTokens(false))
@@ -521,19 +521,24 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite, val importing: Boole
 			consume(GREATER, "Expected '>' after type parameters.")
 		}
 
-		if(checkType(PIPE) && !insideUnion){
+		if(checkToken(PIPE) && !insideUnion){
 			advance()
 			do {
 				if (unionTypes.size >= 255) {
 					error(peek(), "Can't have more than 255 types in a union.")
 				}
 				val unionMemberToken = peek()
-				if (!checkType(TYPE_BOOLEAN, TYPE_STRING, TYPE_NUMBER, TYPE_FUNCTION, CLASS, TYPE_ANY, TYPE_GENERIC, TYPE_ARRAY, IDENTIFIER, NIL)) {
+				if (!checkTokens(TYPE_BOOLEAN, TYPE_STRING, TYPE_NUMBER, TYPE_FUNCTION, TYPE_CLASS, TYPE_ANY, TYPE_GENERIC, TYPE_ARRAY, IDENTIFIER, TYPE_NIL)) {
 					throw error(unionMemberToken, "Expected type after '|'.")
 				}
 				val unionTypeTokens = getTypeTokens(true)
 				unionTypes[unionMemberToken] = unionTypeTokens
 			} while (match(PIPE))
+		}
+
+		if(match(QUESTION)){
+			val token = previous()
+			unionTypes[token] = listOf(TypeToken(mapOf(token to listOf(TypeToken(mapOf(token to listOf()),typeParameters))),typeParameters))
 		}
 
 		unionTypes[mainToken] = listOf(TypeToken(mapOf(mainToken to listOf(TypeToken(mapOf(mainToken to listOf()),typeParameters))),typeParameters))
@@ -562,7 +567,7 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite, val importing: Boole
 		currentBlockDepth++;
 		val statements: MutableList<Stmt> = ArrayList()
 
-		while (!checkType(RIGHT_BRACE) && !isAtEnd()) {
+		while (!checkToken(RIGHT_BRACE) && !isAtEnd()) {
 			declaration()?.let { statements.add(it) } ?: break
 		}
 
@@ -585,9 +590,15 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite, val importing: Boole
 				val value = assignment()
 
 				if (expr is Variable) {
+					if(expr.constant){
+						throw error(equals, "Cannot reassign constant '${expr.name.lexeme}'.")
+					}
 					val name = expr.name
 					return Assign(name, value, EQUAL, expr.getExprType())
 				} else if (expr is Get) {
+					if(expr.constant){
+						throw error(equals, "Cannot reassign constant '${expr.name.lexeme}'.")
+					}
 					return Set(expr.obj, expr.name, value, EQUAL, expr.getExprType())
 				} else if(expr is ArrayGet) {
 					return ArraySet(expr.obj, expr.what, value, previous(), EQUAL, expr.getExprType())
@@ -600,9 +611,15 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite, val importing: Boole
 				val value = assignment()
 
 				if (expr is Variable) {
+					if(expr.constant){
+						throw error(equals, "Cannot reassign constant '${expr.name.lexeme}'.")
+					}
 					val name = expr.name
 					return Assign(name, value, PLUS_EQUAL, expr.getExprType())
 				} else if (expr is Get) {
+					if(expr.constant){
+						throw error(equals, "Cannot reassign constant '${expr.name.lexeme}'.")
+					}
 					return Set(expr.obj, expr.name, value, PLUS_EQUAL, expr.getExprType())
 				} else if(expr is ArrayGet) {
 					return ArraySet(expr.obj, expr.what, value, previous(), PLUS_EQUAL, expr.getExprType())
@@ -615,9 +632,15 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite, val importing: Boole
 				val value = assignment()
 
 				if (expr is Variable) {
+					if(expr.constant){
+						throw error(equals, "Cannot reassign constant '${expr.name.lexeme}'.")
+					}
 					val name = expr.name
 					return Assign(name, value, MINUS_EQUAL, expr.getExprType())
 				} else if (expr is Get) {
+					if(expr.constant){
+						throw error(equals, "Cannot reassign constant '${expr.name.lexeme}'.")
+					}
 					return Set(expr.obj, expr.name, value, MINUS_EQUAL, expr.getExprType())
 				} else if(expr is ArrayGet) {
 					return ArraySet(expr.obj, expr.what, value, previous(), MINUS_EQUAL, expr.getExprType())
@@ -743,7 +766,9 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite, val importing: Boole
 	private fun lambda(): Expr {
 		val token = peek()
 		if(match(FUN)){
-			currentFunction = previous()
+			val name = "<lambda ${lambdaAmount}>"
+			lambdaAmount++
+			currentFunction = Token.identifier(name, previous().line, previous().file)
 			//while (true) {
 
 			val typeParameters: MutableList<Param> = ArrayList()
@@ -761,7 +786,7 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite, val importing: Boole
 
 			consume(LEFT_PAREN, "Expected '(' after lambda declaration")
 
-			return finishLambda(token, typeParameters)
+			return finishLambda(token, name, typeParameters)
 			//}
 		}
 		return call()
@@ -793,8 +818,8 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite, val importing: Boole
 			} else if (match(DOT)) {
 				val name: Token = consume(IDENTIFIER, "Expected expression after '.'.")
 				if(sunlite.collector != null){
-					val type = sunlite.collector?.findType(name, Token.identifier(expr.getExprType().getName(),-1,currentFile))?.getElementType() ?: Type.UNKNOWN
-					expr = Get(expr, name, type)
+					val type = sunlite.collector?.findType(name, Token.identifier(expr.getExprType().getName(),-1,currentFile))
+					expr = Get(expr, name, type?.getElementType() ?: Type.UNKNOWN, type?.isConstant() ?: false)
 				} else {
 					expr = Get(expr, name)
 				}
@@ -810,9 +835,9 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite, val importing: Boole
 		return expr
 	}
 
-	private fun finishLambda(token: Token, typeParameters: MutableList<Param>): Expr {
+	private fun finishLambda(token: Token, name: String, typeParameters: MutableList<Param>): Expr {
 		val parameters: MutableList<Param> = ArrayList()
-		if (!checkType(RIGHT_PAREN)) {
+		if (!checkToken(RIGHT_PAREN)) {
 			do {
 				if (parameters.size >= 255) {
 					error(peek(), "Can't have more than 255 parameters.")
@@ -836,7 +861,7 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite, val importing: Boole
 			Stmt.Function(
 				Token(
 					IDENTIFIER,
-					"<lambda ${System.currentTimeMillis()}>",
+					name,
 					null,
 					token.line,
 					currentFile,
@@ -848,7 +873,7 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite, val importing: Boole
 
 	private fun finishCall(callee: Expr, typeArguments: List<Type>): Expr {
 		val arguments: MutableList<Expr> = ArrayList()
-		if (!checkType(RIGHT_PAREN)) {
+		if (!checkToken(RIGHT_PAREN)) {
 			do {
 				if (arguments.size >= 255) {
 					error(peek(), "Can't have more than 255 arguments.")
@@ -897,11 +922,11 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite, val importing: Boole
 		if (match(THIS)) {
             sunlite.collector?.let {
                 val type = currentClass?.let {
-                    sunlite.collector!!.findType(currentClass!!, Token.identifier(currentFile ?: "<global>",-1,currentFile))
+                    sunlite.collector!!.findType(currentClass!!, Token.identifier("<global>",-1,currentFile))
                 }
 
 				val scope =
-					sunlite.collector?.getValidScope(sunlite.collector!!.typeScopes.first(), currentClass!!,Token.identifier(currentFile ?: "<global>",-1,currentFile))?.inner?.find { it.name.lexeme == currentClass?.lexeme }
+					sunlite.collector?.getValidScope(sunlite.collector!!.typeScopes.first(), currentClass!!,Token.identifier("<global>",-1,currentFile))?.inner?.find { it.name.lexeme == currentClass?.lexeme }
 
 				val typeParams = scope?.contents?.keys?.filter { it.lexeme.startsWith("<") }
 
@@ -924,8 +949,8 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite, val importing: Boole
 		if (match(IDENTIFIER)) {
 			val varToken = previous()
 			if(sunlite.collector != null){
-				val type = sunlite.collector?.findType(varToken, if(currentFunction != null) currentFunction else Token.identifier(currentFile ?: "<global>",-1,currentFile),currentBlockDepth)
-				return Variable(varToken, type?.getElementType() ?: Type.UNKNOWN)
+				val type = sunlite.collector?.findType(varToken, if(currentFunction != null) currentFunction else Token.identifier("<global>",-1,currentFile),currentBlockDepth)
+				return Variable(varToken, type?.getElementType() ?: Type.UNKNOWN, type?.isConstant() ?: false)
 			}
 			return Variable(varToken)
 		}
@@ -934,20 +959,20 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite, val importing: Boole
 	}
 
 	private fun consume(type: TokenType, message: String): Token {
-		if (checkType(type)) return advance()
+		if (checkToken(type)) return advance()
 
 		throw error(peek(), message)
 	}
 
 	private fun assert(type: TokenType, message: String): Token {
-		if (!checkType(type)) return peek()
+		if (!checkToken(type)) return peek()
 
 		throw error(peek(), message)
 	}
 
 	private fun match(vararg types: TokenType): Boolean {
 		for (type in types) {
-			if (checkType(type)) {
+			if (checkToken(type)) {
 				advance()
 				return true
 			}
@@ -966,9 +991,9 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite, val importing: Boole
 		return false
 	}
 
-	private fun checkType(vararg types: TokenType): Boolean {
+	private fun checkTokens(vararg types: TokenType): Boolean {
 		for (type in types) {
-			if (checkType(type)) {
+			if (checkToken(type)) {
 				return true
 			}
 		}
@@ -976,7 +1001,7 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite, val importing: Boole
 		return false
 	}
 
-	private fun checkType(type: TokenType): Boolean {
+	private fun checkToken(type: TokenType): Boolean {
 		if (isAtEnd()) return false
 		return peek().type === type
 	}

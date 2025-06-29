@@ -1,9 +1,9 @@
 class<T> A {
 
-    fun b(t: generic<T>){
+    fun b(t: Generic<T>){
         print(t);
     }
 
 }
 
-A(<string>).b("yay!");
+A(<String>).b("");

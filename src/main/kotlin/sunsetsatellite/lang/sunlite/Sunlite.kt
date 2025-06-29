@@ -74,7 +74,7 @@ class Sunlite(val args: Array<String>) {
 		}
 	}
 
-	fun parse(code: String? = null): Pair<List<Token>,List<Stmt>>? {
+	fun parse(code: String? = null): Triple<List<Token>,List<Stmt>, TypeCollector>? {
 		val filePath = args[0]
 		path.addAll(args[1].split(";"))
 
@@ -109,7 +109,7 @@ class Sunlite(val args: Array<String>) {
 		// Stop if there was a type error.
 		if (hadError) return null
 
-		return tokens to statements
+		return Triple(tokens, statements, collector!!)
 	}
 
 	fun compile(statements: List<Stmt>): SLFunction {

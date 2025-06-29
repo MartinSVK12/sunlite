@@ -21,10 +21,11 @@ enum class PrimitiveType {
                 TokenType.TYPE_BOOLEAN -> BOOLEAN
                 TokenType.TYPE_FUNCTION -> FUNCTION
                 TokenType.TYPE_NUMBER -> NUMBER
-                TokenType.CLASS -> CLASS
+                TokenType.TYPE_CLASS -> CLASS
                 TokenType.IDENTIFIER -> OBJECT
                 TokenType.TYPE_ARRAY -> ARRAY
-                TokenType.NIL -> NIL
+                TokenType.TYPE_NIL -> NIL
+                TokenType.QUESTION -> NIL
                 TokenType.TYPE_GENERIC -> GENERIC
                 else -> UNKNOWN
             }

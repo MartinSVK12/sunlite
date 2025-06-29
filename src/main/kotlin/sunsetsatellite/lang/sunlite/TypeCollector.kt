@@ -3,21 +3,27 @@ package sunsetsatellite.lang.sunlite
 import sunsetsatellite.vm.sunlite.SLNativeFuncObj
 import sunsetsatellite.vm.sunlite.VM
 
-class TypeCollector(val sunlite: Sunlite): Stmt.Visitor<Unit> {
+class TypeCollector(val sunlite: Sunlite): Stmt.Visitor<Unit>, Expr.Visitor<Unit> {
 
     var currentClass: Stmt.Class? = null
+    var currentScopeCandidate: Scope? = null
 
     abstract inner class ElementPrototype {
-       abstract fun getElementType(): Type
+        abstract fun getElementType(): Type
+        abstract fun isConstant(): Boolean
     }
 
-    inner class VariablePrototype(val type: Type): ElementPrototype() {
+    inner class VariablePrototype(val type: Type, val constant: Boolean): ElementPrototype() {
         override fun toString(): String {
             return ": $type"
         }
 
         override fun getElementType(): Type {
             return type
+        }
+
+        override fun isConstant(): Boolean {
+            return constant
         }
     }
 
@@ -36,6 +42,10 @@ class TypeCollector(val sunlite: Sunlite): Stmt.Visitor<Unit> {
                 return Type.ofGenericFunction(name.lexeme, returnType, params, typeParams)
             }
             return Type.ofFunction(name.lexeme, returnType, params)
+        }
+
+        override fun isConstant(): Boolean {
+            return false
         }
     }
 
@@ -57,8 +67,8 @@ class TypeCollector(val sunlite: Sunlite): Stmt.Visitor<Unit> {
         }
     }
 
-    fun addVariable(name: Token, type: Type) {
-        currentScope?.contents?.put(name, VariablePrototype(type))
+    fun addVariable(name: Token, type: Type, constant: Boolean = false) {
+        currentScope?.contents?.put(name, VariablePrototype(type, constant))
     }
     fun addFunction(name: Token, params: List<Param>, returnType: Type, typeParams: List<Type> = listOf()) {
         currentScope?.contents?.put(name, FunctionPrototype(name, params, returnType, typeParams))
@@ -87,13 +97,14 @@ class TypeCollector(val sunlite: Sunlite): Stmt.Visitor<Unit> {
         removeScope()
     }
 
-    // todo: rework so that if name matches on lower depth non-enclosing scope it gets picked if it doesn't exist in the enclosing scope
-    // todo: and any results that get picked up from lower depth non-enclosing scopes get thrown away if it *does* exist in the enclosing scope
     fun getValidScope(scope: Scope?, name: Token, enclosing: Token? = null, offset: Int = 0, enclosingScope: Scope? = null): Scope? {
         var enclosingS: Scope? = enclosingScope
         if(scope == null) return null
         if(scope.name.lexeme == enclosing?.lexeme){
             enclosingS = scope
+        }
+        if(scope.contents.keys.map { it.lexeme }.contains(name.lexeme)){
+            currentScopeCandidate = scope
         }
         if(enclosingS != null && scope.depth <= enclosingS.depth + offset && scope.contents.keys.map { it.lexeme }.contains(name.lexeme)){
             return scope
@@ -108,17 +119,19 @@ class TypeCollector(val sunlite: Sunlite): Stmt.Visitor<Unit> {
     }
 
     fun findType(name: Token, enclosing: Token? = null, offset: Int = 0): ElementPrototype? {
+        currentScopeCandidate = null
         val globalScope = typeScopes[0]
         if(globalScope.contents.keys.map { it.lexeme }.contains(name.lexeme)){
             return globalScope.contents.mapKeys { it.key.lexeme }[name.lexeme]
         }
         val scope = getValidScope(typeScopes.firstOrNull(), name, enclosing, offset)
-        if(scope == null) return null
-        return scope.contents.mapKeys { it.key.lexeme }[name.lexeme]
+        if(scope == null && currentScopeCandidate == null) return null
+        if(currentScopeCandidate != null) return currentScopeCandidate!!.contents.mapKeys { it.key.lexeme }[name.lexeme]
+        return scope?.contents?.mapKeys { it.key.lexeme }[name.lexeme]
     }
 
     override fun visitExprStmt(stmt: Stmt.Expression) {
-        // nothing to collect
+        stmt.expr.accept(this)
     }
 
     override fun visitPrintStmt(stmt: Stmt.Print) {
@@ -126,7 +139,8 @@ class TypeCollector(val sunlite: Sunlite): Stmt.Visitor<Unit> {
     }
 
     override fun visitVarStmt(stmt: Stmt.Var) {
-        addVariable(stmt.name, stmt.type)
+        addVariable(stmt.name, stmt.type, stmt.modifier == FieldModifier.CONST)
+        stmt.initializer?.accept(this)
     }
 
     override fun visitBlockStmt(stmt: Stmt.Block) {
@@ -136,11 +150,13 @@ class TypeCollector(val sunlite: Sunlite): Stmt.Visitor<Unit> {
     }
 
     override fun visitIfStmt(stmt: Stmt.If) {
+        stmt.condition.accept(this)
         stmt.thenBranch.accept(this)
         stmt.elseBranch?.accept(this)
     }
 
     override fun visitWhileStmt(stmt: Stmt.While) {
+        stmt.condition.accept(this)
         stmt.body.accept(this)
     }
 
@@ -163,7 +179,7 @@ class TypeCollector(val sunlite: Sunlite): Stmt.Visitor<Unit> {
     }
 
     override fun visitReturnStmt(stmt: Stmt.Return) {
-        // nothing to collect
+        stmt.value?.accept(this)
     }
 
     override fun visitClassStmt(stmt: Stmt.Class) {
@@ -199,7 +215,82 @@ class TypeCollector(val sunlite: Sunlite): Stmt.Visitor<Unit> {
     }
 
     override fun visitThrowStmt(stmt: Stmt.Throw) {
-        // nothing to collect
+        stmt.expr.accept(this)
+    }
+
+    override fun visitBinaryExpr(expr: Expr.Binary) {
+        expr.left.accept(this)
+        expr.right.accept(this)
+    }
+
+    override fun visitGroupingExpr(expr: Expr.Grouping) {
+        expr.expression.accept(this)
+    }
+
+    override fun visitUnaryExpr(expr: Expr.Unary) {
+        expr.right.accept(this)
+    }
+
+    override fun visitLiteralExpr(expr: Expr.Literal) {
+
+    }
+
+    override fun visitVariableExpr(expr: Expr.Variable) {
+
+    }
+
+    override fun visitAssignExpr(expr: Expr.Assign) {
+        expr.value.accept(this)
+    }
+
+    override fun visitLogicalExpr(expr: Expr.Logical) {
+        expr.left.accept(this)
+        expr.right.accept(this)
+    }
+
+    override fun visitCallExpr(expr: Expr.Call) {
+        expr.callee.accept(this)
+        expr.arguments.forEach { it.accept(this) }
+    }
+
+    override fun visitLambdaExpr(expr: Expr.Lambda) {
+        expr.function.accept(this);
+    }
+
+    override fun visitGetExpr(expr: Expr.Get) {
+        expr.obj.accept(this)
+    }
+
+    override fun visitArrayGetExpr(expr: Expr.ArrayGet) {
+        expr.obj.accept(this)
+        expr.what.accept(this)
+    }
+
+    override fun visitArraySetExpr(expr: Expr.ArraySet) {
+        expr.obj.accept(this)
+        expr.what.accept(this)
+        expr.value.accept(this)
+    }
+
+    override fun visitSetExpr(expr: Expr.Set) {
+        expr.obj.accept(this)
+        expr.value.accept(this)
+    }
+
+    override fun visitThisExpr(expr: Expr.This) {
+
+    }
+
+    override fun visitSuperExpr(expr: Expr.Super) {
+
+    }
+
+    override fun visitCheckExpr(expr: Expr.Check) {
+        expr.left.accept(this)
+    }
+
+    override fun visitCastExpr(expr: Expr.Cast) {
+        expr.left.accept(this)
     }
 
 }
