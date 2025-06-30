@@ -80,7 +80,7 @@ class TypeChecker(val sunlite: Sunlite, val vm: VM?): Expr.Visitor<Unit>, Stmt.V
         val calleeType = expr.callee.getExprType()
         if(calleeType is Type.Reference){
             if (calleeType.type == PrimitiveType.FUNCTION || calleeType.type == PrimitiveType.CLASS) {
-                val typeArgs = expr.typeParams.toMutableList()
+                val typeArgs = expr.typeArgs.toMutableList()
                 val params = calleeType.params
                 var i = 0
                 for (it in expr.arguments.zip(params)) {
@@ -90,7 +90,7 @@ class TypeChecker(val sunlite: Sunlite, val vm: VM?): Expr.Visitor<Unit>, Stmt.V
                             //sunlite.error(expr.paren, "Missing ${it.second.type}")
                             continue
                         }
-                        checkType(typeArgs[i], it.first.getExprType(), expr.paren, false)
+                        checkType(typeArgs[i].type, it.first.getExprType(), expr.paren, false)
                         i++
                     } else {
                         checkType(it.second.type, it.first.getExprType(), expr.paren, false)
@@ -120,7 +120,14 @@ class TypeChecker(val sunlite: Sunlite, val vm: VM?): Expr.Visitor<Unit>, Stmt.V
     override fun visitSetExpr(expr: Expr.Set) {
         check(expr.obj)
         check(expr.value)
-        checkType(expr.getExprType(),expr.value.getExprType(),expr.name, false)
+        var exprType = expr.getExprType()
+        if(exprType is Type.Parameter && expr.obj.getExprType() is Type.Reference && (expr.obj.getExprType() as Type.Reference).type == PrimitiveType.OBJECT){
+            val receiverType = expr.obj.getExprType() as Type.Reference
+            receiverType.typeParams.find { it.token.lexeme == exprType.name.lexeme }?.let {
+                exprType = it.type
+            }
+        }
+        checkType(exprType,expr.value.getExprType(),expr.name, false)
     }
 
     override fun visitThisExpr(expr: Expr.This) {

@@ -5,16 +5,16 @@ enum class FunctionModifier {
     INIT,
     STATIC,
     ABSTRACT,
-    NATIVE;
+    NATIVE,
+    STATIC_NATIVE;
 
 
     companion object {
-        fun get(token: Token?): FunctionModifier {
-            return when (token?.type) {
-                TokenType.STATIC -> STATIC
-                TokenType.NATIVE -> NATIVE
-                else -> NORMAL
-            }
+        fun get(token: Token?, token2: Token? = null): FunctionModifier {
+            return if (token?.type == TokenType.STATIC && token2 != null && token2.type == TokenType.NATIVE) STATIC_NATIVE
+            else if (token?.type == TokenType.STATIC) STATIC
+            else if (token?.type == TokenType.NATIVE) NATIVE
+            else NORMAL
         }
     }
 }

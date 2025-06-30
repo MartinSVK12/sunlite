@@ -97,10 +97,3 @@ class<T> List {
         }
     }
 }
-
-var list: List<Number> = List(<Number>);
-list.add(5);
-//list.removeAt(1);
-print(list);
-
-list.forEach( fun(kek: Number) { print(kek); });

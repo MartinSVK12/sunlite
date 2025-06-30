@@ -32,7 +32,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?): Expr
 	val incompleteBreaks: MutableList<Int> = mutableListOf()
 	val incompleteContinues: MutableList<Int> = mutableListOf()
 
-	fun compile(type: FunctionType, returnType: Type, params: List<Param>, statements: List<Stmt>, path: String? = null, name: String = "", arity: Int = 0): SLFunction {
+	fun compile(type: FunctionType, modifier: FunctionModifier, returnType: Type, params: List<Param>, typeParams: List<Param>, statements: List<Stmt>, path: String? = null, name: String = "", arity: Int = 0): SLFunction {
 		localsCount = arity
 		currentFile = path
 		chunk.debugInfo.file = currentFile
@@ -73,7 +73,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?): Expr
 			sunlite.error(chunk.debugInfo.lines[it], "Unexpected 'continue' outside of loop.", chunk.debugInfo.file)
 		}
 
-		return SLFunction(name, returnType, params, chunk.toImmutable(), arity, upvalues.size, localsCount)
+		return SLFunction(name, returnType, params, typeParams,chunk.toImmutable(), arity, upvalues.size, localsCount, modifier)
 	}
 
 	private fun compile(stmt: Stmt) {
@@ -120,6 +120,12 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?): Expr
 	private fun emitBytes(byte: Opcodes, byte2: Int, expr: Element) {
 		emitByte(byte, expr)
 		emitByte(byte2, expr)
+	}
+
+	private fun emitBytes(byte: Opcodes, byte2: Int, byte3: Int, expr: Element) {
+		emitByte(byte, expr)
+		emitByte(byte2, expr)
+		emitByte(byte3, expr)
 	}
 
 	private fun emitConstant(value: AnySLValue, expr: Element) {
@@ -368,7 +374,9 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?): Expr
 	override fun visitCallExpr(expr: Expr.Call) {
 		compile(expr.callee)
 		val argCount: Int = argumentList(expr)
-		emitBytes(Opcodes.CALL, argCount, expr)
+		expr.typeArgs.forEach { emitConstant(SLType(it.type), expr) }
+		val typeArgCount = expr.typeArgs.size
+		emitBytes(Opcodes.CALL, argCount, typeArgCount, expr)
 	}
 
 	private fun argumentList(expr: Expr.Call): Int {
@@ -633,7 +641,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?): Expr
 			compiler.defineVariable(constantIndex, stmt)
 		}
 
-		val function: SLFunction = compiler.compile(stmt.type, stmt.returnType, stmt.params, stmt.body, currentFile, stmt.name.lexeme, stmt.params.size)
+		val function: SLFunction = compiler.compile(stmt.type, stmt.modifier, stmt.returnType, stmt.params, stmt.typeParams, stmt.body, currentFile, stmt.name.lexeme, stmt.params.size)
 		emitByte(Opcodes.CLOSURE, stmt)
 		emitShort(addConstant(SLFuncObj(function),stmt),stmt)
 		for (upvalue in compiler.upvalues) {
@@ -660,8 +668,10 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?): Expr
 		val nameConstant = addIdentifier(className.lexeme, stmt)
 		declareVariable(className, stmt)
 
+		emitByte(Opcodes.FALSE, stmt)
 		emitByte(Opcodes.CLASS, stmt)
 		emitShort(nameConstant, stmt)
+
 		defineVariable(nameConstant,stmt)
 
 		val classCompiler = ClassCompiler(currentClass)
@@ -678,12 +688,31 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?): Expr
 			classCompiler.hasSuperclass = true;
 		}
 
+		stmt.superinterfaces.forEach {
+			compile(Expr.Variable(it.name))
+			compile(Expr.Variable(className))
+			emitByte(Opcodes.INHERIT,it)
+		}
+
 		compile(Expr.Variable(className))
+
+		for (param in stmt.typeParameters) {
+			val name = addIdentifier(param.token.lexeme, stmt)
+			emitConstant(SLType(param.type), stmt)
+			emitByte(Opcodes.TYPE_PARAM,stmt)
+			emitShort(name,stmt)
+		}
 
 		for (vars in stmt.fieldDefaults) {
 			val name = addIdentifier(vars.name.lexeme, stmt)
 			vars.initializer?.let { compile(it) }
-			emitByte(Opcodes.FIELD, stmt)
+			emitConstant(SLType(vars.type), vars)
+			if(vars.modifier == FieldModifier.STATIC || vars.modifier == FieldModifier.STATIC_CONST){
+				emitByte(Opcodes.STATIC_FIELD, stmt)
+			} else {
+				emitByte(Opcodes.FIELD, stmt)
+			}
+
 			emitShort(name, stmt)
 		}
 
@@ -704,7 +733,46 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?): Expr
 	}
 
 	override fun visitInterfaceStmt(stmt: Stmt.Interface) {
-		TODO("Not yet implemented")
+		val className = stmt.name
+		val nameConstant = addIdentifier(className.lexeme, stmt)
+		declareVariable(className, stmt)
+
+		emitByte(Opcodes.TRUE, stmt)
+		emitByte(Opcodes.CLASS, stmt)
+		emitShort(nameConstant, stmt)
+
+		defineVariable(nameConstant,stmt)
+
+		val classCompiler = ClassCompiler(currentClass)
+		currentClass = classCompiler
+
+		/*if(stmt.superclass != null){
+			compile(Expr.Variable(stmt.superclass.name))
+
+			beginScope(stmt.superclass)
+			addLocal(Token.identifier("super",stmt.getLine(),stmt.getFile()), stmt)
+			defineVariable(0, stmt)
+			compile(Expr.Variable(className))
+			emitByte(Opcodes.INHERIT,stmt.superclass)
+			classCompiler.hasSuperclass = true;
+		}*/
+
+		compile(Expr.Variable(className))
+
+		for (method in stmt.methods) {
+			val methodName = addIdentifier(method.name.lexeme, stmt)
+			compile(method)
+			emitByte(Opcodes.METHOD, stmt)
+			emitShort(methodName,stmt)
+		}
+
+		emitByte(Opcodes.POP, stmt)
+
+		if(currentClass?.hasSuperclass == true){
+			endScope(stmt)
+		}
+
+		currentClass = currentClass?.enclosing
 	}
 
 	override fun visitImportStmt(stmt: Stmt.Import) {

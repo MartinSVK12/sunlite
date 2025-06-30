@@ -1,5 +1,6 @@
 package sunsetsatellite.vm.sunlite
 
+import sunsetsatellite.lang.sunlite.Sunlite
 import sunsetsatellite.lang.sunlite.Type
 
 typealias AnySLValue = SLValue<*>
@@ -128,12 +129,21 @@ class SLString(value: String) : SLObj<String>(value) {
 	}
 }
 class SLType(value: Type): SLObj<Type>(value){
+	override fun equals(other: Any?): Boolean {
+		if (other !is SLType) return false
+		return Type.contains(other.value, value, Sunlite.instance)
+	}
+
 	override fun copy(): SLValue<Type> {
 		return SLType(value)
 	}
 
 	override fun toString(): String {
 		return value.toString()
+	}
+
+	override fun hashCode(): Int {
+		return javaClass.hashCode()
 	}
 
 }

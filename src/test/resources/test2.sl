@@ -1,3 +1,3 @@
-fun importTest(s: string): number {
+fun importTest(s: String): Number {
     print(s);
 }

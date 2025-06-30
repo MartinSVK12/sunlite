@@ -5,6 +5,10 @@ import sunsetsatellite.lang.sunlite.Sunlite
 class SLArray(var size: Int, val sunlite: Sunlite) {
 	private var array: Array<AnySLValue> = VM.arrayOfNils(size)
 
+	fun internal(): Array<AnySLValue> {
+		return array
+	}
+
 	fun overwrite(arr: Array<AnySLValue>): SLArray {
 		array = arr
 		return this

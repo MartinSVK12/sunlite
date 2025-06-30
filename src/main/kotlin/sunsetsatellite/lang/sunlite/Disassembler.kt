@@ -59,7 +59,7 @@ object Disassembler {
 			Opcodes.JUMP_IF_FALSE -> return jumpInstruction(sb, opcode.name, 1, chunk, offset)
 			Opcodes.JUMP -> return jumpInstruction(sb, opcode.name, 1, chunk, offset)
 			Opcodes.LOOP -> return jumpInstruction(sb, opcode.name, -1, chunk, offset)
-			Opcodes.CALL -> return byteInstruction(sb, opcode.name, chunk, offset)
+			Opcodes.CALL -> return twoByteInstruction(sb, opcode.name, chunk, offset)
 			Opcodes.CLOSURE -> return closureInstruction(sb, opcode.name, chunk, offset)
 			Opcodes.GET_UPVALUE -> return shortInstruction(sb, opcode.name, chunk, offset)
 			Opcodes.SET_UPVALUE -> return shortInstruction(sb, opcode.name, chunk, offset)
@@ -68,12 +68,14 @@ object Disassembler {
 			Opcodes.GET_PROP -> return constantInstruction(sb, opcode.name, chunk, offset)
 			Opcodes.METHOD -> return constantInstruction(sb, opcode.name, chunk, offset)
 			Opcodes.FIELD -> return constantInstruction(sb, opcode.name, chunk, offset)
+			Opcodes.STATIC_FIELD -> return constantInstruction(sb, opcode.name, chunk, offset)
 			Opcodes.INHERIT -> return simpleInstruction(sb, opcode.name, offset)
 			Opcodes.GET_SUPER -> return constantInstruction(sb, opcode.name, chunk, offset)
 			Opcodes.ARRAY_GET -> return simpleInstruction(sb, opcode.name, offset)
 			Opcodes.ARRAY_SET -> return simpleInstruction(sb, opcode.name, offset)
 			Opcodes.THROW -> return simpleInstruction(sb, opcode.name, offset)
             Opcodes.CHECK -> return constantInstruction(sb, opcode.name, chunk, offset)
+			Opcodes.TYPE_PARAM -> return constantInstruction(sb, opcode.name, chunk, offset)
         }
 	}
 
@@ -107,6 +109,13 @@ object Disassembler {
 	private fun byteInstruction(sb: StringBuilder, name: String, chunk: Chunk, offset: Int): Int {
 		val byte = chunk.code[offset + 1]
 		sb.append(String.format("%-16s (%02X) %4d\n", name, Opcodes.valueOf(name).ordinal, byte))
+		return offset + 2
+	}
+
+	private fun twoByteInstruction(sb: StringBuilder, name: String, chunk: Chunk, offset: Int): Int {
+		val byte = chunk.code[offset + 1]
+		val byte2 = chunk.code[offset + 2]
+		sb.append(String.format("%-16s (%02X) %4d %4d\n", name, Opcodes.valueOf(name).ordinal, byte, byte2))
 		return offset + 2
 	}
 

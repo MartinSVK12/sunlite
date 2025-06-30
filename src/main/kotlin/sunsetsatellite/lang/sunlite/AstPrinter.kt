@@ -45,7 +45,7 @@ object AstPrinter : Expr.Visitor<String>, Stmt.Visitor<String> {
 	}
 
 	override fun visitCallExpr(expr: Expr.Call): String {
-		return "(call${if (expr.typeParams.isEmpty()) "" else "<${expr.typeParams.joinToString(", ")}>"} ${print(expr.callee)} -> ${expr.getExprType()} ${if (expr.arguments.isEmpty()) "(no args)" else parenthesizeList("args", expr.arguments)})"
+		return "(call${if (expr.typeArgs.isEmpty()) "" else "<${expr.typeArgs.joinToString(", ")}>"} ${print(expr.callee)} -> ${expr.getExprType()} ${if (expr.arguments.isEmpty()) "(no args)" else parenthesizeList("args", expr.arguments)})"
 	}
 
 	override fun visitLambdaExpr(expr: Expr.Lambda): String {

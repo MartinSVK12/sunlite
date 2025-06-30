@@ -2,9 +2,14 @@ package sunsetsatellite.lang.sunlite
 
 import sunsetsatellite.lang.sunlite.Expr.*
 import sunsetsatellite.lang.sunlite.TokenType.*
+import java.io.IOException
+import java.nio.charset.Charset
+import java.nio.file.Files
+import java.nio.file.Path
+import java.nio.file.Paths
 
 
-class Parser(val tokens: List<Token>, val sunlite: Sunlite, val importing: Boolean = false) {
+class Parser(val tokens: List<Token>, val sunlite: Sunlite, val importing: Boolean = false, val importingDepth: Int = 0) {
 	private var current = 0
 
 	var currentFile: String? = null
@@ -36,7 +41,7 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite, val importing: Boole
 				match(CLASS) -> classDeclaration(ClassModifier.NORMAL)
 				match(INTERFACE) -> interfaceDeclaration()
 				match(IMPORT) -> importStatement()
-				else -> if(!importing) statement() else null
+				else -> /*if(!importing)*/ statement() //else null
 			}
 		} catch (error: ParseError) {
 			synchronize()
@@ -84,10 +89,10 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite, val importing: Boole
 		val what = consume(STRING, "Expected import location string.")
 		consume(SEMICOLON, "Expected ';' after import statement.")
 
-		sunlite.error(keyword, "Importing not yet supported!")
-		return null
+		/*sunlite.error(keyword, "Importing not yet supported!")
+		return null*/
 
-		/*if(sunlite.imports.contains(what.literal as String)){
+		if(sunlite.imports.contains(what.literal as String)){
 			return null
 		}
 
@@ -117,7 +122,7 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite, val importing: Boole
 		val scanner = Scanner(code, sunlite)
 		val tokens: List<Token> = scanner.scanTokens(what.literal)
 
-		var parser = Parser(tokens,sunlite)
+		var parser = Parser(tokens,sunlite,true, importingDepth + 1)
 		var statements = parser.parse(what.literal)
 
 		// Stop if there was a syntax error.
@@ -140,7 +145,7 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite, val importing: Boole
 		// Stop if there was a type error.
 		if (sunlite.hadError) sunlite.error(keyword, "import error, failed to parse '${what.literal}' due to type errors.")
 
-		sunlite.imports[what.literal] = statements
+		sunlite.imports[what.literal] = importingDepth to statements
 
 		if(Sunlite.debug){
 			sunlite.printInfo("Parsed and imported '${what.literal}'!")
@@ -148,7 +153,7 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite, val importing: Boole
 		}
 
 
-		return Stmt.Import(keyword, what)*/
+		return Stmt.Import(keyword, what)
 	}
 
 	private fun classDeclaration(modifier: ClassModifier): Stmt {
@@ -197,11 +202,25 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite, val importing: Boole
 		while (!checkToken(RIGHT_BRACE) && !isAtEnd()) {
 			val currentModifier = peek()
 			when {
+				checkToken(STATIC) && checkNext(NATIVE) -> {
+					val modifier = peek()
+					val modifier2 = next()
+					advance()
+					advance()
+					when {
+						match(FUN) -> {
+							methods.add(function(FunctionType.METHOD, modifier, modifier2))
+						}
+					}
+				}
 				match(STATIC) || match(NATIVE) -> {
 					if(previous().type == STATIC) {
 						when {
 							match(VAR) -> {
 								fields.add(varDeclaration(FieldModifier.STATIC))
+							}
+							match(VAL) -> {
+								fields.add(varDeclaration(FieldModifier.STATIC_CONST))
 							}
 							match(FUN) -> {
 								methods.add(function(FunctionType.METHOD, currentModifier))
@@ -336,7 +355,7 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite, val importing: Boole
 		)
 	}
 
-	private fun function(kind: FunctionType, modifier: Token?): Stmt.Function {
+	private fun function(kind: FunctionType, modifier: Token?, modifier2: Token? = null): Stmt.Function {
 		if(modifier != null && FunctionModifier.entries.none { it.name.lowercase() == modifier.type.name.lowercase() }) {
 			error(peek(), "Invalid ${kind.toString().lowercase()} modifier '${modifier.lexeme}'.")
 		}
@@ -354,11 +373,11 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite, val importing: Boole
 			consume(GREATER, "Expected '>' after type parameter declaration.")
 		}
 
-		val funcModifier = FunctionModifier.get(modifier)
+		val funcModifier = FunctionModifier.get(modifier, modifier2)
 		val signature = funcSignature(kind)
 
 		var body: List<Stmt> = listOf()
-		if(funcModifier != FunctionModifier.NATIVE){
+		if(funcModifier != FunctionModifier.NATIVE && funcModifier != FunctionModifier.STATIC_NATIVE){
 			consume(LEFT_BRACE, "Expected '{' before ${kind.toString().lowercase()} body.")
 			body = block()
 		} else {
@@ -552,7 +571,7 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite, val importing: Boole
 		var type: Type = if(function) Type.NIL else Type.ANY
 		if (match(COLON) || noColon) {
 			val typeTokens = getTypeTokens()
-			type = Type.of(typeTokens)
+			type = Type.of(typeTokens,sunlite)
 		}
 		return type
 	}
@@ -798,14 +817,21 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite, val importing: Boole
 		while (true) {
 			if (match(LEFT_PAREN)) {
 
-				val typeParameters: MutableList<Type> = ArrayList()
+				val typeParameters: MutableList<Param> = ArrayList()
 				if(match(LESS)){
+					var i: Int = 0
 					do {
 						if (typeParameters.size >= 255) {
 							error(peek(), "Can't have more than 255 type parameters.")
 						}
 
-						typeParameters.add(getType(function = false, noColon = true))
+						if(sunlite.collector != null && expr is NamedExpr){
+							val typeParams = sunlite.collector!!.typeHierarchy[expr.getNameToken().lexeme]?.third
+							typeParameters.add(Param(Token.identifier(typeParams?.get(i) ?: "?"),getType(function = false, noColon = true)))
+						} else {
+							typeParameters.add(Param(Token.identifier("?"),getType(function = false, noColon = true)))
+						}
+						i++
 					} while (match(COMMA))
 					consume(GREATER, "Expected '>' after type parameter declaration.")
 				}
@@ -871,7 +897,7 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite, val importing: Boole
 		)
 	}
 
-	private fun finishCall(callee: Expr, typeArguments: List<Type>): Expr {
+	private fun finishCall(callee: Expr, typeArguments: List<Param>): Expr {
 		val arguments: MutableList<Expr> = ArrayList()
 		if (!checkToken(RIGHT_PAREN)) {
 			do {
@@ -931,7 +957,7 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite, val importing: Boole
 				val typeParams = scope?.contents?.keys?.filter { it.lexeme.startsWith("<") }
 
 				if(typeParams?.isNotEmpty() == true){
-					val baseGenericType = Type.ofGenericObject(scope.name.lexeme, typeParams.map { Type.NULLABLE_ANY })
+					val baseGenericType = Type.ofGenericObject(scope.name.lexeme, typeParams.map { Param(Token.identifier(it.lexeme.replace("<","").replace(">","")),Type.NULLABLE_ANY) })
 					return This(previous(), baseGenericType)
 				}
 

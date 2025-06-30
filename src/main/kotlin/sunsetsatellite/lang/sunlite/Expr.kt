@@ -1,7 +1,5 @@
 package sunsetsatellite.lang.sunlite
 
-import com.sun.org.apache.xpath.internal.operations.Bool
-
 abstract class Expr: Element {
 	data class Binary(val left: Expr, val operator: Token, val right: Expr) : Expr() {
 		override fun <R> accept(visitor: Visitor<R>): R? {
@@ -172,7 +170,7 @@ abstract class Expr: Element {
 		}
 	}
 
-	data class Call(val callee: Expr, val paren: Token, val arguments: List<Expr>, val typeParams: List<Type>): Expr(), GenericExpr {
+	data class Call(val callee: Expr, val paren: Token, val arguments: List<Expr>, val typeArgs: List<Param>): Expr(), GenericExpr {
 		override fun <R> accept(visitor: Visitor<R>): R? {
 			return visitor.visitCallExpr(this)
 		}
@@ -189,9 +187,9 @@ abstract class Expr: Element {
 			val type = callee.getExprType()
 			if(type is Type.Reference){
 				if(type.type == PrimitiveType.CLASS){
-					if(!typeParams.isEmpty()){
+					if(!typeArgs.isEmpty()){
 						val rawType = type.returnType
-						return Type.ofGenericObject(rawType.getName(), typeParams)
+						return Type.ofGenericObject(rawType.getName(), typeArgs)
 					}
 				}
 				return type.returnType
@@ -199,8 +197,8 @@ abstract class Expr: Element {
 			return Type.UNKNOWN
         }
 
-		override fun getTypeArguments(): List<Type> {
-			return typeParams
+		override fun getTypeArguments(): List<Param> {
+			return typeArgs
 		}
 	}
 
@@ -227,7 +225,7 @@ abstract class Expr: Element {
 	}
 
 	data class Get(val obj: Expr, val name: Token, val type: Type = Type.UNKNOWN, val constant: Boolean = false,
-				   var typeParams: List<Type> =
+				   var typeParams: List<Param> =
 					   if(obj.getExprType() is Type.Reference) {
 						   val ref = obj.getExprType() as Type.Reference
 						   if(ref.type == PrimitiveType.OBJECT){
@@ -261,7 +259,7 @@ abstract class Expr: Element {
 			return type
 		}
 
-		override fun getTypeArguments(): List<Type> {
+		override fun getTypeArguments(): List<Param> {
 			return typeParams
 		}
 	}
@@ -427,7 +425,7 @@ abstract class Expr: Element {
 	}
 
 	interface GenericExpr: Element {
-		fun getTypeArguments(): List<Type>
+		fun getTypeArguments(): List<Param>
 	}
 
 	abstract fun <R> accept(visitor: Visitor<R>): R?

@@ -18,7 +18,7 @@ class Sunlite(val args: Array<String>) {
 	var hadRuntimeError: Boolean = false
 
 	val path: MutableList<String> = mutableListOf()
-	val imports: MutableMap<String,List<Stmt>> = mutableMapOf()
+	val imports: MutableMap<String,Pair<Int,List<Stmt>>> = mutableMapOf()
 
 	val logEntryReceivers: MutableList<LogEntryReceiver> = mutableListOf()
 	val breakpointListeners: MutableList<BreakpointListener> = mutableListOf()
@@ -50,6 +50,8 @@ class Sunlite(val args: Array<String>) {
 						"stacktrace" -> stacktrace = true
 						"warnStacktrace" -> warnStacktrace = true
 						"stdout" -> logToStdout = true
+						"tick" -> tickMode = true
+						"noTypes" -> noTypeChecks = true
 					}
 				}
 				path.addAll(args[1].split(";"))
@@ -63,6 +65,8 @@ class Sunlite(val args: Array<String>) {
 						"stacktrace" -> stacktrace = true
 						"warnStacktrace" -> warnStacktrace = true
 						"stdout" -> logToStdout = true
+						"tick" -> tickMode = true
+						"noTypes" -> noTypeChecks = true
 					}
 				}
 				path.addAll(args[1].split(";"))
@@ -103,8 +107,10 @@ class Sunlite(val args: Array<String>) {
 		// Stop if there was a syntax error.
 		if (hadError) return null
 
-		val checker = TypeChecker(this, null)
-		checker.check(statements)
+		if(!noTypeChecks){
+			val checker = TypeChecker(this, null)
+			checker.check(statements)
+		}
 
 		// Stop if there was a type error.
 		if (hadError) return null
@@ -118,7 +124,7 @@ class Sunlite(val args: Array<String>) {
 		val shortPath = filePath.split("/").last()
 
 		val compiler = Compiler(this, vm, null)
-		return compiler.compile(FunctionType.FUNCTION, Type.NIL, listOf(), statements, shortPath)
+		return compiler.compile(FunctionType.FUNCTION, FunctionModifier.NORMAL, Type.NIL, listOf(), listOf(), statements, shortPath)
 	}
 
 	@Throws(IOException::class)
@@ -174,6 +180,21 @@ class Sunlite(val args: Array<String>) {
 		parser = Parser(tokens,this)
 		statements = parser.parse(shortPath).toMutableList()
 
+		// Stop if there was a syntax error.
+		if (hadError) return
+
+		collector = TypeCollector(this)
+		collector?.collect(statements, shortPath)
+
+		// Stop if there was a type collection error.
+		if (hadError) return
+
+		parser = Parser(tokens,this)
+		statements = parser.parse(shortPath).toMutableList()
+
+		// Stop if there was a syntax error.
+		if (hadError) return
+
 		if(debug) {
 			printInfo("AST: ")
 			printInfo("-----")
@@ -192,41 +213,45 @@ class Sunlite(val args: Array<String>) {
 			printInfo()
 			printInfo("Type Hierarchy: ")
 			printInfo("--------")
-			collector?.typeHierarchy?.forEach { printInfo("${it.key} extends ${it.value}") }
+			collector?.typeHierarchy?.forEach { printInfo("${it.key}<${it.value.third.joinToString()}> extends ${it.value.first} implements ${if(it.value.second.isNotEmpty())it.value.second.joinToString() else "<nil>"}") }
+			printInfo("--------")
 			printInfo("--------")
 			printInfo()
 
 		}
 
-		// Stop if there was a syntax error.
-		if (hadError) return
-
-		val checker = TypeChecker(this, vm)
-		checker.check(statements)
+		if(!noTypeChecks){
+			val checker = TypeChecker(this, vm)
+			checker.check(statements)
+		}
 
 		// Stop if there was a type error.
 		if (hadError) return
 
 		val compiler = Compiler(this, vm, null)
 
-		//imports.values.forEach { statements.addAll(0,it) }
+		val allStatements: MutableList<Stmt> = mutableListOf()
+		imports.values.sortedBy { it.first }.forEach { allStatements.addAll(it.second) }
+		allStatements.addAll(statements)
 
-		val program: SLFunction = compiler.compile(FunctionType.NONE, Type.NIL, listOf(), statements, shortPath)
+		val program: SLFunction = compiler.compile(FunctionType.NONE, FunctionModifier.NORMAL, Type.NIL, listOf(), listOf(), allStatements, shortPath)
 
 		// Stop if there was a compilation error.
 		if (hadError) return
 
 		vm.call(SLClosureObj(SLClosure(program)),0)
 
-		try {
-			vm.run()
-		} /*catch (e: ClassCastException) {
-			vm.throwException(vm.frameStack.size, SLString("Type error"))
-		}*/ catch (e: Exception) {
-			vm.runtimeError("internal vm error: $e")
-			e.printStackTrace()
+		if(!(tickMode)){
+			try {
+				vm.run()
+			}
+			catch (e: Exception) {
+				vm.runtimeError("internal vm error: $e")
+				if(stacktrace){
+					e.printStackTrace()
+				}
+			}
 		}
-
 	}
 
 	fun printTypeScopes(it: TypeCollector.Scope?,depth: Int = 0){
@@ -328,11 +353,19 @@ class Sunlite(val args: Array<String>) {
 		var logToStdout = false
 
 		@JvmStatic
+		var tickMode = false
+
+		@JvmStatic
+		var noTypeChecks = false
+
+		lateinit var instance: Sunlite
+
+		@JvmStatic
 		@Throws(IOException::class)
 		fun main(args: Array<String>) {
-			val sunlite = Sunlite(args)
+			instance = Sunlite(args)
 			logToStdout = true
-			sunlite.start()
+			instance.start()
 		}
 
 		fun <T>test(t: T){
