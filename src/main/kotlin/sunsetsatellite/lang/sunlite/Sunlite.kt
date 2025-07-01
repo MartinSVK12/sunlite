@@ -1,5 +1,6 @@
 package sunsetsatellite.lang.sunlite
 
+import sun.security.krb5.Confounder.bytes
 import sunsetsatellite.vm.sunlite.*
 import sunsetsatellite.vm.sunlite.SLFunction
 import java.io.BufferedReader
@@ -10,7 +11,7 @@ import java.nio.file.Files
 import java.nio.file.Paths
 import kotlin.system.exitProcess
 import kotlin.text.split
-
+import java.util.function.Function
 
 class Sunlite(val args: Array<String>) {
 
@@ -28,6 +29,11 @@ class Sunlite(val args: Array<String>) {
 	var uninitialized: Boolean = true
 	lateinit var vm: VM
 	var collector: TypeCollector? = null
+
+	var readFunction: Function<String, String> = Function {
+		val bytes = Files.readAllBytes(Paths.get(it))
+		return@Function String(bytes, Charset.defaultCharset())
+	}
 
 	fun start() {
 		when {
@@ -82,7 +88,7 @@ class Sunlite(val args: Array<String>) {
 		val filePath = args[0]
 		path.addAll(args[1].split(";"))
 
-		val data: String = code ?: String(Files.readAllBytes(Paths.get(filePath)), Charset.defaultCharset())
+		val data: String = code ?: readFunction.apply(filePath)
 
 		val shortPath = filePath.split("/").last()
 
@@ -129,8 +135,7 @@ class Sunlite(val args: Array<String>) {
 
 	@Throws(IOException::class)
 	private fun runFile(path: String) {
-		val bytes = Files.readAllBytes(Paths.get(path))
-		runString(String(bytes, Charset.defaultCharset()), path)
+		runString( readFunction.apply(path), path)
 
 		// Indicate an error in the exit code.
 		if (hadError) return //exitProcess(65)

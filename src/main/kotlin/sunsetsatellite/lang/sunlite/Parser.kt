@@ -100,50 +100,59 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite, val importing: Boole
 			return null
 		}
 
-		var bytes: ByteArray? = null
-		var actualPath: Path
-		val invalidPaths: MutableList<Path> = mutableListOf()
+		var data: String? = null
+		val invalidPaths: MutableList<String> = mutableListOf()
 
 		sunlite.path.forEach {
-			actualPath = Paths.get(it, what.literal)
 			try {
-				bytes = Files.readAllBytes(actualPath)
+				data = sunlite.readFunction.apply(it)
 			} catch (_: IOException) {
-				invalidPaths.add(actualPath)
+				invalidPaths.add(it)
 			}
 		}
 
-		if(bytes == null) {
+		if(data == null) {
 			sunlite.error(keyword, "import error, couldn't find '${what.literal}' on the load path list.")
+			return null
 		}
 
-		val code = String(bytes!!, Charset.defaultCharset())
-
-		val scanner = Scanner(code, sunlite)
+		val scanner = Scanner(data, sunlite)
 		val tokens: List<Token> = scanner.scanTokens(what.literal)
 
 		var parser = Parser(tokens,sunlite,true, importingDepth + 1)
 		var statements = parser.parse(what.literal)
 
 		// Stop if there was a syntax error.
-		if (sunlite.hadError) sunlite.error(keyword, "import error, failed to parse '${what.literal}' due to syntax errors in pre-parsing.")
+		if (sunlite.hadError) {
+			sunlite.error(keyword, "import error, failed to parse '${what.literal}' due to syntax errors in pre-parsing.")
+			return null
+		}
 
         sunlite.collector?.collect(statements, what.literal)
 
 		// Stop if there was a type collection error.
-		if (sunlite.hadError) sunlite.error(keyword, "import error, failed to parse '${what.literal}' due to type collection errors.")
+		if (sunlite.hadError) {
+			sunlite.error(keyword, "import error, failed to parse '${what.literal}' due to type collection errors.")
+			return null
+		}
 
 		parser = Parser(tokens,sunlite,true)
 		statements = parser.parse(what.literal)
 
 		// Stop if there was a syntax error.
-		if (sunlite.hadError) sunlite.error(keyword, "import error, failed to parse '${what.literal}' duo to syntax errors in parsing.")
+		if (sunlite.hadError) {
+			sunlite.error(keyword, "import error, failed to parse '${what.literal}' duo to syntax errors in parsing.")
+			return null
+		}
 
 		val checker = TypeChecker(sunlite, null)
 		checker.check(statements)
 
 		// Stop if there was a type error.
-		if (sunlite.hadError) sunlite.error(keyword, "import error, failed to parse '${what.literal}' due to type errors.")
+		if (sunlite.hadError) {
+			sunlite.error(keyword, "import error, failed to parse '${what.literal}' due to type errors.")
+			return null
+		}
 
 		sunlite.imports[what.literal] = importingDepth to statements
 
