@@ -36,6 +36,13 @@ class Sunlite(val args: Array<String>) {
 	var natives: Natives = DefaultNatives
 
 	fun start(): VM? {
+		debug = false
+		bytecodeDebug = false
+		stacktrace = false
+		warnStacktrace = false
+		logToStdout = false
+		tickMode = false
+		noTypeChecks = false
 		when {
 			args.size > 4 -> {
 				println("Usage: sunlite [script] (path) (options) (args)")
@@ -85,7 +92,7 @@ class Sunlite(val args: Array<String>) {
 		return null
 	}
 
-	fun parse(code: String? = null): Triple<List<Token>,List<Stmt>, TypeCollector>? {
+	fun parse(code: String? = null): ParsedData? {
 		val filePath = args[0]
 		path.addAll(args[1].split(";"))
 
@@ -114,6 +121,18 @@ class Sunlite(val args: Array<String>) {
 		// Stop if there was a syntax error.
 		if (hadError) return null
 
+		collector = TypeCollector(this)
+		collector?.collect(statements, shortPath)
+
+		// Stop if there was a type collection error.
+		if (hadError) return null
+
+		parser = Parser(tokens,this)
+		statements = parser.parse(shortPath).toMutableList()
+
+		// Stop if there was a syntax error.
+		if (hadError) return null
+
 		if(!noTypeChecks){
 			val checker = TypeChecker(this, null)
 			checker.check(statements)
@@ -122,7 +141,7 @@ class Sunlite(val args: Array<String>) {
 		// Stop if there was a type error.
 		if (hadError) return null
 
-		return Triple(tokens, statements, collector!!)
+		return ParsedData(tokens, statements, collector!!)
 	}
 
 	fun compile(statements: List<Stmt>): SLFunction {

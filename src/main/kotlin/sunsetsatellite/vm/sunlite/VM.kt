@@ -399,8 +399,19 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>): Runnable {
 						fr.push(SLBool(Type.contains(type.value, checkingType, sunlite)))
 					}
 				}
+			} else {
+				currentFrame = null
 			}
-		} catch (e: Exception){
+		}
+		catch (e: UnhandledException){
+			if(Sunlite.tickMode) {
+				runtimeError("${e.message}")
+				return
+			} else {
+				throw e
+			}
+		}
+		catch (e: Exception){
 			if(Sunlite.tickMode){
 				runtimeError("internal vm error: $e")
 				if(stacktrace){
@@ -604,7 +615,8 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>): Runnable {
 		frameStack.peek().stack.removeAt((frameStack.peek().stack.size-1)-argCount)
 		val args = Array(argCount) { i -> frameStack.peek().pop() }
 		args.reverse()
-		frameStack.peek().push(callee.value.call(this, args))
+		val value = callee.value.call(this, args)
+		frameStack.peek().push(value)
 		return true
 	}
 
