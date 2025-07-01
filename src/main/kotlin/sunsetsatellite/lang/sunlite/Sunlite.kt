@@ -245,6 +245,9 @@ class Sunlite(val args: Array<String>) {
 			try {
 				vm.run()
 			}
+			catch (e: UnhandledException){
+				vm.runtimeError("${e.message}")
+			}
 			catch (e: Exception) {
 				vm.runtimeError("internal vm error: $e")
 				if(stacktrace){

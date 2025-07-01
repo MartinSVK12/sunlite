@@ -8,12 +8,12 @@ declaration    → classDecl
                | varDecl
                | statement ;
 
-classDecl      → ( "dynamic" )? "class" ( typeParam )? IDENTIFIER ( "<" IDENTIFIER )? ( "<<" IDENTIFIER )?
-                 "{" method* "}" ;
-interfaceDecl  → "interface" ( typeParam )? IDENTIFIER ( "<<" IDENTIFIER ( "," IDENTIFIER )* )?
+classDecl      → "class" ( typeParam )? IDENTIFIER ( "extends" IDENTIFIER )? ( "implements" IDENTIFIER )?
+                 "{" varDecl* method* "}" ;
+interfaceDecl  → "interface" ( typeParam )? IDENTIFIER ( "implements" IDENTIFIER ( "," IDENTIFIER )* )?
                  "{" abstractMethod* ")" ;
-funDecl        → "fun" function ;
-varDecl        → "var" IDENTIFIER ( "=" expression )? ( ":" type )? ";" ;
+funDecl        → "fun" ( typeParam )? function ;
+varDecl        → ( "static" )? ( "var" | "val" ) IDENTIFIER ( "=" expression )? ( ":" type )? ";" ;
 
 // STATEMENTS
 
@@ -25,6 +25,7 @@ statement      → exprStmt
                | breakStmt
                | continueStmt
                | importStmt
+               | tryCatchStmt
                | block ;
 
 exprStmt       → expression ";" ;
@@ -39,6 +40,7 @@ block          → "{" declaration* "}" ;
 continueStmt   → "continue;" ;
 breakStmt      → "break;" ;
 importStmt     → "import" STRING ";" ;
+tryCatchStmt   → "try" block "catch" "(" IDENTIFIER ")" block ;
 
 // EXPRESSIONS
 
@@ -55,23 +57,32 @@ equality       → comparison ( ( "!=" | "==" ) comparison )* ;
 comparison     → term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
 term           → factor ( ( "-" | "+" ) factor )* ;
 factor         → unary ( ( "/" | "*" ) unary )* ;
-
-unary          → ( "!" | "-" ) unary | call ;
-call           → primary ( "(" arguments? ")" | "." IDENTIFIER )* ;
+unary          → ( "!" | "-" ) unary | lambda ;
+lambda         → ( "fun" ( typeParam )? "(" parameters? ")" ( ":" type )? block ) | call ;
+call           → primary ( "(" ( typeParam* )? arguments? ")" | "." IDENTIFIER )* ;
 primary        → "true" | "false" | "nil" | "this"
-               | NUMBER | STRING | IDENTIFIER ( typeParam )? | "(" expression ")"
-               | "super" "." IDENTIFIER ( typeParam )? ;
+               | NUMBER | STRING | IDENTIFIER | "(" expression ")"
+               | "super" "." IDENTIFIER ;
 
 // UTILITY
 
-method         → ( "static" | "native" )? "fun" methodSignature block? ;
-abstractMethod → ( "static" | "native" )? "fun" methodSignature ;
+method         → ( "static" | "native" | "static native" )? "fun" ( typeParam )? methodSignature block? ;
+abstractMethod → ( "static" | "native" | "static native" )? "fun" ( typeParam )? methodSignature ;
 methodSignature→ IDENTIFIER "(" parameters? ")" ( ":" type )? ;
 function       → IDENTIFIER "(" parameters? ")" ( ":" type )? block ;
 parameters     → IDENTIFIER ( ":" type )? ( "," IDENTIFIER ( ":" type )? )* ;
 arguments      → expression ( "," expression )* ;
-type           → ( "any" | "nil" | "number" | "boolean" | "string" | "function" | "class" ( typeParam )? | IDENTIFIER ( typeParam )? ( "|" type* )? )
-typeParam      → "<" IDENTIFIER ( ( "," IDENTIFIER )* )? ">"
+type           → ( "Any"
+                 | "Nil"
+                 | "Number"
+                 | "Boolean"
+                 | "String"
+                 | "Generic" ( typeParam )?
+                 | "Function" ( typeParam )?
+                 | "Class" ( typeParam )?
+                 | IDENTIFIER ( typeParam )?
+                 ( "|" type* )? ( "?" )? ) ;
+typeParam      → "<" IDENTIFIER ( ( "," IDENTIFIER )* )? ">" ;
 
 // LEXICAL
 

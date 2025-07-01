@@ -1,12 +1,11 @@
-class<T> A {
-
-    var test: Generic<T> = "";
-
-    init() {
-
+fun<T> forEach(arr: Array<Generic<T>>,block: Function<Generic<T>, Nil>) {
+    for (var i = 0; i < sizeOf(arr); i = i + 1){
+        block(arr[i]);
     }
 }
 
-val a: A<String> = A(<String>);
+val arr: Array<Number> = arrayOf(1,2,3,4,5,6,7,8,9,0);
 
-a.test = 2;
+forEach(arr, fun(n: Number){
+    print(n);
+} as Function<Generic<T>, Nil>);

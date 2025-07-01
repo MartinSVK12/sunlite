@@ -6,12 +6,15 @@ import sunsetsatellite.lang.sunlite.PrimitiveType
 import sunsetsatellite.lang.sunlite.Sunlite
 import sunsetsatellite.lang.sunlite.Sunlite.Companion.stacktrace
 import sunsetsatellite.lang.sunlite.Type
+import sunsetsatellite.lang.sunlite.TypeChecker
 import sunsetsatellite.vm.sunlite.VM.Companion.MAX_FRAMES
 import sunsetsatellite.vm.sunlite.VM.Companion.globals
 import sunsetsatellite.vm.sunlite.VM.Companion.openUpvalues
 import java.time.Clock.tick
 import java.util.*
 
+// todo: more runtime checks
+// todo: array set/get checks
 class VM(val sunlite: Sunlite, val launchArgs: Array<String>): Runnable {
 
 	var ignoreBreakpoints: Boolean = false
@@ -24,6 +27,8 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>): Runnable {
 	val exceptionStacktrace: Stack<CallFrame> = Stack()
 
 	var currentFrame: CallFrame? = null
+
+	val typeChecker = TypeChecker(sunlite, this)
 
 	companion object {
 		const val MAX_FRAMES: Int = 255
@@ -105,7 +110,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>): Runnable {
 						val frame = frameStack.pop()
 						fr = frameStack.peek()
 						currentFrame = fr
-						for (i in 0 until (frame.closure.function.arity + 1 + frame.closure.function.typeParams.size)) {
+						for (i in 0 until (frame.closure.function.arity + 1 /*+ frame.closure.function.typeParams.size*/)) {
 							fr.pop()
 						}
 						fr.push(value)
@@ -262,6 +267,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>): Runnable {
 							val clazz = (fr.peek(1) as SLClassObj).value
 							val name = readString(fr).value
 							val value = fr.pop()
+							typeChecker.checkType(clazz.staticFields[name]!!.type,Type.fromValue(value.value, sunlite),true)
 							clazz.staticFields[name]!!.value = value
 							fr.pop()
 							fr.push(value)
@@ -269,6 +275,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>): Runnable {
 							val instance = (fr.peek(1) as SLClassInstanceObj).value
 							val name = readString(fr).value
 							val value = fr.pop()
+							typeChecker.checkType(instance.fields[name]!!.type,Type.fromValue(value.value, sunlite),true)
 							instance.fields[name]!!.value = value
 							fr.pop()
 							fr.push(value)
@@ -646,7 +653,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>): Runnable {
 
 	fun throwException(index: Int, e: AnySLValue){
 		if(index < 0) {
-			throw Exception("Unhandled exception in vm: $e")
+			throw UnhandledException("Unhandled exception in vm: $e")
 		}
 		val fr = frameStack[index]
 		var closest = Integer.MAX_VALUE
@@ -698,34 +705,35 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>): Runnable {
 		}
 		sb.append("\n")
 
-		if(fr != null){
-			sb.append("stack @ ${fr.closure.function.chunk.debugInfo.file}::${fr.closure.function.chunk.debugInfo.name}: ")
-			for (value in fr.stack) {
-				sb.append("[ ")
-				sb.append(value)
-				sb.append(" ]")
+		if(Sunlite.debug){
+			if(fr != null){
+				sb.append("stack @ ${fr.closure.function.chunk.debugInfo.file}::${fr.closure.function.chunk.debugInfo.name}: ")
+				for (value in fr.stack) {
+					sb.append("[ ")
+					sb.append(value)
+					sb.append(" ]")
+				}
+				sb.append("\n")
+				sb.append("-> ")
+				val offset = Disassembler.disassembleInstruction(sb, fr.closure.function.chunk, fr.pc)
+			} else {
+				sb.append("<empty stack>")
+				sb.append("\n")
 			}
-			sb.append("\n")
-			sb.append("-> ")
-			val offset = Disassembler.disassembleInstruction(sb, fr.closure.function.chunk, fr.pc)
-		} else {
-			sb.append("<empty stack>")
-			sb.append("\n")
-		}
 
-		if(fr != null){
-			sb.append("locals @ ${fr.closure.function.chunk.debugInfo.file}::${fr.closure.function.chunk.debugInfo.name}: ")
-			for (value in fr.locals) {
-				sb.append("[ ")
-				sb.append(value)
-				sb.append(" ]")
+			if(fr != null){
+				sb.append("locals @ ${fr.closure.function.chunk.debugInfo.file}::${fr.closure.function.chunk.debugInfo.name}: ")
+				for (value in fr.locals) {
+					sb.append("[ ")
+					sb.append(value)
+					sb.append(" ]")
+				}
+				if(fr.locals.isEmpty()){
+					sb.append("[ ]")
+				}
+				sb.append("\n")
 			}
-			if(fr.locals.isEmpty()){
-				sb.append("[ ]")
-			}
-			sb.append("\n")
 		}
-
 
 		sunlite.printErr(sb.toString())
 

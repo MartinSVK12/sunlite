@@ -85,7 +85,7 @@ abstract class Type {
                     return traverseTypeHierarchy(other.ref)
                 }
                 PrimitiveType.ARRAY -> {
-                    if(contains(other.returnType, returnType, currentInterpreter!!)) return true
+                    if(contains(returnType, other.returnType, currentInterpreter!!)) return true
                     return false
                 }
                 PrimitiveType.CLASS -> {
@@ -313,7 +313,11 @@ abstract class Type {
                     return inType.types.any { it.equals(type) } || inType.types.contains(ANY)
                 }
             } else {
-                return inType.equals(type) || inType == ANY
+                if(type is Union) {
+                    return type.types.contains(ANY)
+                } else {
+                    return inType.equals(type) || inType == ANY
+                }
             }
         }
 

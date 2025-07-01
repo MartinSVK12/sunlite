@@ -25,18 +25,18 @@ class TypeChecker(val sunlite: Sunlite, val vm: VM?): Expr.Visitor<Unit>, Stmt.V
     fun checkType(
         expected: Type,
         actual: Type,
-        token: Token,
-        runtime: Boolean = false
+        runtime: Boolean = false,
+        token: Token? = null
     ) {
         if(Sunlite.debug){
-            println("Checking if type '$expected' matches '$actual' at '${token.lexeme}'")
+            println("Checking if type '$expected' matches '$actual' at '${token?.lexeme ?: "<runtime>"}'")
         }
         val valid = Type.contains(actual, expected, sunlite)
         if(!valid){
             if(runtime && vm != null){
-                vm.throwException(0, SLString("Expected '$expected' but got '$actual'."))
+                vm.throwException(0, SLString("TypeError: Expected '$expected' but got '$actual'."))
             } else {
-                sunlite.error(token, "Expected '$expected' but got '$actual'.")
+                sunlite.error(token!!, "Expected '$expected' but got '$actual'.")
             }
             return
         }
@@ -65,7 +65,7 @@ class TypeChecker(val sunlite: Sunlite, val vm: VM?): Expr.Visitor<Unit>, Stmt.V
 
     override fun visitAssignExpr(expr: Expr.Assign) {
         check(expr.value)
-        checkType(expr.getExprType(), expr.value.getExprType(),expr.name, false)
+        checkType(expr.getExprType(), expr.value.getExprType(),false,expr.name)
     }
 
     override fun visitLogicalExpr(expr: Expr.Logical) {
@@ -90,10 +90,10 @@ class TypeChecker(val sunlite: Sunlite, val vm: VM?): Expr.Visitor<Unit>, Stmt.V
                             //sunlite.error(expr.paren, "Missing ${it.second.type}")
                             continue
                         }
-                        checkType(typeArgs[i].type, it.first.getExprType(), expr.paren, false)
+                        checkType(typeArgs[i].type, it.first.getExprType(), false,expr.paren)
                         i++
                     } else {
-                        checkType(it.second.type, it.first.getExprType(), expr.paren, false)
+                        checkType(it.second.type, it.first.getExprType(), false, expr.paren)
                     }
                 }
             }
@@ -127,7 +127,7 @@ class TypeChecker(val sunlite: Sunlite, val vm: VM?): Expr.Visitor<Unit>, Stmt.V
                 exprType = it.type
             }
         }
-        checkType(exprType,expr.value.getExprType(),expr.name, false)
+        checkType(exprType,expr.value.getExprType(),false, expr.name)
     }
 
     override fun visitThisExpr(expr: Expr.This) {
@@ -157,7 +157,7 @@ class TypeChecker(val sunlite: Sunlite, val vm: VM?): Expr.Visitor<Unit>, Stmt.V
     override fun visitVarStmt(stmt: Stmt.Var) {
         stmt.initializer?.let {
             check(it)
-            checkType(stmt.type, it.getExprType(), stmt.name, false)
+            checkType(stmt.type, it.getExprType(),false,stmt.name)
         }
     }
 
@@ -196,7 +196,7 @@ class TypeChecker(val sunlite: Sunlite, val vm: VM?): Expr.Visitor<Unit>, Stmt.V
             if(!scopes.isEmpty()){
                 val enclosingStmt = scopes.peek()
                 if(enclosingStmt is Stmt.Function){
-                    checkType(enclosingStmt.returnType, it.getExprType(), stmt.keyword, false)
+                    checkType(enclosingStmt.returnType, it.getExprType(), false, stmt.keyword)
                 }
             }
         }

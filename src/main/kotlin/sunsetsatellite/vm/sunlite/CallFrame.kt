@@ -27,6 +27,6 @@ class CallFrame(val closure: SLClosure, val locals: MutableList<AnySLValue>) {
 	}
 
 	override fun toString(): String {
-		return "[line ${closure.function.chunk.debugInfo.lines[pc]}] in ${if(closure.function.name == "") "script" else "${closure.function.name}()"}"
+		return "[line ${closure.function.chunk.debugInfo.lines[pc]}] in ${if(closure.function.name == "") "${closure.function.chunk.debugInfo.file}" else "${closure.function.name}()"}"
 	}
 }
