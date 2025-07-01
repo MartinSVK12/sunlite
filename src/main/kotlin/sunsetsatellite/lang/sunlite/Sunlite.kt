@@ -1,6 +1,5 @@
 package sunsetsatellite.lang.sunlite
 
-import sun.security.krb5.Confounder.bytes
 import sunsetsatellite.vm.sunlite.*
 import sunsetsatellite.vm.sunlite.SLFunction
 import java.io.BufferedReader
@@ -34,19 +33,20 @@ class Sunlite(val args: Array<String>) {
 		val bytes = Files.readAllBytes(Paths.get(it))
 		return@Function String(bytes, Charset.defaultCharset())
 	}
+	var natives: Natives = DefaultNatives
 
-	fun start() {
+	fun start(): VM? {
 		when {
 			args.size > 4 -> {
 				println("Usage: sunlite [script] (path) (options) (args)")
 				exitProcess(64)
 			}
 			args.size == 1 -> {
-				runFile(args[0])
+				return runFile(args[0])
 			}
 			args.size == 2 -> {
 				path.addAll(args[1].split(";"))
-				runFile(args[0])
+				return runFile(args[0])
 			}
 			args.size == 3 -> {
 				args[2].split(";").forEach {
@@ -61,7 +61,7 @@ class Sunlite(val args: Array<String>) {
 					}
 				}
 				path.addAll(args[1].split(";"))
-				runFile(args[0])
+				return runFile(args[0])
 			}
 			args.size == 4 -> {
 				args[2].split(";").forEach {
@@ -76,12 +76,13 @@ class Sunlite(val args: Array<String>) {
 					}
 				}
 				path.addAll(args[1].split(";"))
-				runFile(args[0])
+				return runFile(args[0])
 			}
 			else -> {
 				runPrompt()
 			}
 		}
+		return null
 	}
 
 	fun parse(code: String? = null): Triple<List<Token>,List<Stmt>, TypeCollector>? {
@@ -134,12 +135,14 @@ class Sunlite(val args: Array<String>) {
 	}
 
 	@Throws(IOException::class)
-	private fun runFile(path: String) {
-		runString( readFunction.apply(path), path)
+	private fun runFile(path: String): VM? {
+		val VM = runString(readFunction.apply(path), path)
 
 		// Indicate an error in the exit code.
-		if (hadError) return //exitProcess(65)
-		if (hadRuntimeError) return //exitProcess(70)
+		if (hadError) return null //exitProcess(65)
+		if (hadRuntimeError) return null//exitProcess(70)
+
+		return VM
 	}
 
 	@Throws(IOException::class)
@@ -156,12 +159,11 @@ class Sunlite(val args: Array<String>) {
 		}
 	}
 
-	private fun runString(source: String, path: String?) {
-		runVM(source, path)
-		return
+	private fun runString(source: String, path: String?): VM? {
+		return runVM(source, path)
 	}
 
-	private fun runVM(source: String, path: String?) {
+	private fun runVM(source: String, path: String?): VM? {
 		val shortPath = path?.split("/")?.last()
 
 		val scanner = Scanner(source, this)
@@ -171,7 +173,7 @@ class Sunlite(val args: Array<String>) {
 		var statements: MutableList<Stmt> = parser.parse(shortPath).toMutableList()
 
 		// Stop if there was a syntax error.
-		if (hadError) return
+		if (hadError) return null
 
 		vm = VM(this, if(args.size == 4)args[3].split(";").toTypedArray() else arrayOf())
 		uninitialized = false
@@ -180,25 +182,25 @@ class Sunlite(val args: Array<String>) {
 		collector?.collect(statements, shortPath)
 
 		// Stop if there was a type collection error.
-		if (hadError) return
+		if (hadError) return null
 
 		parser = Parser(tokens,this)
 		statements = parser.parse(shortPath).toMutableList()
 
 		// Stop if there was a syntax error.
-		if (hadError) return
+		if (hadError) return null
 
 		collector = TypeCollector(this)
 		collector?.collect(statements, shortPath)
 
 		// Stop if there was a type collection error.
-		if (hadError) return
+		if (hadError) return null
 
 		parser = Parser(tokens,this)
 		statements = parser.parse(shortPath).toMutableList()
 
 		// Stop if there was a syntax error.
-		if (hadError) return
+		if (hadError) return null
 
 		if(debug) {
 			printInfo("AST: ")
@@ -231,7 +233,7 @@ class Sunlite(val args: Array<String>) {
 		}
 
 		// Stop if there was a type error.
-		if (hadError) return
+		if (hadError) return null
 
 		val compiler = Compiler(this, vm, null)
 
@@ -242,7 +244,7 @@ class Sunlite(val args: Array<String>) {
 		val program: SLFunction = compiler.compile(FunctionType.NONE, FunctionModifier.NORMAL, Type.NIL, listOf(), listOf(), allStatements, shortPath)
 
 		// Stop if there was a compilation error.
-		if (hadError) return
+		if (hadError) return null
 
 		vm.call(SLClosureObj(SLClosure(program)),0)
 
@@ -259,7 +261,10 @@ class Sunlite(val args: Array<String>) {
 					e.printStackTrace()
 				}
 			}
+			return null
 		}
+
+		return vm
 	}
 
 	fun printTypeScopes(it: TypeCollector.Scope?,depth: Int = 0){

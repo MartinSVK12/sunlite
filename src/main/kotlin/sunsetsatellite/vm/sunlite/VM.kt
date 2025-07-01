@@ -21,7 +21,6 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>): Runnable {
 	var breakpointHit: Boolean = false
 	var continueExecution: Boolean = false
 	var lastBreakpointLine: Int = -1
-	var overrideFunction: SLFunction? = null
 
 	var currentException: AnySLValue? = null
 	val exceptionStacktrace: Stack<CallFrame> = Stack()
@@ -29,6 +28,10 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>): Runnable {
 	var currentFrame: CallFrame? = null
 
 	val typeChecker = TypeChecker(sunlite, this)
+
+	init {
+		sunlite.natives.registerNatives(this)
+	}
 
 	companion object {
 		const val MAX_FRAMES: Int = 255
@@ -39,10 +42,6 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>): Runnable {
 		fun arrayOfNils(size: Int): Array<AnySLValue> {
 			return Array(size) { SLNil }
 		}
-	}
-
-	init {
-		Natives.registerNatives(this)
 	}
 
 	val frameStack: Stack<CallFrame> = Stack()
