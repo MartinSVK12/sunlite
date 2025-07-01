@@ -161,6 +161,20 @@ class SLArrayObj(value: SLArray) : SLObj<SLArray>(value) {
 		return SLArrayObj(value.copy())
 	}
 }
+class SLTableObj(value: SLTable) : SLObj<SLTable>(value) {
+	override fun equals(other: Any?): Boolean {
+		if (other !is SLTableObj) return false
+		return other.value == value
+	}
+
+	override fun hashCode(): Int {
+		return javaClass.hashCode()
+	}
+
+	override fun copy(): SLValue<SLTable> {
+		return SLTableObj(value.copy())
+	}
+}
 class SLFuncObj(value: SLFunction) : SLObj<SLFunction>(value) {
 	override fun equals(other: Any?): Boolean {
 		if (other !is SLFuncObj) return false

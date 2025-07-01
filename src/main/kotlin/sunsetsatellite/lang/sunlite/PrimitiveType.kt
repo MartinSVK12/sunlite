@@ -9,6 +9,7 @@ enum class PrimitiveType {
     CLASS,
     OBJECT,
     ARRAY,
+    TABLE,
     GENERIC,
     NIL,
     UNKNOWN; //static type checker failed to get a more concrete type
@@ -24,6 +25,7 @@ enum class PrimitiveType {
                 TokenType.TYPE_CLASS -> CLASS
                 TokenType.IDENTIFIER -> OBJECT
                 TokenType.TYPE_ARRAY -> ARRAY
+                TokenType.TYPE_TABLE -> TABLE
                 TokenType.TYPE_NIL -> NIL
                 TokenType.QUESTION -> NIL
                 TokenType.TYPE_GENERIC -> GENERIC

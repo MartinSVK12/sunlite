@@ -40,7 +40,7 @@ class Sunlite(val args: Array<String>) {
 		bytecodeDebug = false
 		stacktrace = false
 		warnStacktrace = false
-		logToStdout = false
+		logToStdout = ranFromMain
 		tickMode = false
 		noTypeChecks = false
 		when {
@@ -390,18 +390,17 @@ class Sunlite(val args: Array<String>) {
 		@JvmStatic
 		var noTypeChecks = false
 
+		@JvmStatic
+		var ranFromMain = false
+
 		lateinit var instance: Sunlite
 
 		@JvmStatic
 		@Throws(IOException::class)
 		fun main(args: Array<String>) {
 			instance = Sunlite(args)
-			logToStdout = true
+			ranFromMain = true
 			instance.start()
-		}
-
-		fun <T>test(t: T){
-			val s: String = t as String
 		}
 	}
 }

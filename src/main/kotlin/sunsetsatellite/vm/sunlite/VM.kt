@@ -315,31 +315,45 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>): Runnable {
 						}
 					}
 					Opcodes.ARRAY_GET -> {
-						if (fr.peek(0) !is SLArrayObj) {
-							runtimeError("Only arrays support the indexing operator.")
+						if (fr.peek(0) !is SLArrayObj && fr.peek(0) !is SLTableObj)  {
+							runtimeError("Only arrays or tables support the indexing operator.")
 							return
 						}
-						val arr = (fr.pop() as SLArrayObj).value
-						val index = fr.pop()
-						if (index !is SLNumber) {
-							runtimeError("Array index must be a number.")
+						if(fr.peek(0) is SLArrayObj){
+							val arr = (fr.pop() as SLArrayObj).value
+							val index = fr.pop()
+							if (index !is SLNumber) {
+								runtimeError("Array index must be a number.")
+							}
+							fr.push(arr.get((index as SLNumber).value.toInt()))
+						} else {
+							val arr = (fr.pop() as SLTableObj).value
+							val index = fr.pop()
+							fr.push(arr.get(index))
 						}
-						fr.push(arr.get((index as SLNumber).value.toInt()))
+
 					}
 					Opcodes.ARRAY_SET -> {
-						if (fr.peek(0) !is SLArrayObj) {
-							runtimeError("Only arrays support the indexing operator.")
+						if (fr.peek(0) !is SLArrayObj && fr.peek(0) !is SLTableObj)  {
+							runtimeError("Only arrays or tables support the indexing operator.")
 							return
 						}
-						val arr = (fr.pop() as SLArrayObj).value
-						val index = fr.pop()
-						val value = fr.pop()
-						if (index !is SLNumber) {
-							runtimeError("Array index must be a number.")
+						if(fr.peek(0) is SLArrayObj) {
+							val arr = (fr.pop() as SLArrayObj).value
+							val index = fr.pop()
+							val value = fr.pop()
+							if (index !is SLNumber) {
+								runtimeError("Array index must be a number.")
+							}
+							arr.set((index as SLNumber).value.toInt(), value)
+							fr.push(value)
+						} else {
+							val arr = (fr.pop() as SLTableObj).value
+							val index = fr.pop()
+							val value = fr.pop()
+							arr.set(index, value)
+							fr.push(value)
 						}
-						arr.set((index as SLNumber).value.toInt(), value)
-						fr.push(value)
-
 					}
 					Opcodes.METHOD -> {
 						defineMethod(fr,readString(fr).value)

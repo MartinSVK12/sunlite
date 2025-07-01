@@ -57,6 +57,9 @@ abstract class Type {
                 PrimitiveType.ARRAY -> {
                     return "${type.name.lowercase()} '${returnType}'"
                 }
+                PrimitiveType.TABLE -> {
+                    return "${type.name.lowercase()} '${typeParams[0].type} -> ${returnType}'"
+                }
                 PrimitiveType.OBJECT -> {
                     return "${type.name.lowercase()}${if(typeParams.isNotEmpty()) "<${typeParams.joinToString()}>" else ""}${if (ref != "") " '${ref}'" else ""}"
                 }
@@ -87,6 +90,11 @@ abstract class Type {
                 PrimitiveType.ARRAY -> {
                     if(contains(returnType, other.returnType, currentInterpreter!!)) return true
                     return false
+                }
+                PrimitiveType.TABLE -> {
+                    if(!contains(typeParams[0].type, other.typeParams[0].type, currentInterpreter!!)) return false
+                    if(!contains(returnType, other.returnType, currentInterpreter!!)) return false
+                    return true
                 }
                 PrimitiveType.CLASS -> {
                     if(this.ref == "") return true
@@ -176,6 +184,10 @@ abstract class Type {
             return Reference(PrimitiveType.ARRAY, "<array>", elementType, listOf())
         }
 
+        fun ofTable(keyType: Type, valueType: Type): Reference {
+            return Reference(PrimitiveType.TABLE, "<table>", valueType, listOf(), listOf(Param(Token.identifier("<key>"),keyType)))
+        }
+
         fun ofFunction(name: String, returnType: Type, params: List<Param>): Reference {
             return Reference(PrimitiveType.FUNCTION, name, returnType, params)
         }
@@ -223,6 +235,15 @@ abstract class Type {
                                 val elementType = if(topmostType.typeParameters.isEmpty()) NULLABLE_ANY else of(topmostType.typeParameters, sunlite,false)
                                 return ofArray(elementType)
                             }
+                            TokenType.TYPE_TABLE -> {
+                                val keyType = if(topmostType.typeParameters.isEmpty()) NULLABLE_ANY else of(listOf(
+                                    topmostType.typeParameters[0]
+                                ), sunlite,false)
+                                val valueType = if(topmostType.typeParameters.isEmpty()) NULLABLE_ANY else of(listOf(
+                                    topmostType.typeParameters[1]
+                                ), sunlite,false)
+                                return ofTable(keyType, valueType)
+                            }
                             TokenType.CLASS -> {
                                 if(topmostType.typeParameters.isEmpty()) {
                                     return ofClass("")
@@ -258,7 +279,7 @@ abstract class Type {
                             val singleToken = singleType.tokens.entries.first()
                             when (singleToken.key.type) {
                                 TokenType.TYPE_FUNCTION -> {
-                                    val returnType = if(singleType.typeParameters.isEmpty()) Type.NIL else of(listOf(singleType.typeParameters.last()),sunlite, false)
+                                    val returnType = if(singleType.typeParameters.isEmpty()) NIL else of(listOf(singleType.typeParameters.last()),sunlite, false)
                                     val paramTokens = singleType.typeParameters.dropLast(1)
                                     val params = paramTokens.map { Param(Token.identifier(""), of(listOf(it), sunlite,false)) }
                                     return ofFunction("", returnType, params)
@@ -266,6 +287,15 @@ abstract class Type {
                                 TokenType.TYPE_ARRAY -> {
                                     val elementType = if(singleType.typeParameters.isEmpty()) NULLABLE_ANY else of(singleType.typeParameters, sunlite,false)
                                     return ofArray(elementType)
+                                }
+                                TokenType.TYPE_TABLE -> {
+                                    val keyType = if(singleType.typeParameters.isEmpty()) NULLABLE_ANY else of(listOf(
+                                        singleType.typeParameters[0]
+                                    ), sunlite,false)
+                                    val valueType = if(singleType.typeParameters.isEmpty()) NULLABLE_ANY else of(listOf(
+                                        singleType.typeParameters[1]
+                                    ), sunlite,false)
+                                    return ofTable(keyType, valueType)
                                 }
                                 TokenType.CLASS -> {
                                     if(singleType.typeParameters.isEmpty()) {
@@ -357,6 +387,7 @@ abstract class Type {
         val FUNCTION = Singular(PrimitiveType.FUNCTION)
         val OBJECT = Singular(PrimitiveType.OBJECT)
         val ARRAY = Singular(PrimitiveType.ARRAY)
+        val TABLE = Singular(PrimitiveType.TABLE)
         val NULLABLE_ANY = Union(listOf(ANY, NIL))
         val NUMBER = Singular(PrimitiveType.NUMBER)
         val STRING = Singular(PrimitiveType.STRING)

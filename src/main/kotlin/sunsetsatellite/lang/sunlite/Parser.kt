@@ -524,7 +524,7 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite, val importing: Boole
 
 	private fun getTypeTokens(insideUnion: Boolean = false): List<TypeToken> {
 		val mainToken = peek()
-		if (!match(TYPE_BOOLEAN, TYPE_STRING, TYPE_NUMBER, TYPE_FUNCTION, TYPE_CLASS, TYPE_ANY, TYPE_ARRAY, TYPE_GENERIC, IDENTIFIER, TYPE_NIL)) {
+		if (!match(TYPE_BOOLEAN, TYPE_STRING, TYPE_NUMBER, TYPE_FUNCTION, TYPE_CLASS, TYPE_ANY, TYPE_ARRAY, TYPE_TABLE, TYPE_GENERIC, IDENTIFIER, TYPE_NIL)) {
 			throw error(mainToken, "Expected type.")
 		}
 
@@ -540,7 +540,7 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite, val importing: Boole
 					error(peek(), "Can't have more than 255 type parameters.")
 				}
 				val typeParamToken = peek()
-				if (!checkTokens(TYPE_BOOLEAN, TYPE_STRING, TYPE_NUMBER, TYPE_FUNCTION, TYPE_CLASS, TYPE_ANY, TYPE_GENERIC, TYPE_ARRAY, IDENTIFIER, TYPE_NIL)) {
+				if (!checkTokens(TYPE_BOOLEAN, TYPE_STRING, TYPE_NUMBER, TYPE_FUNCTION, TYPE_CLASS, TYPE_ANY, TYPE_GENERIC, TYPE_ARRAY, TYPE_TABLE, IDENTIFIER, TYPE_NIL)) {
 					throw error(typeParamToken, "Expected type for type parameter.")
 				}
 				typeParameters.addAll(getTypeTokens(false))
@@ -556,7 +556,7 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite, val importing: Boole
 					error(peek(), "Can't have more than 255 types in a union.")
 				}
 				val unionMemberToken = peek()
-				if (!checkTokens(TYPE_BOOLEAN, TYPE_STRING, TYPE_NUMBER, TYPE_FUNCTION, TYPE_CLASS, TYPE_ANY, TYPE_GENERIC, TYPE_ARRAY, IDENTIFIER, TYPE_NIL)) {
+				if (!checkTokens(TYPE_BOOLEAN, TYPE_STRING, TYPE_NUMBER, TYPE_FUNCTION, TYPE_CLASS, TYPE_ANY, TYPE_GENERIC, TYPE_ARRAY, TYPE_TABLE, IDENTIFIER, TYPE_NIL)) {
 					throw error(unionMemberToken, "Expected type after '|'.")
 				}
 				val unionTypeTokens = getTypeTokens(true)

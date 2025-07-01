@@ -1,6 +1,8 @@
 package sunsetsatellite.vm.sunlite
 
+import sunsetsatellite.lang.sunlite.Param
 import sunsetsatellite.lang.sunlite.PrimitiveType
+import sunsetsatellite.lang.sunlite.Token
 import sunsetsatellite.lang.sunlite.Type
 import kotlin.math.*
 import kotlin.system.exitProcess
@@ -43,6 +45,16 @@ object DefaultNatives: Natives {
 				args: Array<AnySLValue>
 			): AnySLValue {
 				return SLArrayObj(SLArray((args[0] as SLNumber).value.toInt(),vm.sunlite))
+			}
+		})
+
+		vm.defineNative(object : SLNativeFunction("table",Type.Reference(PrimitiveType.TABLE, "<table>",Type.NULLABLE_ANY,listOf(),listOf(
+			Param(Token.identifier("<key>"), Type.NULLABLE_ANY))),0) {
+			override fun call(
+				vm: VM,
+				args: Array<AnySLValue>
+			): AnySLValue {
+				return SLTableObj(SLTable(vm.sunlite))
 			}
 		})
 

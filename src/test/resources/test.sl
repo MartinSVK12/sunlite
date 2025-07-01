@@ -1,11 +1,7 @@
-fun<T> forEach(arr: Array<Generic<T>>,block: Function<Generic<T>, Nil>) {
-    for (var i = 0; i < sizeOf(arr); i = i + 1){
-        block(arr[i]);
-    }
-}
+var table: Table<String, Number> = table();
 
-val arr: Array<Number> = arrayOf(1,2,3,4,5,6,7,8,9,0);
+table["hi"] = 69;
 
-forEach(arr, fun(n: Number){
-    print(n);
-} as Function<Generic<T>, Nil>);
+print(table);
+
+print(table["hi"]);
