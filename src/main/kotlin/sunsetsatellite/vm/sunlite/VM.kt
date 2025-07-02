@@ -221,9 +221,14 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>): Runnable {
 						fr.pc -= short
 					}
 					Opcodes.CALL -> {
-						val argCount: Int = readByte(fr)
+						var argCount: Int = readByte(fr)
 						val typeArgCount: Int = readByte(fr)
-						if(!callValue(fr.peek(argCount+typeArgCount), argCount, typeArgCount)){
+						var func = fr.peek(argCount + typeArgCount)
+						if(func is SLString){
+							argCount++
+							func = fr.peek(argCount + typeArgCount)
+						}
+						if(!callValue(func, argCount, typeArgCount)){
 							return
 						}
 						fr = frameStack.peek()
@@ -281,7 +286,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>): Runnable {
 						}
 					}
 					Opcodes.GET_PROP -> {
-						if (fr.peek(0) !is SLClassInstanceObj && fr.peek(0) !is SLClassObj) {
+						if (fr.peek(0) !is SLClassInstanceObj && fr.peek(0) !is SLClassObj && fr.peek(0) !is SLString) {
 							runtimeError("Only classes or class instances have properties.")
 							return
 						}
@@ -300,7 +305,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>): Runnable {
 								runtimeError("Undefined static property '$name'.")
 								return
 							}
-						} else {
+						} else if(fr.peek(0) is SLClassInstanceObj) {
 							val instance = (fr.peek(0) as SLClassInstanceObj).value
 							val name = readString(fr).value
 							if (instance.fields.containsKey(name)) {
@@ -308,6 +313,17 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>): Runnable {
 								fr.push(instance.fields[name]!!.value)
 							} else if (bindMethod(fr, instance.clazz, name)) {
 
+							} else {
+								runtimeError("Undefined property '$name'.")
+								return
+							}
+						} else {
+							val instance = (fr.peek(0) as SLString).value
+							val name = readString(fr).value
+							if(globals.containsKey("string#${name}")){
+								fr.pop()
+								fr.push(globals["string#${name}"]!!)
+								fr.push(SLString(instance))
 							} else {
 								runtimeError("Undefined property '$name'.")
 								return
@@ -716,11 +732,10 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>): Runnable {
 		}
 	}
 
-	fun runtimeError(message: String) {
-
+	fun printStacktrace(e: String){
 		val fr = frameStack.lastOrNull()
 
-		sunlite.printErr(message)
+		sunlite.printErr(e)
 
 		val sb = StringBuilder()
 		for (frame in frameStack) {
@@ -761,13 +776,15 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>): Runnable {
 		}
 
 		sunlite.printErr(sb.toString())
+	}
 
-		frameStack.clear()
-
+	fun runtimeError(message: String) {
 		if(stacktrace) {
-			Exception("sunlite internal error").printStackTrace()
+			Exception("runtime error: $message").printStackTrace()
 		}
 
 		sunlite.hadRuntimeError = true
+
+		throwException(frameStack.size-1, SLString(message))
 	}
 }

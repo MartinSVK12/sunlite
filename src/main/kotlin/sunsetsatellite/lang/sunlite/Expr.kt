@@ -264,7 +264,7 @@ abstract class Expr: Element {
 		}
 	}
 
-	data class ArrayGet(val obj: Expr, val what: Expr, val token: Token, val type: Type = Type.UNKNOWN): Expr() {
+	data class ArrayGet(val obj: Expr, val what: Expr, val token: Token): Expr() {
 		override fun <R> accept(visitor: Visitor<R>): R? {
 			return visitor.visitArrayGetExpr(this)
 		}
@@ -278,8 +278,13 @@ abstract class Expr: Element {
 		}
 
 		override fun getExprType(): Type {
-			//todo
-			return Type.NULLABLE_ANY
+			if (obj.getExprType() is Type.Reference) {
+				val ref = obj.getExprType() as Type.Reference
+				if(ref.type == PrimitiveType.TABLE || ref.type == PrimitiveType.ARRAY){
+					return ref.returnType
+				}
+			}
+			return Type.UNKNOWN
 		}
 	}
 

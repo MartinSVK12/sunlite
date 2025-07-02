@@ -105,7 +105,7 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite, val importing: Boole
 
 		sunlite.path.forEach {
 			try {
-				data = sunlite.readFunction.apply(it)
+				data = sunlite.readFunction.apply(it+what.literal)
 			} catch (_: IOException) {
 				invalidPaths.add(it)
 			}

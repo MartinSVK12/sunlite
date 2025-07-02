@@ -272,13 +272,13 @@ class Sunlite(val args: Array<String>) {
 				vm.run()
 			}
 			catch (e: UnhandledException){
-				vm.runtimeError("${e.message}")
+				vm.printStacktrace(e.message?:"null")
 			}
 			catch (e: Exception) {
-				vm.runtimeError("internal vm error: $e")
 				if(stacktrace){
 					e.printStackTrace()
 				}
+				vm.runtimeError("internal vm error: $e")
 			}
 			return null
 		}
@@ -333,7 +333,7 @@ class Sunlite(val args: Array<String>) {
 		printErr(s)
 
 		if(stacktrace) {
-			Exception("sunlite error internal stack trace").printStackTrace()
+			Exception("sunlite internal error:").printStackTrace()
 		}
 
 		hadError = true
