@@ -80,6 +80,8 @@ type           → ( "Any"
                  | "Generic" ( typeParam )?
                  | "Function" ( typeParam )?
                  | "Class" ( typeParam )?
+                 | "Array" ( typeParam )?
+                 | "Table" ( typeParam )?
                  | IDENTIFIER ( typeParam )?
                  ( "|" type* )? ( "?" )? ) ;
 typeParam      → "<" IDENTIFIER ( ( "," IDENTIFIER )* )? ">" ;

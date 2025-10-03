@@ -224,7 +224,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>): Runnable {
 						var argCount: Int = readByte(fr)
 						val typeArgCount: Int = readByte(fr)
 						var func = fr.peek(argCount + typeArgCount)
-						if(func is SLString){
+						if(func is SLString || func is SLArrayObj){
 							argCount++
 							func = fr.peek(argCount + typeArgCount)
 						}
@@ -286,7 +286,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>): Runnable {
 						}
 					}
 					Opcodes.GET_PROP -> {
-						if (fr.peek(0) !is SLClassInstanceObj && fr.peek(0) !is SLClassObj && fr.peek(0) !is SLString) {
+						if (fr.peek(0) !is SLClassInstanceObj && fr.peek(0) !is SLClassObj && fr.peek(0) !is SLString && fr.peek(0) !is SLArrayObj) {
 							runtimeError("Only classes or class instances have properties.")
 							return
 						}
@@ -317,7 +317,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>): Runnable {
 								runtimeError("Undefined property '$name'.")
 								return
 							}
-						} else {
+						} else if(fr.peek(0) is SLString) {
 							val instance = (fr.peek(0) as SLString).value
 							val name = readString(fr).value
 							if(globals.containsKey("string#${name}")){
@@ -326,6 +326,23 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>): Runnable {
 								fr.push(SLString(instance))
 							} else {
 								runtimeError("Undefined property '$name'.")
+								return
+							}
+						} else if(fr.peek(0) is SLArrayObj) {
+							val instance = (fr.peek(0) as SLArrayObj).value
+							val name = readString(fr).value
+							if(globals.containsKey("array")){
+								val clazz = globals["array"]!!.value as SLClass
+								if(!clazz.methods.containsKey(name)) {
+									runtimeError("Undefined property '$name'.")
+									return
+								}
+								fr.pop()
+								val closure = clazz.methods[name]!!
+								fr.push(closure)
+								fr.push(SLArrayObj(instance))
+							} else {
+								runtimeError("internal vm error: missing stdlib classes")
 								return
 							}
 						}
@@ -670,9 +687,8 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>): Runnable {
 		locals.addAll(Array(callee.value.function.localsCount - argCount) { i -> SLNil })
 		locals.addAll(Array(argCount) { i -> frameStack.peek().peek(i) })
 		locals.reverse()
+		if(callee.value.function.modifier == FunctionModifier.STATIC) locals.add(0,SLNil)
 		val frame = CallFrame(callee.value, locals)
-
-
 		frameStack.push(frame)
 		return true
 	}
@@ -694,7 +710,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>): Runnable {
 
 	fun throwException(index: Int, e: AnySLValue){
 		if(index < 0) {
-			throw UnhandledException("Unhandled exception in vm: $e")
+			throw UnhandledException(e.toString())
 		}
 		val fr = frameStack[index]
 		var closest = Integer.MAX_VALUE

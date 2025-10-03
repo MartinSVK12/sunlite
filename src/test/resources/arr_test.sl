@@ -4,7 +4,7 @@ fun<T> forEach(arr: Array<Generic<T>>,block: Function<Generic<T>, Nil>) {
     }
 }
 
-val arr: Array<Number> = arrayOf(1,2,3,4,5,6,7,8,9,0);
+val arr: Array<Number> = arrayOf(1,2,3,4,5,6,7,8,9,0) as Array<Number>;
 
 forEach(arr, fun(n: Number){
     print(n);

@@ -1,7 +1,3 @@
-var table: Table<String, Number> = table();
+var void: String|Number? = nil;
 
-table["hi"] = "69";
-
-print(table);
-
-print(table["hi"]);
+print(typeOf(void));

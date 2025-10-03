@@ -14,6 +14,7 @@ object DefaultNatives: Natives {
 		registerIO(vm)
 		registerString(vm)
 		registerMath(vm)
+		registerReflect(vm)
 	}
 
 	fun registerIO(vm: VM){
@@ -22,6 +23,16 @@ object DefaultNatives: Natives {
 				val value = args[0]
 				vm.sunlite.printInfo(if(value is SLString) value.value else value.toString())
 				return SLNil
+			}
+		})
+	}
+
+	fun registerReflect(vm: VM){
+		vm.defineNative(object : SLNativeFunction("reflect#getMethods", Type.Reference(PrimitiveType.ARRAY, "<array>",Type.STRING),1) {
+			override fun call(vm: VM, args: Array<AnySLValue>): AnySLValue {
+				val clazz = args[0] as SLClassObj
+				val array: Array<AnySLValue> = clazz.value.methods.keys.map { SLString(it) }.toTypedArray()
+				return SLArrayObj(SLArray(array.size,vm.sunlite).overwrite(array))
 			}
 		})
 	}
@@ -106,6 +117,17 @@ object DefaultNatives: Natives {
 			): AnySLValue {
 				return SLArrayObj(SLArray(vm.launchArgs.size, vm.sunlite).overwrite(vm.launchArgs.map { SLString(it) }.toTypedArray()))
 			}
+		})
+
+		vm.defineNative(object : SLNativeFunction("cls",Type.CLASS,1) {
+			override fun call(
+				vm: VM,
+				args: Array<AnySLValue>
+			): AnySLValue {
+				val obj = args[0] as SLClassInstanceObj
+				return SLClassObj(obj.value.clazz)
+			}
+
 		})
 	}
 
