@@ -7,6 +7,7 @@ import sunsetsatellite.vm.sunlite.SLClassInstance
 import sunsetsatellite.vm.sunlite.SLClosure
 import sunsetsatellite.vm.sunlite.SLFunction
 import sunsetsatellite.vm.sunlite.SLNativeFunction
+import sunsetsatellite.vm.sunlite.SLTable
 import sunsetsatellite.vm.sunlite.SLType
 import sunsetsatellite.vm.sunlite.SLUpvalue
 import kotlin.math.sin
@@ -145,7 +146,7 @@ abstract class Type {
         }
     }
 
-    class Parameter(val name: Token) : Type() {
+    class Parameter(val name: Token) : Singular(PrimitiveType.GENERIC, name.lexeme) {
         override fun getName(): String {
             return name.lexeme
         }
@@ -358,7 +359,7 @@ abstract class Type {
                 is String -> STRING
                 is Double -> NUMBER
                 is Boolean -> BOOLEAN
-                null -> NIL
+                is Unit -> NIL
                 is SLClosure -> {
                     val function = value.function
                     ofFunction(function.name, function.returnType, function.params)
@@ -375,6 +376,7 @@ abstract class Type {
                 is SLClass -> ofClass(value.name)
                 is SLClassInstance -> ofObject(value.clazz.name)
                 is SLArray -> ARRAY
+	            is SLTable -> TABLE
                 is SLType -> value.value
                 else -> UNKNOWN
             }

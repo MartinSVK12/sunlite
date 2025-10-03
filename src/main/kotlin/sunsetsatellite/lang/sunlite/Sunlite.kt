@@ -36,6 +36,7 @@ class Sunlite(val args: Array<String>) {
 	var natives: Natives = DefaultNatives
 
 	fun start(): VM? {
+		instance = this
 		debug = false
 		bytecodeDebug = false
 		stacktrace = false

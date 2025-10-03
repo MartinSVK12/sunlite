@@ -29,7 +29,7 @@ class TypeChecker(val sunlite: Sunlite, val vm: VM?): Expr.Visitor<Unit>, Stmt.V
         token: Token? = null
     ) {
         if(Sunlite.debug){
-            println("Checking if type '$expected' matches '$actual' at '${token?.lexeme ?: "<runtime>"}'")
+            sunlite.printInfo("Checking if type '$expected' matches '$actual' at '${token?.lexeme ?: "<runtime>"}'")
         }
         val valid = Type.contains(actual, expected, sunlite)
         if(!valid){
@@ -227,6 +227,7 @@ class TypeChecker(val sunlite: Sunlite, val vm: VM?): Expr.Visitor<Unit>, Stmt.V
     override fun visitClassStmt(stmt: Stmt.Class) {
         scopes.push(stmt)
         check(stmt.methods)
+	    check(stmt.fieldDefaults)
         scopes.pop()
     }
 
