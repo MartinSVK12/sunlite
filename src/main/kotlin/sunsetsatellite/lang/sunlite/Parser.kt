@@ -432,7 +432,7 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite, val importing: Boole
 
 	private fun throwStatement(): Stmt {
 		val value = expression()
-		consume(SEMICOLON, "Expected ';' after value.")
+		consume(SEMICOLON, "Expected ';' after expression.")
 		return Stmt.Throw(value)
 	}
 
@@ -569,7 +569,15 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite, val importing: Boole
 			unionTypes[token] = listOf(TypeToken(mapOf(token to listOf(TypeToken(mapOf(token to listOf()),typeParameters))),typeParameters))
 		}
 
-		unionTypes[mainToken] = listOf(TypeToken(mapOf(mainToken to listOf(TypeToken(mapOf(mainToken to listOf()),typeParameters))),typeParameters))
+		unionTypes[mainToken] = listOf(
+			TypeToken(
+				mapOf(
+					mainToken to listOf(
+						TypeToken(
+							mapOf(mainToken to listOf()
+						),typeParameters)))
+				,typeParameters)
+		)
 
 		types.add(TypeToken(unionTypes, typeParameters))
 
@@ -617,64 +625,82 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite, val importing: Boole
 				val equals = previous()
 				val value = assignment()
 
-				if (expr is Variable) {
-					if(expr.constant){
-						throw error(equals, "Cannot reassign constant '${expr.name.lexeme}'.")
+				when (expr) {
+					is Variable -> {
+						if (expr.constant) {
+							throw error(equals, "Cannot reassign constant '${expr.name.lexeme}'.")
+						}
+						val name = expr.name
+						return Assign(name, value, EQUAL, expr.getExprType())
 					}
-					val name = expr.name
-					return Assign(name, value, EQUAL, expr.getExprType())
-				} else if (expr is Get) {
-					if(expr.constant){
-						throw error(equals, "Cannot reassign constant '${expr.name.lexeme}'.")
-					}
-					return Set(expr.obj, expr.name, value, EQUAL, expr.getExprType())
-				} else if(expr is ArrayGet) {
-					return ArraySet(expr.obj, expr.what, value, previous(), EQUAL, expr.getExprType())
-				}
 
-				error(equals, "Invalid assignment target.")
+					is Get -> {
+						if (expr.constant) {
+							throw error(equals, "Cannot reassign constant '${expr.name.lexeme}'.")
+						}
+						return Set(expr.obj, expr.name, value, EQUAL, expr.getExprType())
+					}
+
+					is ArrayGet -> {
+						return ArraySet(expr.obj, expr.what, value, previous(), EQUAL, expr.getExprType())
+					}
+
+					else -> error(equals, "Invalid assignment target.")
+				}
 			}
 			match(PLUS_EQUAL) -> {
 				val equals = previous()
 				val value = assignment()
 
-				if (expr is Variable) {
-					if(expr.constant){
-						throw error(equals, "Cannot reassign constant '${expr.name.lexeme}'.")
+				when (expr) {
+					is Variable -> {
+						if (expr.constant) {
+							throw error(equals, "Cannot reassign constant '${expr.name.lexeme}'.")
+						}
+						val name = expr.name
+						return Assign(name, value, PLUS_EQUAL, expr.getExprType())
 					}
-					val name = expr.name
-					return Assign(name, value, PLUS_EQUAL, expr.getExprType())
-				} else if (expr is Get) {
-					if(expr.constant){
-						throw error(equals, "Cannot reassign constant '${expr.name.lexeme}'.")
-					}
-					return Set(expr.obj, expr.name, value, PLUS_EQUAL, expr.getExprType())
-				} else if(expr is ArrayGet) {
-					return ArraySet(expr.obj, expr.what, value, previous(), PLUS_EQUAL, expr.getExprType())
-				}
 
-				error(equals, "Invalid assignment target.")
+					is Get -> {
+						if (expr.constant) {
+							throw error(equals, "Cannot reassign constant '${expr.name.lexeme}'.")
+						}
+						return Set(expr.obj, expr.name, value, PLUS_EQUAL, expr.getExprType())
+					}
+
+					is ArrayGet -> {
+						return ArraySet(expr.obj, expr.what, value, previous(), PLUS_EQUAL, expr.getExprType())
+					}
+
+					else -> error(equals, "Invalid assignment target.")
+				}
 			}
 			match(MINUS_EQUAL) -> {
 				val equals = previous()
 				val value = assignment()
 
-				if (expr is Variable) {
-					if(expr.constant){
-						throw error(equals, "Cannot reassign constant '${expr.name.lexeme}'.")
+				when (expr) {
+					is Variable -> {
+						if (expr.constant) {
+							throw error(equals, "Cannot reassign constant '${expr.name.lexeme}'.")
+						}
+						val name = expr.name
+						return Assign(name, value, MINUS_EQUAL, expr.getExprType())
 					}
-					val name = expr.name
-					return Assign(name, value, MINUS_EQUAL, expr.getExprType())
-				} else if (expr is Get) {
-					if(expr.constant){
-						throw error(equals, "Cannot reassign constant '${expr.name.lexeme}'.")
-					}
-					return Set(expr.obj, expr.name, value, MINUS_EQUAL, expr.getExprType())
-				} else if(expr is ArrayGet) {
-					return ArraySet(expr.obj, expr.what, value, previous(), MINUS_EQUAL, expr.getExprType())
-				}
 
-				error(equals, "Invalid assignment target.")
+					is Get -> {
+						if (expr.constant) {
+							throw error(equals, "Cannot reassign constant '${expr.name.lexeme}'.")
+						}
+						return Set(expr.obj, expr.name, value, MINUS_EQUAL, expr.getExprType())
+					}
+
+					is ArrayGet -> {
+						return ArraySet(expr.obj, expr.what, value, previous(), MINUS_EQUAL, expr.getExprType())
+					}
+
+					else -> error(equals, "Invalid assignment target.")
+				}
 			}
 		}
 
@@ -812,7 +838,7 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite, val importing: Boole
 				consume(GREATER, "Expected '>' after type parameter declaration.")
 			}
 
-			consume(LEFT_PAREN, "Expected '(' after lambda declaration")
+			consume(LEFT_PAREN, "Expected '(' after lambda expression")
 
 			return finishLambda(token, name, typeParameters)
 			//}

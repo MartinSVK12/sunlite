@@ -2,6 +2,7 @@ package sunsetsatellite.lang.sunlite
 
 import sunsetsatellite.lang.sunlite.TokenType.*
 import sunsetsatellite.vm.sunlite.AnySLValue
+import sunsetsatellite.vm.sunlite.Disassembler
 import sunsetsatellite.vm.sunlite.MutableChunk
 import sunsetsatellite.vm.sunlite.Opcodes
 import sunsetsatellite.vm.sunlite.SLFuncObj
@@ -400,9 +401,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?): Expr
 	override fun visitArrayGetExpr(expr: Expr.ArrayGet) {
 		compile(expr.what)
 		compile(expr.obj)
-		//val name = addIdentifier((expr.obj as Expr.NamedExpr).getNameToken().lexeme, expr)
 		emitByte(Opcodes.ARRAY_GET, expr)
-		//emitShort(name, expr)
 	}
 
 	override fun visitArraySetExpr(expr: Expr.ArraySet) {

@@ -1,6 +1,6 @@
 package sunsetsatellite.vm.sunlite
 
-import sunsetsatellite.lang.sunlite.Disassembler
+import sunsetsatellite.vm.sunlite.Disassembler
 import sunsetsatellite.lang.sunlite.FunctionModifier
 import sunsetsatellite.lang.sunlite.PrimitiveType
 import sunsetsatellite.lang.sunlite.Sunlite
@@ -357,8 +357,9 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>): Runnable {
 							val index = fr.pop()
 							if (index !is SLNumber) {
 								runtimeError("Array index must be a number.")
+								return
 							}
-							fr.push(arr.get((index as SLNumber).value.toInt()))
+							fr.push(arr.get(index.value.toInt()))
 						} else {
 							val arr = (fr.pop() as SLTableObj).value
 							val index = fr.pop()

@@ -1,8 +1,4 @@
-package sunsetsatellite.lang.sunlite
-
-import sunsetsatellite.vm.sunlite.Chunk
-import sunsetsatellite.vm.sunlite.Opcodes
-import sunsetsatellite.vm.sunlite.SLFuncObj
+package sunsetsatellite.vm.sunlite
 
 object Disassembler {
 	fun disassembleChunk(chunk: Chunk): String {

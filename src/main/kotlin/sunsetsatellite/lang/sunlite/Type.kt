@@ -245,7 +245,7 @@ abstract class Type {
                                 ), sunlite,false)
                                 return ofTable(keyType, valueType)
                             }
-                            TokenType.CLASS -> {
+                            TokenType.TYPE_CLASS -> {
                                 if(topmostType.typeParameters.isEmpty()) {
                                     return ofClass("")
                                 }
@@ -298,7 +298,7 @@ abstract class Type {
                                     ), sunlite,false)
                                     return ofTable(keyType, valueType)
                                 }
-                                TokenType.CLASS -> {
+                                TokenType.TYPE_CLASS -> {
                                     if(singleType.typeParameters.isEmpty()) {
                                         return ofClass("")
                                     }

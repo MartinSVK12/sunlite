@@ -1,3 +1,9 @@
-var void: String|Number? = nil;
+fun fib(n: Number): Number {
+  if (n < 2) return n;
+  return fib(n - 1) + fib(n - 2);
+}
 
-print(typeOf(void));
+var before: Number = clock();
+print(fib(35));
+var after: Number = clock();
+print(after - before);
