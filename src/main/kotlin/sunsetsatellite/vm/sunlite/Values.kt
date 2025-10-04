@@ -29,7 +29,19 @@ abstract class SLValue<T>(val value: T) {
 	}
 }
 
-class SLBool(value: Boolean) : SLValue<Boolean>(value) {
+class SLBool : SLValue<Boolean> {
+
+	private constructor(value: Boolean) : super(value)
+
+	companion object {
+		val TRUE = SLBool(true)
+		val FALSE = SLBool(false)
+
+		fun of(value: Boolean): SLBool {
+			return if (value) TRUE else FALSE
+		}
+	}
+
 	override fun equals(other: Any?): Boolean {
 		if (other !is SLBool) return false
 		return other.value == value
@@ -40,7 +52,7 @@ class SLBool(value: Boolean) : SLValue<Boolean>(value) {
 	}
 
 	override fun copy(): SLValue<Boolean> {
-		return SLBool(value)
+		return of(value)
 	}
 }
 class SLNumber(value: Double) : SLValue<Double>(value) {

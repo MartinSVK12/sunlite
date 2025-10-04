@@ -176,7 +176,7 @@ object DefaultNatives: Natives {
 			override fun call(vm: VM, args: Array<AnySLValue>): AnySLValue {
 				val s = (args[0] as SLString).value
 				val s2 = (args[1] as SLString).value
-				return SLBool(s.contains(s2))
+				return SLBool.of(s.contains(s2))
 			}
 		})
 	}

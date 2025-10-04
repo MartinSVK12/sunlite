@@ -164,23 +164,23 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>): Runnable {
 						fr.push(left / right)
 					}
 					Opcodes.NIL -> fr.push(SLNil)
-					Opcodes.TRUE -> fr.push(SLBool(true))
-					Opcodes.FALSE -> fr.push(SLBool(false))
-					Opcodes.NOT -> fr.push(SLBool(isFalse(fr.pop())))
-					Opcodes.EQUAL -> fr.push(SLBool(fr.pop() == fr.pop()))
+					Opcodes.TRUE -> fr.push(SLBool.TRUE)
+					Opcodes.FALSE -> fr.push(SLBool.FALSE)
+					Opcodes.NOT -> fr.push(SLBool.of(isFalse(fr.pop())))
+					Opcodes.EQUAL -> fr.push(SLBool.of(fr.pop() == fr.pop()))
 					Opcodes.GREATER -> {
 						if(fr.peek() !is SLNumber || fr.peek(1) !is SLNumber){
 							runtimeError("Operands must be a number.")
 							return
 						}
-						fr.push(SLBool(fr.pop() as SLNumber > fr.pop() as SLNumber))
+						fr.push(SLBool.of(fr.pop() as SLNumber > fr.pop() as SLNumber))
 					}
 					Opcodes.LESS -> {
 						if(fr.peek() !is SLNumber || fr.peek(1) !is SLNumber){
 							runtimeError("Operands must be a number.")
 							return
 						}
-						fr.push(SLBool((fr.pop() as SLNumber) < (fr.pop() as SLNumber)))
+						fr.push(SLBool.of((fr.pop() as SLNumber) < (fr.pop() as SLNumber)))
 					}
 					Opcodes.PRINT -> println(fr.pop())
 					Opcodes.POP -> fr.pop()
@@ -444,7 +444,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>): Runnable {
 						val type = readConstant(fr) as SLType
 						val checking = fr.pop()
 						val checkingType = Type.fromValue(checking.value, sunlite)
-						fr.push(SLBool(Type.contains(type.value, checkingType, sunlite)))
+						fr.push(SLBool.of(Type.contains(type.value, checkingType, sunlite)))
 					}
 				}
 			} else {
