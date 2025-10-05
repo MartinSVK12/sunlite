@@ -121,7 +121,7 @@ public abstract record Type
     {
         public override string Name()
         {
-            return string.Join(" | ", Types.Select(t => t.Name()));
+            return string.Join(" | ", Types.Select(t => t.ToString()));
         }
 
         public override string ToString()
@@ -160,7 +160,7 @@ public abstract record Type
         {
             if (type is Union u)
             {
-                return u.Types.Contains(Any);
+                return u.Types.Contains(type) || inType == Any;
             }
 
             return inType.Equals(type) || inType == Any;

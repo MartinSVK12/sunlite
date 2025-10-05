@@ -7,7 +7,7 @@ public record CallFrame(SLClosure Closure, List<AnySLValue> Locals)
 
     public AnySLValue Pop()
     {
-        var value = Stack.Last();
+        var value = Stack[^1];
         Stack.RemoveAt(Stack.Count - 1);
         return value;
     }
@@ -19,12 +19,12 @@ public record CallFrame(SLClosure Closure, List<AnySLValue> Locals)
 
     public AnySLValue Peek()
     {
-        return Stack.ElementAt(Stack.Count - 1);
+        return Stack[^1];
     }
 
     public AnySLValue Peek(int offset)
     {
-        return Stack.ElementAt(Stack.Count - offset - 1);
+        return Stack[Stack.Count - offset - 1];
     }
 
     public override string ToString()

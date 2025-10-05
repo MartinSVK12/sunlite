@@ -2,6 +2,7 @@
 using System.Linq.Expressions;
 using System.Runtime.InteropServices.ComTypes;
 using System.Runtime.InteropServices.JavaScript;
+using System.Text;
 using SunliteSharp.Core.AST;
 using SunliteSharp.Core.Enum;
 using SunliteSharp.Core.Modifier;
@@ -10,7 +11,7 @@ using static SunliteSharp.Core.Enum.TokenType;
 
 namespace SunliteSharp.Core.Compiler;
 
-public class Parser(List<Token> tokens, Sunlite sl, bool importing = false, int importingDepth = 0)
+public class Parser(List<Token> tokens, Sunlite sl, bool allowImporting = false, bool importing = false, int importingDepth = 0)
 {
     private int Current = 0;
     private string CurrentFile = "<unknown>";
@@ -331,11 +332,103 @@ public class Parser(List<Token> tokens, Sunlite sl, bool importing = false, int 
     {
         var keyword = Previous();
         var what = Consume(TokenType.String, "Expected import location string.");
+        string importFile = (what.Literal as string)!;
         Consume(Semicolon, "Expected ';' after import statement.");
+
+        if (sl.Collector is null || !allowImporting)
+        {
+            return null;
+        }
+
+        string? data = null;
+        List<string> invalidPaths = [];
+        string fullPath = "";
         
-        //todo: importing logic
+        foreach (var path in sl.ScriptPaths)
+        {
+            try
+            {
+                data = sl.ReadFunction(path + importFile);
+                fullPath = path + importFile;
+            }
+            catch (IOException)
+            {
+                invalidPaths.Add(path);
+            }
+        }
+
+        if (data is null || fullPath == "")
+        {
+            var sb =
+                new StringBuilder(
+                    $"ImportError: Could not find '{what.Literal}' on the import path list.\nChecked paths:");
+            
+            foreach (var path in invalidPaths)
+            {
+                sb.Append($"\t{path}\n");
+            }
+            sl.Error(keyword, sb.ToString());
+            return null;
+        }
         
-        return null;
+        if (sl.Imports.ContainsKey(fullPath))
+        {
+            return null;
+        }
+        
+        var scanner = new Scanner(data, sl);
+        List<Token> tokens = scanner.ScanTokens(fullPath);
+        
+        if (sl.HadError)
+        {
+            sl.Error(keyword, $"ImportError: SyntaxError in file being imported.");
+            return null;
+        }
+
+        var parser = new Parser(tokens, sl, true, true, importingDepth + 1);
+        List<Stmt> statements = parser.Parse(fullPath);
+        
+        if (sl.HadError)
+        {
+            sl.Error(keyword, $"ImportError: SyntaxError in file being imported.");
+            return null;
+        }
+        
+        sl.Collector.Collect(statements, fullPath);
+        
+        if (sl.HadError)
+        {
+            sl.Error(keyword, $"ImportError: TypeError in file being imported.");
+            return null;
+        }
+        
+        parser = new Parser(tokens, sl, true, true, importingDepth + 1);
+        statements = parser.Parse(fullPath);
+        
+        if (sl.HadError)
+        {
+            sl.Error(keyword, $"ImportError: SyntaxError in file being imported.");
+            return null;
+        }
+
+        var checker = new TypeChecker(sl, sl.Vm);
+        checker.Check(statements, fullPath);
+        
+        if (sl.HadError)
+        {
+            sl.Error(keyword, $"ImportError: TypeError in file being imported.");
+            return null;
+        }
+
+        sl.Imports[fullPath] = (importingDepth, statements);
+
+        if (Sunlite.Debug)
+        {
+            sl.PrintInfo($"Imported '{fullPath}'.");
+            sl.PrintInfo();
+        }
+        
+        return new Stmt.Import(keyword, what);
     }
 
     private Stmt.Var VarDeclaration(FieldModifier modifier = FieldModifier.Normal)

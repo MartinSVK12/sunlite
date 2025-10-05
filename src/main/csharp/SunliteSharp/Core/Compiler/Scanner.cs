@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics.CodeAnalysis;
+using System.Text;
 using SunliteSharp.Core.Enum;
 using static SunliteSharp.Core.Enum.TokenType;
 
@@ -155,7 +156,7 @@ public class Scanner(string source, Sunlite sunlite)
         }
     }
 
-    private void AddToken(TokenType type, object? literal = null)
+    private void AddToken(TokenType type, object? literal = null) 
     {
         var text = source.Substring(Start, Current - Start);
         Tokens.Add(new Token(type, text, literal, Line, CurrentFile, new Token.Position(LineStart, LineCurrent)));
@@ -190,9 +191,71 @@ public class Scanner(string source, Sunlite sunlite)
 
     private void String()
     {
+        var sb = new StringBuilder();
         while (Peek() != '"' && !IsAtEnd())
         {
             if(Peek() == '\n') Line++;
+            
+            //escape sequences
+            if (Peek() == '\\')
+            {
+                Advance();
+                var ch = Peek();
+                char formatChar = ' ';
+                switch (ch)
+                {
+                    case 'n':
+                        formatChar = '\n';
+                        break;
+                    case '\\' :
+                        formatChar = '\\';
+                        break;
+                    case '"':
+                        formatChar = '"';
+                        break;
+                    default:
+                        sunlite.Error("Unknown escape sequence.", Line, CurrentFile);
+                        break;
+                }
+                Advance();
+                sb.Append(formatChar);
+            }
+
+            //interpolation
+            if (Peek() == '$' && PeekNext() == '{')
+            {
+                AddToken(TokenType.String, sb.ToString());
+                Advance();
+                Advance();
+                
+                Tokens.Add(new Token(Plus, "+", null, Line, CurrentFile, new Token.Position(LineStart, LineCurrent)));
+                
+                var iSb = new StringBuilder();
+                while (Peek() != '}' && !IsAtEnd())
+                {
+                    iSb.Append(Peek());
+                    Advance();
+                }
+                
+                var innerScanner = new Scanner(iSb.ToString(), sunlite);
+                List<Token> interpolatedTokens = innerScanner.ScanTokens(CurrentFile);
+                interpolatedTokens = interpolatedTokens[..^1];
+                Console.WriteLine(interpolatedTokens);
+                
+                Tokens.AddRange(interpolatedTokens);
+                
+                Tokens.Add(new Token(Plus, "+", null, Line, CurrentFile, new Token.Position(LineStart, LineCurrent)));
+
+                if (IsAtEnd())
+                {
+                    sunlite.Error("Expected '}' after string interpolated expression.", Line, CurrentFile);
+                    return;
+                }
+                Advance();
+                sb.Clear();
+            }
+
+            sb.Append(Peek());
             Advance();
         }
 
@@ -203,7 +266,7 @@ public class Scanner(string source, Sunlite sunlite)
 
         Advance();
         
-        AddToken(TokenType.String, source.Substring(Start + 1, Current - Start - 2));
+        AddToken(TokenType.String, sb.ToString());
     }
 
     private void Identifier()

@@ -15,21 +15,22 @@ public class Sunlite(string[] args)
 {
     public static Sunlite Instance = null!;
     
-    public static bool Debug = false;
-    public static bool LogToStdout = false;
-    public static bool Tick = false;
-    public static bool NoTypeChecks = false;
-    public static bool BytecodeDebug = false;
+    public static bool Debug;
+    public static bool LogToStdout;
+    public static bool Tick;
+    public static bool NoTypeChecks;
+    public static bool BytecodeDebug;
 
-    public VM? Vm = null; 
-    public TypeCollector? Collector = null;
+    public VM? Vm; 
+    public TypeCollector? Collector;
     public List<ConsoleOutputReceiver> OutputReceivers = [];
     public List<string> ScriptPaths = [];
+    public Dictionary<string,(int,List<Stmt>)> Imports = new();
     public Func<string, string> ReadFunction = File.ReadAllText;
     public INatives Natives = new DefaultNatives();
     
     public bool Uninitialized = true;
-    public bool HadError = false;
+    public bool HadError;
     public bool HadRuntimeError = false;
     
     private static void Main(string[] args)
@@ -52,6 +53,16 @@ public class Sunlite(string[] args)
             case 1:
                 return RunFile(args[0]);
             case 2:
+                if (args[0] == "debug")
+                {
+                    Console.WriteLine("Enter script name: ");
+                    var path = Console.ReadLine();
+                    Console.WriteLine();
+                    ScriptPaths.AddRange(args[1].Split(';'));
+                    Debug = true;
+                    LogToStdout = true;
+                    return RunFile(args[1].Split(';')[0]+path);
+                }
                 ScriptPaths.AddRange(args[1].Split(';'));
                 return RunFile(args[0]);
             case 3 or 4:
@@ -130,7 +141,7 @@ public class Sunlite(string[] args)
         // Stop if there was a type collection error.
         if (HadError) return null;
         
-        parser = new Parser(tokens, this);
+        parser = new Parser(tokens, this, true);
         statements = parser.Parse(path);
         
         // Stop if there was a syntax error.
@@ -169,12 +180,18 @@ public class Sunlite(string[] args)
 
         if (!NoTypeChecks)
         {
-            
+            var checker = new TypeChecker(this, Vm);
+            checker.Check(statements, path);
         }
         
         var compiler = new Compiler(this, Vm);
 
         List<Stmt> allStatements = [];
+        foreach (var item in Imports.Values.OrderBy(v => v.Item1))
+        {
+            allStatements.AddRange(item.Item2);
+        }
+
         allStatements.AddRange(statements);
 
         var program = compiler.Compile(FunctionType.None, FunctionModifier.Normal, Type.Nil, [], [], allStatements, path);
@@ -240,14 +257,26 @@ public class Sunlite(string[] args)
     {
         ReportError(message, token.Type == TokenType.Eof ? " at end" : $" at '{token.Lexeme}'", token.Line, token.File);
     }
+    
+    public void Warn(Token token, string message)
+    {
+        ReportWarn(message, token.Type == TokenType.Eof ? " at end" : $" at '{token.Lexeme}'", token.Line, token.File);
+    }
 
     private void ReportError(string message, string where, int line, string file)
     {
         PrintErr($"[{file}, line {line}] Error{where}: {message}");
-        PrintErr(Environment.StackTrace);
+        //PrintErr(Environment.StackTrace);
         HadError = true;
     }
 
+    private void ReportWarn(string message, string where, int line, string file)
+    {
+        PrintWarn($"[{file}, line {line}] Warn{where}: {message}");
+        //PrintWarn(Environment.StackTrace);
+        HadError = true;
+    }
+    
     public void PrintErr(string message = "")
     {
         if(LogToStdout) Console.Error.WriteLine(message);
@@ -258,5 +287,11 @@ public class Sunlite(string[] args)
     {
         if(LogToStdout) Console.WriteLine(message);
         OutputReceivers.ForEach(obj => obj.Info(message));
+    }
+    
+    public void PrintWarn(string message = "")
+    {
+        if(LogToStdout) Console.Error.WriteLine(message);
+        OutputReceivers.ForEach(obj => obj.Warn(message));
     }
 }

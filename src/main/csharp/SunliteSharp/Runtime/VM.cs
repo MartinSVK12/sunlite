@@ -1,5 +1,8 @@
 ﻿using System.Text;
+using SunliteSharp.Core;
 using SunliteSharp.Core.AST;
+using SunliteSharp.Core.Compiler;
+using SunliteSharp.Core.Enum;
 using SunliteSharp.Core.Modifier;
 using SunliteSharp.Util;
 
@@ -12,8 +15,10 @@ public class VM
     
     public VM(Sunlite sl, string[] launchArgs)
     {
-        sunlite = sl;
-        sunlite.Natives.RegisterNatives(this);
+        Sl = sl;
+        LaunchArgs = launchArgs;
+        Sl.Natives.RegisterNatives(this);
+        Checker = new TypeChecker(Sl, this);
     }
     
     public const int MaxFrames = 255;
@@ -30,7 +35,9 @@ public class VM
     public Stack<CallFrame> FrameStack = [];
     public AnySLValue? CurrentException = null;
     public List<CallFrame> ExceptionStacktrace = [];
-    public readonly Sunlite sunlite;
+    public readonly Sunlite Sl;
+    public readonly string[] LaunchArgs;
+    public readonly TypeChecker Checker;
 
     public void DefineNative(SLNativeFunction function)
     {
@@ -57,7 +64,7 @@ public class VM
         {
             if (CurrentFrame is null)
             {
-                sunlite.PrintErr("VM is uninitialized!");
+                Sl.PrintErr("VM is uninitialized!");
                 return;
             }
             var fr = CurrentFrame;
@@ -94,7 +101,7 @@ public class VM
                     sb.Append('\n');
 
                     Disassembler.DisassembleInstruction(sb, fr.Closure.Function.Chunk, fr.Pc);
-                    sunlite.PrintInfo(sb.ToString());
+                    Sl.PrintInfo(sb.ToString());
                 }
 
                 var instruction = ReadByte(fr);
@@ -624,6 +631,7 @@ public class VM
 
                         if (fr.Peek(0) is SLArrayObj array)
                         {
+                            fr.Pop();
                             var arr = array.Value;
                             var number = fr.Pop();
                             if (number is not SLNumber index)
@@ -635,7 +643,7 @@ public class VM
                         }
                         else
                         {
-                            var table = (fr.Peek(0) as SLTableObj)!.Value;
+                            var table = (fr.Pop() as SLTableObj)!.Value;
                             var key = fr.Pop();
                             fr.Push(table[key]);
                         }
@@ -652,7 +660,7 @@ public class VM
                     {
                         var type = ReadConstant(fr) as SLType;
                         var checking = fr.Pop();
-                        var checkingType = Type.FromValue(checking.Get(), sunlite);
+                        var checkingType = Type.FromValue(checking.Get(), Sl);
                         fr.Push(new SLBool(Type.Contains(type.Value, checkingType)));
                         break;
                     }
@@ -903,13 +911,98 @@ public class VM
             return false;
         }
         
-        List<AnySLValue> locals = Enumerable.Repeat<AnySLValue>(SLNil.Nil, closure.Function.LocalsCount - argCount).ToList();
+        //LINQ destroys performance here
+        
+        /*List<AnySLValue> locals = Enumerable.Repeat<AnySLValue>(SLNil.Nil, closure.Function.LocalsCount - argCount).ToList();
         locals.AddRange(Enumerable.Range(0, argCount).Select(i => FrameStack.Peek().Peek(i)));
-        locals.Reverse();
+        locals.Reverse();*/
+        
+        var total = closure.Function.LocalsCount;
+        var locals = new List<AnySLValue>(total);
+        if (FrameStack.Count != 0)
+        {
+            var currentFrame = FrameStack.Peek();
+            for (var i = argCount - 1; i >= 0; i--)
+            {
+                locals.Add(currentFrame.Peek(i));
+            }
+        }
+        
+        for (var i = 0; i < total - argCount; i++)
+        {
+            locals.Add(SLNil.Nil);
+        }
+
         if(closure.Function.Modifier == FunctionModifier.Static) locals.Insert(0, SLNil.Nil);
         var frame = new CallFrame(closure, locals);
         FrameStack.Push(frame);
         return true;
+    }
+
+    public SLClosureObj? Load(string code)
+    {
+
+        if (Sl.Collector is null) return null;
+        
+        string path = "<loaded chunk>";
+
+        var scanner = new Scanner(code, Sl);
+        List<Token> tokens = scanner.ScanTokens(path);
+
+        if (Sl.HadError)
+        {
+            Sl.HadError = false;
+            return null;
+        }
+        
+        var parser = new Parser(tokens, Sl);
+        List<Stmt> statements = parser.Parse(path);
+        
+        if (Sl.HadError)
+        {
+            Sl.HadError = false;
+            return null;
+        }
+        
+        Sl.Collector.Collect(statements, path);
+        
+        if (Sl.HadError)
+        {
+            Sl.HadError = false;
+            return null;
+        }
+        
+        parser = new Parser(tokens, Sl);
+        statements = parser.Parse(path);
+        
+        if (Sl.HadError)
+        {
+            Sl.HadError = false;
+            return null;
+        }
+
+        var checker = new TypeChecker(Sl, this);
+        checker.Check(statements, path);
+        
+        if (Sl.HadError)
+        {
+            Sl.HadError = false;
+            return null;
+        }
+
+        var compiler = new Compiler(Sl, this);
+        
+        var program = compiler.Compile(FunctionType.None, FunctionModifier.Normal, Type.Nil, [], [], statements, path);
+        
+        // Stop if there was a compilation error.
+        if (Sl.HadError)
+        {
+            Sl.HadError = false;
+            return null;
+        }
+
+        return new SLClosureObj(new SLClosure(program, []));
+
     }
 
     private static bool IsFalse(AnySLValue value) => value is SLNil or SLBool { Value: false };
@@ -972,7 +1065,7 @@ public class VM
     public void PrintStackTrace(string e)
     {
         var fr = FrameStack.LastOrDefault();
-        sunlite.PrintErr(e);
+        Sl.PrintErr(e);
 
         var sb = new StringBuilder();
         foreach (var frame in FrameStack)
@@ -984,12 +1077,12 @@ public class VM
 
         sb.Append('\n');
         
-        sunlite.PrintErr(sb.ToString());
+        Sl.PrintErr(sb.ToString());
     }
 
     public void RuntimeError(string message)
     {
-        sunlite.HadRuntimeError = true;
+        Sl.HadRuntimeError = true;
         ThrowException(FrameStack.Count-1, new SLString(message));
     }
 }
