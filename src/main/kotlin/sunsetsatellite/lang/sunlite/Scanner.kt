@@ -173,8 +173,53 @@ class Scanner(private val source: String, val sunlite: Sunlite) {
 	}
 
 	private fun string() {
+		val sb = StringBuilder()
 		while (peek() != '"' && !isAtEnd()) {
 			if (peek() == '\n') line++
+
+			// Escape sequences
+			if(peek() == '\\'){
+				advance()
+				when(advance()){
+					'n' -> sb.append('\n')
+					'r' -> sb.append('\r')
+					't' -> sb.append('\t')
+					'\\' -> sb.append('\\')
+					'"' -> sb.append('\"')
+					else -> {
+						sunlite.error(line, "Invalid escape sequence.")
+						return
+					}
+				}
+			}
+
+			if(peek() == '$' && peekNext() == '{'){
+				addToken(STRING, sb.toString())
+				advance()
+				advance()
+
+				tokens.add(Token(PLUS, "+", null, line, currentFile, Token.Position(lineStart,lineCurrent)))
+
+				val isb = StringBuilder()
+				while(peek() != '}' && !isAtEnd()){
+					isb.append(advance())
+				}
+
+				val innerScanner = Scanner(isb.toString(), sunlite)
+				val interpolatedTokens = innerScanner.scanTokens(currentFile).dropLast(1)
+				tokens.addAll(interpolatedTokens)
+
+				tokens.add(Token(PLUS, "+", null, line, currentFile, Token.Position(lineStart,lineCurrent)))
+
+				if(isAtEnd()){
+					sunlite.error(line, "Expected '}' after string interpolated expression.")
+					return
+				}
+				advance()
+				sb.clear()
+			}
+
+			sb.append(peek())
 			advance()
 		}
 
@@ -187,8 +232,7 @@ class Scanner(private val source: String, val sunlite: Sunlite) {
 		advance()
 
 		// Trim the surrounding quotes.
-		val value = source.substring(start + 1, current - 1)
-		addToken(STRING, value)
+		addToken(STRING, sb.toString())
 	}
 
 	private fun number() {

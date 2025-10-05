@@ -14,7 +14,6 @@ import java.time.Clock.tick
 import java.util.*
 
 // todo: more runtime checks
-// todo: array set/get checks
 class VM(val sunlite: Sunlite, val launchArgs: Array<String>): Runnable {
 
 	var ignoreBreakpoints: Boolean = false
