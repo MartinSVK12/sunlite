@@ -800,7 +800,7 @@ public class Parser(List<Token> tokens, Sunlite sl, bool importing = false, int 
                             Error(Peek(), "Can't have more than 255 type parameters.");
                         }
 
-                        if (sl.Collector != null && expr is Expr.INamedExpr namedExpr)
+                        if (sl.Collector != null && expr is Expr.NamedExpr namedExpr)
                         {
                             var typeParams = sl.Collector.TypeHierarchy.TryGetValue(namedExpr.GetNameToken().Lexeme, out var tuple)
                                 ? tuple.Item3
@@ -821,7 +821,7 @@ public class Parser(List<Token> tokens, Sunlite sl, bool importing = false, int 
                 }
 
                 
-                if(expr is Expr.IGenericExpr genericExpr)
+                if(expr is Expr.GenericExpr genericExpr)
                 {
                     typeParameters.AddRange(genericExpr.GetTypeArguments());
                 }

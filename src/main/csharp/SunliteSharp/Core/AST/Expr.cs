@@ -8,12 +8,12 @@ public abstract record Expr : Element
     public abstract string GetFile();
     public abstract Type GetExprType();
     
-    public interface INamedExpr : Element
+    public interface NamedExpr : Element
     {
         Token GetNameToken();
     }
     
-    public interface IGenericExpr : Element
+    public interface GenericExpr : Element
     {
         List<Param> GetTypeArguments();
     }
@@ -49,7 +49,7 @@ public abstract record Expr : Element
             return Type.String;
         }
 
-        public override void Accept(IVisitor visitor)
+        public override void Accept(Visitor visitor)
         {
             visitor.VisitBinaryExpr(this);
         }
@@ -72,7 +72,7 @@ public abstract record Expr : Element
             return Expression.GetExprType();
         }
 
-        public override void Accept(IVisitor visitor)
+        public override void Accept(Visitor visitor)
         {
             visitor.VisitGroupingExpr(this);
         }
@@ -92,7 +92,7 @@ public abstract record Expr : Element
         {
             return Right.GetExprType();
         }
-        public override void Accept(IVisitor visitor)
+        public override void Accept(Visitor visitor)
         {
             visitor.VisitUnaryExpr(this);
         }
@@ -113,13 +113,13 @@ public abstract record Expr : Element
             return Type;
         }
 
-        public override void Accept(IVisitor visitor)
+        public override void Accept(Visitor visitor)
         {
             visitor.VisitLiteralExpr(this);
         }
     }
 
-    public record Variable(Token Name, Type Type, bool Constant) : Expr, INamedExpr
+    public record Variable(Token Name, Type Type, bool Constant) : Expr, NamedExpr
     {
         public override int GetLine()
         {
@@ -141,13 +141,13 @@ public abstract record Expr : Element
             return Type;
         }
 
-        public override void Accept(IVisitor visitor)
+        public override void Accept(Visitor visitor)
         {
             visitor.VisitVariableExpr(this);
         }
     }
     
-    public record Assign(Token Name, Expr Value, TokenType Operator, Type Type) : Expr, INamedExpr
+    public record Assign(Token Name, Expr Value, TokenType Operator, Type Type) : Expr, NamedExpr
     {
         public override int GetLine()
         {
@@ -169,7 +169,7 @@ public abstract record Expr : Element
             return Type;
         }
 
-        public override void Accept(IVisitor visitor)
+        public override void Accept(Visitor visitor)
         {
             visitor.VisitAssignExpr(this);
         }
@@ -192,13 +192,13 @@ public abstract record Expr : Element
             return Type.Boolean;
         }
 
-        public override void Accept(IVisitor visitor)
+        public override void Accept(Visitor visitor)
         {
             visitor.VisitLogicalExpr(this);
         }
     }
 
-    public record Call(Expr Callee, Token Paren, List<Expr> Arguments, List<Param> TypeArgs) : Expr, IGenericExpr
+    public record Call(Expr Callee, Token Paren, List<Expr> Arguments, List<Param> TypeArgs) : Expr, GenericExpr
     {
         public override int GetLine()
         {
@@ -224,13 +224,13 @@ public abstract record Expr : Element
             return Type.OfGenericObject(rawType.Name(), TypeArgs);
         }
 
-        public override void Accept(IVisitor visitor)
+        public override void Accept(Visitor visitor)
         {
             visitor.VisitCallExpr(this);
         }
     }
 
-    public record Lambda(Stmt.Function Function) : Expr, INamedExpr
+    public record Lambda(Stmt.Function Function) : Expr, NamedExpr
     {
         public override int GetLine()
         {
@@ -252,13 +252,13 @@ public abstract record Expr : Element
             return Type.OfFunction(Function.Name.Lexeme, Function.ReturnType, Function.Params);
         }
 
-        public override void Accept(IVisitor visitor)
+        public override void Accept(Visitor visitor)
         {
             visitor.VisitLambdaExpr(this);
         }
     }
 
-    public record Get : Expr, INamedExpr, IGenericExpr
+    public record Get : Expr, NamedExpr, GenericExpr
     {
 
         public Get(Expr obj, Token name, Type type, bool constant, List<Param> typeParams)
@@ -306,7 +306,7 @@ public abstract record Expr : Element
             return Type;
         }
 
-        public override void Accept(IVisitor visitor)
+        public override void Accept(Visitor visitor)
         {
             visitor.VisitGetExpr(this);
         }
@@ -333,13 +333,13 @@ public abstract record Expr : Element
             return Type.Unknown;
         }
 
-        public override void Accept(IVisitor visitor)
+        public override void Accept(Visitor visitor)
         {
             visitor.VisitArrayGetExpr(this);
         }
     }
     
-    public record Set(Expr Obj, Token Name, Expr Value, TokenType Operator, Type Type) : Expr, INamedExpr
+    public record Set(Expr Obj, Token Name, Expr Value, TokenType Operator, Type Type) : Expr, NamedExpr
     {
         public override int GetLine()
         {
@@ -361,7 +361,7 @@ public abstract record Expr : Element
             return Type;
         }
 
-        public override void Accept(IVisitor visitor)
+        public override void Accept(Visitor visitor)
         {
             visitor.VisitSetExpr(this);
         }
@@ -384,7 +384,7 @@ public abstract record Expr : Element
             return Type;
         }
 
-        public override void Accept(IVisitor visitor)
+        public override void Accept(Visitor visitor)
         {
             visitor.VisitArraySetExpr(this);
         }
@@ -407,13 +407,13 @@ public abstract record Expr : Element
             return Type;
         }
 
-        public override void Accept(IVisitor visitor)
+        public override void Accept(Visitor visitor)
         {
             visitor.VisitThisExpr(this);
         }
     }
 
-    public record Super(Token Keyword, Token Method, Type Type) : Expr, INamedExpr
+    public record Super(Token Keyword, Token Method, Type Type) : Expr, NamedExpr
     {
         public override int GetLine()
         {
@@ -435,7 +435,7 @@ public abstract record Expr : Element
             return Type;
         }
 
-        public override void Accept(IVisitor visitor)
+        public override void Accept(Visitor visitor)
         {
             visitor.VisitSuperExpr(this);
         }
@@ -458,7 +458,7 @@ public abstract record Expr : Element
             return Type.Boolean;
         }
 
-        public override void Accept(IVisitor visitor)
+        public override void Accept(Visitor visitor)
         {
             visitor.VisitCheckExpr(this);
         }
@@ -481,13 +481,13 @@ public abstract record Expr : Element
             return Right;
         }
 
-        public override void Accept(IVisitor visitor)
+        public override void Accept(Visitor visitor)
         {
             visitor.VisitCastExpr(this);
         }
     }
     
-    public interface IVisitor
+    public interface Visitor
     {
         void VisitBinaryExpr(Binary expr);
         void VisitGroupingExpr(Grouping grouping);
@@ -508,6 +508,6 @@ public abstract record Expr : Element
         void VisitCastExpr(Cast expr);
     }
     
-    public abstract void Accept(IVisitor visitor);
+    public abstract void Accept(Visitor visitor);
     
 }

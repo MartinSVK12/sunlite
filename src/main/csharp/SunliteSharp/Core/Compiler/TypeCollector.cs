@@ -4,7 +4,7 @@ using SunliteSharp.Runtime;
 
 namespace SunliteSharp.Core.Compiler;
 
-public class TypeCollector : Stmt.IVisitor, Expr.IVisitor
+public class TypeCollector : Stmt.Visitor, Expr.Visitor
 {
     
     private readonly Sunlite Sl;

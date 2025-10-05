@@ -8,7 +8,7 @@ public abstract record Stmt : Element
     public abstract int GetLine();
     public abstract string GetFile();
     
-    public interface INamedStmt : Element
+    public interface NamedStmt : Element
     {
         Token GetNameToken();
     }
@@ -25,13 +25,13 @@ public abstract record Stmt : Element
             return Expr.GetFile();
         }
 
-        public override void Accept(IVisitor visitor)
+        public override void Accept(Visitor visitor)
         {
             visitor.VisitExprStmt(this);
         }
     }
     
-    public record Function(Token Name, FunctionType Type, List<Param> Params, List<Stmt> Body, FunctionModifier Modifier, Type ReturnType, List<Param> TypeParams) : Stmt, INamedStmt
+    public record Function(Token Name, FunctionType Type, List<Param> Params, List<Stmt> Body, FunctionModifier Modifier, Type ReturnType, List<Param> TypeParams) : Stmt, NamedStmt
     {
         public override int GetLine()
         {
@@ -48,13 +48,13 @@ public abstract record Stmt : Element
             return Name;
         }
 
-        public override void Accept(IVisitor visitor)
+        public override void Accept(Visitor visitor)
         {
             visitor.VisitFunctionStmt(this);
         }
     }
 
-    public record Var(Token Name, Type Type, Expr? Initializer, FieldModifier Modifier) : Stmt, INamedStmt
+    public record Var(Token Name, Type Type, Expr? Initializer, FieldModifier Modifier) : Stmt, NamedStmt
     {
         public override int GetLine()
         {
@@ -71,13 +71,13 @@ public abstract record Stmt : Element
             return Name;
         }
 
-        public override void Accept(IVisitor visitor)
+        public override void Accept(Visitor visitor)
         {
             visitor.VisitVarStmt(this);
         }
     }
     
-    public record Block(List<Stmt> Statements, int LineNumber, string CurrentFile) : Stmt, INamedStmt
+    public record Block(List<Stmt> Statements, int LineNumber, string CurrentFile) : Stmt, NamedStmt
     {
         public override int GetLine()
         {
@@ -94,7 +94,7 @@ public abstract record Stmt : Element
             return Token.Identifier("<block>", GetFile());
         }
 
-        public override void Accept(IVisitor visitor)
+        public override void Accept(Visitor visitor)
         {
             visitor.VisitBlockStmt(this);
         }
@@ -112,7 +112,7 @@ public abstract record Stmt : Element
             return Condition.GetFile();
         }
 
-        public override void Accept(IVisitor visitor)
+        public override void Accept(Visitor visitor)
         {
             visitor.VisitIfStmt(this);
         }
@@ -130,7 +130,7 @@ public abstract record Stmt : Element
             return Condition.GetFile();
         }
 
-        public override void Accept(IVisitor visitor)
+        public override void Accept(Visitor visitor)
         {
             visitor.VisitWhileStmt(this);
         }
@@ -148,7 +148,7 @@ public abstract record Stmt : Element
             return Keyword.File;
         }
 
-        public override void Accept(IVisitor visitor)
+        public override void Accept(Visitor visitor)
         {
             visitor.VisitBreakStmt(this);
         }
@@ -166,7 +166,7 @@ public abstract record Stmt : Element
             return Keyword.File;
         }
 
-        public override void Accept(IVisitor visitor)
+        public override void Accept(Visitor visitor)
         {
             visitor.VisitContinueStmt(this);
         }
@@ -184,7 +184,7 @@ public abstract record Stmt : Element
             return Keyword.File;
         }
 
-        public override void Accept(IVisitor visitor)
+        public override void Accept(Visitor visitor)
         {
             visitor.VisitReturnStmt(this);
         }
@@ -202,7 +202,7 @@ public abstract record Stmt : Element
             return Keyword.File;
         }
 
-        public override void Accept(IVisitor visitor)
+        public override void Accept(Visitor visitor)
         {
             visitor.VisitImportStmt(this);
         }
@@ -215,7 +215,7 @@ public abstract record Stmt : Element
         Expr.Variable? Superclass,
         List<Expr.Variable> Superinterfaces,
         ClassModifier Modifier,
-        List<Param> TypeParams) : Stmt, INamedStmt
+        List<Param> TypeParams) : Stmt, NamedStmt
     {
         public override int GetLine()
         {
@@ -232,13 +232,13 @@ public abstract record Stmt : Element
             return Name;
         }
 
-        public override void Accept(IVisitor visitor)
+        public override void Accept(Visitor visitor)
         {
             visitor.VisitClassStmt(this);
         }
     }
     
-    public record Interface(Token Name, List<Function> Methods, List<Expr.Variable> Superinterfaces, List<Param> TypeParameters) : Stmt, INamedStmt
+    public record Interface(Token Name, List<Function> Methods, List<Expr.Variable> Superinterfaces, List<Param> TypeParameters) : Stmt, NamedStmt
     {
         public override int GetLine()
         {
@@ -255,7 +255,7 @@ public abstract record Stmt : Element
             return Name;
         }
 
-        public override void Accept(IVisitor visitor)
+        public override void Accept(Visitor visitor)
         {
             visitor.VisitInterfaceStmt(this);
         }
@@ -273,7 +273,7 @@ public abstract record Stmt : Element
             return TryToken.File;
         }
 
-        public override void Accept(IVisitor visitor)
+        public override void Accept(Visitor visitor)
         {
             visitor.VisitTryCatchStmt(this);
         }
@@ -291,13 +291,13 @@ public abstract record Stmt : Element
             return Expr.GetFile();
         }
 
-        public override void Accept(IVisitor visitor)
+        public override void Accept(Visitor visitor)
         {
             visitor.VisitThrowStmt(this);
         }
     }
     
-    public interface IVisitor
+    public interface Visitor
     {
         void VisitExprStmt(Expression stmt);
         void VisitVarStmt(Var stmt);
@@ -315,5 +315,5 @@ public abstract record Stmt : Element
         void VisitThrowStmt(Throw stmt);
     }
     
-    public abstract void Accept(IVisitor visitor);
+    public abstract void Accept(Visitor visitor);
 }

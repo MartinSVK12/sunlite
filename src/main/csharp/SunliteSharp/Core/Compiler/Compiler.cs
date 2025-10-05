@@ -6,7 +6,7 @@ using SunliteSharp.Util;
 
 namespace SunliteSharp.Core.Compiler;
 
-public class Compiler(Sunlite sl, VM vm, Compiler? enclosing = null): Expr.IVisitor, Stmt.IVisitor
+public class Compiler(Sunlite sl, VM vm, Compiler? enclosing = null): Expr.Visitor, Stmt.Visitor
 {
     public record Local(Token Name, int depth, bool isCaptured = false)
     {
@@ -224,7 +224,7 @@ public class Compiler(Sunlite sl, VM vm, Compiler? enclosing = null): Expr.IVisi
         Chunk.Code[offset + 1] = (byte)(jump & 0xFF);
     }
 
-    private short ResolveLocal(Expr.INamedExpr expr)
+    private short ResolveLocal(Expr.NamedExpr expr)
     {
         for (var i = 0; i < Locals.Count; i++)
         {
@@ -239,7 +239,7 @@ public class Compiler(Sunlite sl, VM vm, Compiler? enclosing = null): Expr.IVisi
         return -1;
     }
 
-    private short ResolveUpvalue(Compiler? compiler, Expr.INamedExpr expr)
+    private short ResolveUpvalue(Compiler? compiler, Expr.NamedExpr expr)
     {
         if (compiler == null) return -1;
 
@@ -259,7 +259,7 @@ public class Compiler(Sunlite sl, VM vm, Compiler? enclosing = null): Expr.IVisi
         return -1;
     }
 
-    private short AddUpvalue(short local, bool isLocal, Expr.INamedExpr expr)
+    private short AddUpvalue(short local, bool isLocal, Expr.NamedExpr expr)
     {
         for (var i = 0; i < Upvalues.Count; i++)
         {
