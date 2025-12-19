@@ -31,12 +31,14 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>): Runnable {
 		globals.clear()
 		openUpvalues.clear()
 		sunlite.natives.registerNatives(this)
+		primitiveWrappers[SLString::class.java] = "string"
 	}
 
 	companion object {
 		const val MAX_FRAMES: Int = 255
 
 		val globals: MutableMap<String, AnySLValue> = HashMap()
+		val primitiveWrappers: MutableMap<Class<out AnySLValue>,String> = HashMap()
 		val openUpvalues: MutableList<SLUpvalue> = mutableListOf()
 
 		fun arrayOfNils(size: Int): Array<AnySLValue> {
@@ -286,12 +288,15 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>): Runnable {
 						}
 					}
 					Opcodes.GET_PROP -> {
-						if (fr.peek(0) !is SLClassInstanceObj && fr.peek(0) !is SLClassObj && fr.peek(0) !is SLString && fr.peek(0) !is SLArrayObj) {
-							runtimeError("Only classes or class instances have properties (got ${fr.peek(0)}).")
-							return
+						val arg = fr.peek(0)
+						if (arg !is SLClassInstanceObj && arg !is SLClassObj && arg !is SLArrayObj) {
+							if (!(primitiveWrappers.containsKey(arg.javaClass))) {
+								runtimeError("Only classes or class instances have properties (got ${arg}).")
+								return
+							}
 						}
-						if(fr.peek(0) is SLClassObj){
-							val clazz = (fr.peek(0) as SLClassObj).value
+						if(arg is SLClassObj){
+							val clazz = arg.value
 							val name = readString(fr).value
 							if (clazz.staticFields.containsKey(name)) {
 								fr.pop()
@@ -305,8 +310,8 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>): Runnable {
 								runtimeError("Undefined static property '$name'.")
 								return
 							}
-						} else if(fr.peek(0) is SLClassInstanceObj) {
-							val instance = (fr.peek(0) as SLClassInstanceObj).value
+						} else if(arg is SLClassInstanceObj) {
+							val instance = arg.value
 							val name = readString(fr).value
 							if (instance.fields.containsKey(name)) {
 								fr.pop()
@@ -317,19 +322,8 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>): Runnable {
 								runtimeError("Undefined property '$name'.")
 								return
 							}
-						} else if(fr.peek(0) is SLString) {
-							val instance = (fr.peek(0) as SLString).value
-							val name = readString(fr).value
-							if(globals.containsKey("string#${name}")){
-								fr.pop()
-								fr.push(globals["string#${name}"]!!)
-								fr.push(SLString(instance))
-							} else {
-								runtimeError("Undefined property '$name'.")
-								return
-							}
-						} else if(fr.peek(0) is SLArrayObj) {
-							val instance = (fr.peek(0) as SLArrayObj).value
+						} else if(arg is SLArrayObj) {
+							val instance = arg.value
 							val name = readString(fr).value
 							if(globals.containsKey("array")){
 								val clazz = globals["array"]!!.value as SLClass
@@ -343,6 +337,17 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>): Runnable {
 								fr.push(SLArrayObj(instance))
 							} else {
 								runtimeError("internal vm error: missing stdlib classes")
+								return
+							}
+						} else if(primitiveWrappers.containsKey(arg.javaClass)) {
+							val wrapperClassName = primitiveWrappers[arg.javaClass]!!
+							val name = readString(fr).value
+							if(globals.containsKey("${wrapperClassName}#${name}")){
+								fr.pop()
+								fr.push(globals["${wrapperClassName}#${name}"]!!)
+								fr.push(arg)
+							} else {
+								runtimeError("Undefined property '$name'.")
 								return
 							}
 						}
