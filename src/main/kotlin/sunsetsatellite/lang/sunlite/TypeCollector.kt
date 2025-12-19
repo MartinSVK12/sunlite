@@ -45,7 +45,7 @@ class TypeCollector(val sunlite: Sunlite): Stmt.Visitor<Unit>, Expr.Visitor<Unit
         }
 
         override fun isConstant(): Boolean {
-            return false
+            return true
         }
     }
 
@@ -72,6 +72,7 @@ class TypeCollector(val sunlite: Sunlite): Stmt.Visitor<Unit>, Expr.Visitor<Unit
         currentScope?.contents?.put(name, VariablePrototype(type, constant))
     }
     fun addFunction(name: Token, params: List<Param>, returnType: Type, typeParams: List<Param> = listOf()) {
+        if(typeScopes[0].contents.mapKeys { it.key.lexeme }.containsKey(name.lexeme)) sunlite.error(name, "Cannot overwrite global function '${name.lexeme}'.")
         if(currentScope?.contents?.mapKeys { it.key.lexeme }?.containsKey(name.lexeme) == true) sunlite.error(name, "Function '${name.lexeme}' already declared in this scope.")
         currentScope?.contents?.put(name, FunctionPrototype(name, params, returnType, typeParams))
     }
