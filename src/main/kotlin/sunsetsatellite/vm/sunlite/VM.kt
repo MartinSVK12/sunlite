@@ -1,17 +1,16 @@
 package sunsetsatellite.vm.sunlite
 
-import sunsetsatellite.vm.sunlite.Disassembler
+import sunsetsatellite.lang.sunlite.Compiler
 import sunsetsatellite.lang.sunlite.FunctionModifier
-import sunsetsatellite.lang.sunlite.PrimitiveType
+import sunsetsatellite.lang.sunlite.FunctionType
+import sunsetsatellite.lang.sunlite.Parser
+import sunsetsatellite.lang.sunlite.Scanner
 import sunsetsatellite.lang.sunlite.Sunlite
 import sunsetsatellite.lang.sunlite.Sunlite.Companion.stacktrace
 import sunsetsatellite.lang.sunlite.Type
 import sunsetsatellite.lang.sunlite.TypeChecker
-import sunsetsatellite.vm.sunlite.VM.Companion.MAX_FRAMES
-import sunsetsatellite.vm.sunlite.VM.Companion.globals
-import sunsetsatellite.vm.sunlite.VM.Companion.openUpvalues
-import java.time.Clock.tick
-import java.util.*
+import java.util.EmptyStackException
+import java.util.Stack
 
 // todo: more runtime checks
 class VM(val sunlite: Sunlite, val launchArgs: Array<String>): Runnable {
@@ -29,6 +28,8 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>): Runnable {
 	val typeChecker = TypeChecker(sunlite, this)
 
 	init {
+		globals.clear()
+		openUpvalues.clear()
 		sunlite.natives.registerNatives(this)
 	}
 
@@ -286,7 +287,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>): Runnable {
 					}
 					Opcodes.GET_PROP -> {
 						if (fr.peek(0) !is SLClassInstanceObj && fr.peek(0) !is SLClassObj && fr.peek(0) !is SLString && fr.peek(0) !is SLArrayObj) {
-							runtimeError("Only classes or class instances have properties.")
+							runtimeError("Only classes or class instances have properties (got ${fr.peek(0)}).")
 							return
 						}
 						if(fr.peek(0) is SLClassObj){
@@ -452,7 +453,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>): Runnable {
 		}
 		catch (e: UnhandledException){
 			if(Sunlite.tickMode) {
-				runtimeError("${e.message}")
+				printStacktrace("${e.message}")
 				return
 			} else {
 				throw e
@@ -460,7 +461,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>): Runnable {
 		}
 		catch (e: Exception){
 			if(Sunlite.tickMode){
-				runtimeError("internal vm error: $e")
+				runtimeError("Internal VM error: $e")
 				if(stacktrace){
 					e.printStackTrace()
 				}
@@ -527,6 +528,11 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>): Runnable {
 	private fun defineMethod(fr: CallFrame, name: String) {
 		val method = fr.peek(0) as SLClosureObj
 		val clazz = (fr.peek(1) as SLClassObj).value
+		if(method.value.function.modifier != FunctionModifier.ABSTRACT && clazz.isAbstract){
+			runtimeError("Attempted to define a non-abstract method '$method' on interface '$clazz'.")
+			fr.pop()
+			return
+		}
 		clazz.methods[name] = method
 		fr.pop()
 	}
@@ -691,6 +697,53 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>): Runnable {
 		val frame = CallFrame(callee.value, locals)
 		frameStack.push(frame)
 		return true
+	}
+
+	fun load(code: String): SLClosureObj? {
+		if(sunlite.collector == null) return null
+		val path = "<loaded chunk>"
+		val scanner = Scanner(code, sunlite)
+		val tokens = scanner.scanTokens(path)
+		if(sunlite.hadError){
+			sunlite.hadError = false
+			return null
+		}
+		var parser = Parser(tokens, sunlite)
+		var statements = parser.parse(path)
+		if(sunlite.hadError){
+			sunlite.hadError = false
+			return null
+		}
+
+		sunlite.collector!!.collect(statements, path)
+		if(sunlite.hadError){
+			sunlite.hadError = false
+			return null
+		}
+
+		parser = Parser(tokens, sunlite)
+		statements = parser.parse(path)
+		if(sunlite.hadError){
+			sunlite.hadError = false
+			return null
+		}
+
+		val checker = TypeChecker(sunlite, this)
+		checker.check(statements)
+		if(sunlite.hadError){
+			sunlite.hadError = false
+			return null
+		}
+
+		val compiler = Compiler(sunlite, this, null)
+		val program = compiler.compile(FunctionType.NONE, FunctionModifier.NORMAL, Type.NIL, listOf(), listOf(), statements, path)
+		if(sunlite.hadError){
+			sunlite.hadError = false
+			return null
+		}
+
+		val closure = SLClosure(program)
+		return SLClosureObj(closure)
 	}
 
 	private fun isFalse(value: AnySLValue): Boolean {

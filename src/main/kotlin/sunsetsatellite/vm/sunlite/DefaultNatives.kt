@@ -28,7 +28,7 @@ object DefaultNatives: Natives {
 	}
 
 	fun registerReflect(vm: VM){
-		vm.defineNative(object : SLNativeFunction("reflect#getMethods", Type.Reference(PrimitiveType.ARRAY, "<array>",Type.STRING),1) {
+		vm.defineNative(object : SLNativeFunction("reflect#getMethods", Type.ofArray(Type.STRING),1) {
 			override fun call(vm: VM, args: Array<AnySLValue>): AnySLValue {
 				val clazz = args[0] as SLClassObj
 				val array: Array<AnySLValue> = clazz.value.methods.keys.map { SLString(it) }.toTypedArray()
@@ -50,7 +50,7 @@ object DefaultNatives: Natives {
 			}
 		})
 
-		vm.defineNative(object : SLNativeFunction("array",Type.Reference(PrimitiveType.ARRAY, "<array>",Type.NULLABLE_ANY),1) {
+		vm.defineNative(object : SLNativeFunction("array",Type.ofArray(Type.NULLABLE_ANY),1) {
 			override fun call(
 				vm: VM,
 				args: Array<AnySLValue>
@@ -59,8 +59,7 @@ object DefaultNatives: Natives {
 			}
 		})
 
-		vm.defineNative(object : SLNativeFunction("table",Type.Reference(PrimitiveType.TABLE, "<table>",Type.NULLABLE_ANY,listOf(),listOf(
-			Param(Token.identifier("<key>"), Type.NULLABLE_ANY))),0) {
+		vm.defineNative(object : SLNativeFunction("table",Type.ofTable(Type.NULLABLE_ANY,Type.NULLABLE_ANY),0) {
 			override fun call(
 				vm: VM,
 				args: Array<AnySLValue>
@@ -69,7 +68,7 @@ object DefaultNatives: Natives {
 			}
 		})
 
-		vm.defineNative(object : SLNativeFunction("arrayOf",Type.Reference(PrimitiveType.ARRAY, "<array>",Type.NULLABLE_ANY),-1) {
+		vm.defineNative(object : SLNativeFunction("arrayOf",Type.ofArray(Type.NULLABLE_ANY),-1) {
 			override fun call(
 				vm: VM,
 				args: Array<AnySLValue>
@@ -127,7 +126,16 @@ object DefaultNatives: Natives {
 				val obj = args[0] as SLClassInstanceObj
 				return SLClassObj(obj.value.clazz)
 			}
+		})
 
+		vm.defineNative(object : SLNativeFunction("load",Type.ofFunction("",Type.NIL, listOf()),1){
+			override fun call(
+				vm: VM,
+				args: Array<AnySLValue>
+			): AnySLValue {
+				val code = args[0] as SLString
+				return vm.load(code.value) ?: SLNil
+			}
 		})
 	}
 

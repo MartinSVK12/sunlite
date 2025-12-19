@@ -94,6 +94,7 @@ class Sunlite(val args: Array<String>) {
 	}
 
 	fun parse(code: String? = null): ParsedData? {
+		instance = this
 		val filePath = args[0]
 		path.addAll(args[1].split(";"))
 
@@ -128,7 +129,7 @@ class Sunlite(val args: Array<String>) {
 		// Stop if there was a type collection error.
 		if (hadError) return null
 
-		parser = Parser(tokens,this)
+		parser = Parser(tokens,this, true)
 		statements = parser.parse(shortPath).toMutableList()
 
 		// Stop if there was a syntax error.
@@ -216,7 +217,7 @@ class Sunlite(val args: Array<String>) {
 		// Stop if there was a type collection error.
 		if (hadError) return null
 
-		parser = Parser(tokens,this)
+		parser = Parser(tokens,this, true)
 		statements = parser.parse(shortPath).toMutableList()
 
 		// Stop if there was a syntax error.
@@ -279,7 +280,7 @@ class Sunlite(val args: Array<String>) {
 				if(stacktrace){
 					e.printStackTrace()
 				}
-				vm.runtimeError("internal vm error: $e")
+				vm.runtimeError("Internal VM error: $e")
 			}
 			return null
 		}

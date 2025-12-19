@@ -61,6 +61,8 @@ class Scanner(private val source: String, val sunlite: Sunlite) {
 			keywords["try"] = TRY
 			keywords["catch"] = CATCH
 			keywords["throw"] = THROW
+			keywords["in"] = IN
+			keywords["foreach"] = FOREACH
 		}
 	}
 

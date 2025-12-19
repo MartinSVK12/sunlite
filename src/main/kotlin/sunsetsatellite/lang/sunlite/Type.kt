@@ -352,6 +352,8 @@ abstract class Type {
             }
         }
 
+
+	    //TODO: better runtime type get for arrays and tables
         fun fromValue(value: Any?, sunlite: Sunlite): Type {
             return when (value) {
                 is Type -> value
@@ -375,8 +377,8 @@ abstract class Type {
                 is SLFunction -> ofFunction(value.name, value.returnType, value.params)
                 is SLClass -> ofClass(value.name)
                 is SLClassInstance -> ofObject(value.clazz.name)
-                is SLArray -> ARRAY
-	            is SLTable -> TABLE
+                is SLArray -> ofArray(NULLABLE_ANY)
+	            is SLTable -> ofTable(NULLABLE_ANY, NULLABLE_ANY)
                 is SLType -> value.value
                 else -> UNKNOWN
             }
