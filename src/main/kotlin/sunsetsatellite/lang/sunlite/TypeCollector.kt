@@ -29,6 +29,7 @@ class TypeCollector(val sunlite: Sunlite): Stmt.Visitor<Unit>, Expr.Visitor<Unit
 
     inner class FunctionPrototype(
         val name: Token,
+        val modifier: FunctionModifier,
         val params: List<Param>,
         val returnType: Type,
         val typeParams: List<Param> = listOf()
@@ -63,7 +64,7 @@ class TypeCollector(val sunlite: Sunlite): Stmt.Visitor<Unit>, Expr.Visitor<Unit
     init {
         typeScopes.add(currentScope!!)
         VM.globals.filter { it.value is SLNativeFuncObj }.forEach {
-            addFunction(Token.identifier(it.key,-1,"<global>"),listOf(), (it.value as SLNativeFuncObj).value.returnType)
+            addFunction(Token.identifier(it.key,-1,"<global>"), FunctionModifier.NATIVE, listOf(), (it.value as SLNativeFuncObj).value.returnType)
         }
     }
 
@@ -71,10 +72,10 @@ class TypeCollector(val sunlite: Sunlite): Stmt.Visitor<Unit>, Expr.Visitor<Unit
         if(currentScope?.contents?.mapKeys { it.key.lexeme }?.containsKey(name.lexeme) == true) sunlite.error(name, "Variable '${name.lexeme}' already declared in this scope.")
         currentScope?.contents?.put(name, VariablePrototype(type, constant))
     }
-    fun addFunction(name: Token, params: List<Param>, returnType: Type, typeParams: List<Param> = listOf()) {
+    fun addFunction(name: Token, modifier: FunctionModifier, params: List<Param>, returnType: Type, typeParams: List<Param> = listOf()) {
         if(typeScopes[0].contents.mapKeys { it.key.lexeme }.containsKey(name.lexeme)) sunlite.error(name, "Cannot overwrite global function '${name.lexeme}'.")
         if(currentScope?.contents?.mapKeys { it.key.lexeme }?.containsKey(name.lexeme) == true) sunlite.error(name, "Function '${name.lexeme}' already declared in this scope.")
-        currentScope?.contents?.put(name, FunctionPrototype(name, params, returnType, typeParams))
+        currentScope?.contents?.put(name, FunctionPrototype(name, modifier, params, returnType, typeParams))
     }
 
     fun addScope(name: Token){
@@ -174,7 +175,7 @@ class TypeCollector(val sunlite: Sunlite): Stmt.Visitor<Unit>, Expr.Visitor<Unit
     override fun visitFunctionStmt(stmt: Stmt.Function) {
         val typeParams = stmt.typeParams.toMutableList()
         currentClass?.typeParameters?.forEach { typeParams.add(it) }
-        addFunction(stmt.name, stmt.params, stmt.returnType, typeParams)
+        addFunction(stmt.name, stmt.modifier, stmt.params, stmt.returnType, typeParams)
         addScope(stmt.name)
         stmt.params.forEach { addVariable(it.token, it.type) }
         stmt.body.forEach { it.accept(this) }

@@ -74,10 +74,14 @@ parameters     → IDENTIFIER ( ":" type )? ( "," IDENTIFIER ( ":" type )? )* ;
 arguments      → expression ( "," expression )* ;
 type           → ( "Any"
                  | "Nil"
-                 | "Number"
+                 | "Byte"
+                 | "Short"
+                 | "Int"
+                 | "Long"
+                 | "Float"
+                 | "Double"
                  | "Boolean"
                  | "String"
-                 | "Generic" ( typeParam )?
                  | "Function" ( typeParam )?
                  | "Class" ( typeParam )?
                  | "Array" ( typeParam )?

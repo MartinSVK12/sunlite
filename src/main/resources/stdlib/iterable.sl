@@ -1,33 +1,33 @@
 interface Iterator {
-    fun next(): Any?
-    fun current(): Any?
-    fun hasNext(): Boolean
+    func next(): Any?
+    func current(): Any?
+    func hasNext(): Boolean
 }
 
 interface Iterable {
-    fun getIterator(): Iterator
+    func getIterator(): Iterator
 }
 
 class ArrayIterator implements Iterator {
     
-    var _index: Number = 0;
+    var _index: Int = 0;
     var _array: Array<Any?>? = nil;
     
     init(arr: Array<Any?>?) {
         this._array = arr;
     }
 
-    fun current(): Any? {
+    func current(): Any? {
         return this._array[this._index] as Any?;
     }
     
-    fun next(): Any? {
+    func next(): Any? {
         val v = this._array[this._index] as Any?;
         this._index = this._index + 1;
         return v;
     }
     
-    fun hasNext(): Boolean {
+    func hasNext(): Boolean {
         if(this._index < sizeOf(this._array)){
             return true;
         }

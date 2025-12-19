@@ -43,4 +43,5 @@ enum class Opcodes {
 	ARRAY_GET,
 	THROW,
 	CHECK,
+	CAST
 }

@@ -1,5 +1,6 @@
 package sunsetsatellite.vm.sunlite
 
+import sunsetsatellite.lang.sunlite.PrimitiveType
 import sunsetsatellite.lang.sunlite.Sunlite
 import sunsetsatellite.lang.sunlite.Type
 
@@ -55,29 +56,19 @@ class SLBool : SLValue<Boolean> {
 		return of(value)
 	}
 }
-class SLNumber(value: Double) : SLValue<Double>(value) {
-	operator fun unaryMinus(): SLValue<*> {
-		return SLNumber(-value)
-	}
+abstract class SLNumber<T : Number>(value: T) : SLValue<T>(value) {
+	abstract operator fun unaryMinus(): SLValue<*>
 
-	operator fun plus(other: SLNumber): SLValue<*> {
-		return SLNumber(this.value + other.value)
-	}
+	abstract operator fun plus(other: SLNumber<*>): SLValue<*>
 
-	operator fun minus(other: SLNumber): SLValue<*> {
-		return SLNumber(this.value - other.value)
-	}
+	abstract operator fun minus(other: SLNumber<*>): SLValue<*>
 
-	operator fun times(other: SLNumber): SLValue<*> {
-		return SLNumber(this.value * other.value)
-	}
+	abstract operator fun times(other: SLNumber<*>): SLValue<*>
 
-	operator fun div(other: SLNumber): SLValue<*> {
-		return SLNumber(this.value / other.value)
-	}
+	abstract operator fun div(other: SLNumber<*>): SLValue<*>
 
 	override fun equals(other: Any?): Boolean {
-		if (other !is SLNumber) return false
+		if (other !is SLNumber<*>) return false
 		return other.value == value
 	}
 
@@ -85,12 +76,215 @@ class SLNumber(value: Double) : SLValue<Double>(value) {
 		return javaClass.hashCode()
 	}
 
-	operator fun compareTo(other: SLNumber): Int {
-		return other.value.compareTo(value)
+	abstract operator fun compareTo(other: SLNumber<*>): Int
+	fun cast(type: Type): SLNumber<*> {
+		if(type is Type.Singular){
+			val type = type.type;
+			when(type){
+				PrimitiveType.BYTE -> {
+					return SLByte(value.toByte())
+				}
+				PrimitiveType.SHORT -> {
+					return SLShort(value.toShort())
+				}
+				PrimitiveType.INT -> {
+					return SLInt(value.toInt())
+				}
+				PrimitiveType.LONG -> {
+					return SLLong(value.toLong())
+				}
+				PrimitiveType.FLOAT -> {
+					return SLFloat(value.toFloat())
+				}
+				PrimitiveType.DOUBLE -> {
+					return SLDouble(value.toDouble())
+				}
+				else -> {
+					return this
+				}
+			}
+		}
+		return this
+	}
+}
+
+class SLDouble(value: Double) : SLNumber<Double>(value) {
+	override fun unaryMinus(): SLValue<*> {
+		return SLDouble(-value)
+	}
+
+	override fun plus(other: SLNumber<*>): SLValue<*> {
+		return SLDouble(value + other.value.toDouble())
+	}
+
+	override fun minus(other: SLNumber<*>): SLValue<*> {
+		return SLDouble(value - other.value.toDouble())
+	}
+
+	override fun times(other: SLNumber<*>): SLValue<*> {
+		return SLDouble(value * other.value.toDouble())
+	}
+
+	override fun div(other: SLNumber<*>): SLValue<*> {
+		return SLDouble(value / other.value.toDouble())
+	}
+
+	override fun compareTo(other: SLNumber<*>): Int {
+		return value.compareTo(other.value.toDouble())
 	}
 
 	override fun copy(): SLValue<Double> {
-		return SLNumber(value)
+		return SLDouble(value)
+	}
+}
+
+class SLFloat(value: Float) : SLNumber<Float>(value) {
+	override fun unaryMinus(): SLValue<*> {
+		return SLFloat(-value)
+	}
+
+	override fun plus(other: SLNumber<*>): SLValue<*> {
+		return SLFloat(value + other.value.toFloat())
+	}
+
+	override fun minus(other: SLNumber<*>): SLValue<*> {
+		return SLFloat(value - other.value.toFloat())
+	}
+
+	override fun times(other: SLNumber<*>): SLValue<*> {
+		return SLFloat(value * other.value.toFloat())
+	}
+
+	override fun div(other: SLNumber<*>): SLValue<*> {
+		return SLFloat(value / other.value.toFloat())
+	}
+
+	override fun compareTo(other: SLNumber<*>): Int {
+		return value.compareTo(other.value.toFloat())
+	}
+
+	override fun copy(): SLValue<Float> {
+		return SLFloat(value)
+	}
+}
+
+class SLLong(value: Long) : SLNumber<Long>(value) {
+	override fun unaryMinus(): SLValue<*> {
+		return SLLong(-value)
+	}
+
+	override fun plus(other: SLNumber<*>): SLValue<*> {
+		return SLLong(value + other.value.toLong())
+	}
+
+	override fun minus(other: SLNumber<*>): SLValue<*> {
+		return SLLong(value - other.value.toLong())
+	}
+
+	override fun times(other: SLNumber<*>): SLValue<*> {
+		return SLLong(value * other.value.toLong())
+	}
+
+	override fun div(other: SLNumber<*>): SLValue<*> {
+		return SLLong(value / other.value.toLong())
+	}
+
+	override fun compareTo(other: SLNumber<*>): Int {
+		return value.compareTo(other.value.toLong())
+	}
+
+	override fun copy(): SLValue<Long> {
+		return SLLong(value)
+	}
+}
+
+class SLInt(value: Int) : SLNumber<Int>(value) {
+	override fun unaryMinus(): SLValue<*> {
+		return SLInt(-value)
+	}
+
+	override fun plus(other: SLNumber<*>): SLValue<*> {
+		return SLInt(value + other.value.toInt())
+	}
+
+	override fun minus(other: SLNumber<*>): SLValue<*> {
+		return SLInt(value - other.value.toInt())
+	}
+
+	override fun times(other: SLNumber<*>): SLValue<*> {
+		return SLInt(value * other.value.toInt())
+	}
+
+	override fun div(other: SLNumber<*>): SLValue<*> {
+		return SLInt(value / other.value.toInt())
+	}
+
+	override fun compareTo(other: SLNumber<*>): Int {
+		return value.compareTo(other.value.toInt())
+	}
+
+	override fun copy(): SLValue<Int> {
+		return SLInt(value)
+	}
+}
+
+class SLShort(value: Short) : SLNumber<Short>(value) {
+	override fun unaryMinus(): SLValue<*> {
+		return SLShort((-value).toShort())
+	}
+
+	override fun plus(other: SLNumber<*>): SLValue<*> {
+		return SLShort((value + other.value.toShort()).toShort())
+	}
+
+	override fun minus(other: SLNumber<*>): SLValue<*> {
+		return SLShort((value - other.value.toShort()).toShort())
+	}
+
+	override fun times(other: SLNumber<*>): SLValue<*> {
+		return SLShort((value * other.value.toShort()).toShort())
+	}
+
+	override fun div(other: SLNumber<*>): SLValue<*> {
+		return SLShort((value / other.value.toShort()).toShort())
+	}
+
+	override fun compareTo(other: SLNumber<*>): Int {
+		return value.compareTo(other.value.toShort())
+	}
+
+	override fun copy(): SLValue<Short> {
+		return SLShort(value)
+	}
+}
+
+class SLByte(value: Byte) : SLNumber<Byte>(value) {
+	override fun unaryMinus(): SLValue<*> {
+		return SLByte((-value).toByte())
+	}
+
+	override fun plus(other: SLNumber<*>): SLValue<*> {
+		return SLByte((value + other.value.toByte()).toByte())
+	}
+
+	override fun minus(other: SLNumber<*>): SLValue<*> {
+		return SLByte((value - other.value.toByte()).toByte())
+	}
+
+	override fun times(other: SLNumber<*>): SLValue<*> {
+		return SLByte((value * other.value.toByte()).toByte())
+	}
+
+	override fun div(other: SLNumber<*>): SLValue<*> {
+		return SLByte((value / other.value.toByte()).toByte())
+	}
+
+	override fun compareTo(other: SLNumber<*>): Int {
+		return value.compareTo(other.value.toByte())
+	}
+
+	override fun copy(): SLValue<Byte> {
+		return SLByte(value)
 	}
 }
 

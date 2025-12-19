@@ -219,6 +219,20 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite, val allowImporting: 
 		while (!checkToken(RIGHT_BRACE) && !isAtEnd()) {
 			val currentModifier = peek()
 			when {
+				match(OPERATOR) -> {
+					when {
+						match(FUN) -> {
+							methods.add(function(FunctionType.METHOD, currentModifier))
+						}
+					}
+				}
+				match(OVERRIDE) -> {
+					when {
+						match(FUN) -> {
+							methods.add(function(FunctionType.METHOD, null))
+						}
+					}
+				}
 				checkToken(STATIC) && checkNext(NATIVE) -> {
 					val modifier = peek()
 					val modifier2 = next()
@@ -512,8 +526,8 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite, val allowImporting: 
 		consume(IN, "Expected 'in' after variable declaration for 'foreach' loop.")
 		val collection = expression()
 		consume(RIGHT_PAREN, "Expected ')' after 'foreach' clauses.")
-		val initCall = Expr.Call(
-			Expr.Get(collection, Token.identifier("getIterator", collection), Type.ofObject("Iterator")),
+		val initCall = Call(
+			Get(collection, Token.identifier("getIterator", collection), Type.ofObject("Iterator")),
 			Token.identifier("<synthetic iterator init call>", collection),
 			listOf(),
 			listOf()
@@ -522,34 +536,34 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite, val allowImporting: 
 			Token.identifier("<iter>", collection),
 			Type.ofObject("Iterator"), initCall, FieldModifier.NORMAL
 		)
-		val iterVar = Expr.Variable(Token.identifier("<iter>", collection), Type.ofObject("Iterator"))
-		val nextCall = Expr.Call(
-			Expr.Get(iterVar, Token.identifier("hasNext", collection),Type.ofFunction("hasNext",Type.BOOLEAN, listOf())),
+		val iterVar = Variable(Token.identifier("<iter>", collection), Type.ofObject("Iterator"))
+		val nextCall = Call(
+			Get(iterVar, Token.identifier("hasNext", collection),Type.ofFunction("hasNext",Type.BOOLEAN, listOf())),
 			Token.identifier("<synthetic iterator hasNext call>", collection),
 			listOf(),
 			listOf()
 		)
-		val condition = Expr.Binary(
+		val condition = Binary(
 			nextCall,
 			Token(
-				TokenType.EQUAL_EQUAL,
+				EQUAL_EQUAL,
 				"==",
 				null,
 				collection.getLine(),
 				collection.getFile(),
 				Token.Position(-1, -1)
 			),
-			Expr.Literal(true, collection.getLine(), collection.getFile(), Type.BOOLEAN)
+			Literal(true, collection.getLine(), collection.getFile(), Type.BOOLEAN)
 		)
-		val increment = Expr.Call(
-			Expr.Get(iterVar, Token.identifier("next", collection), Type.ofFunction("next", /*todo*/Type.NULLABLE_ANY, listOf())),
+		val increment = Call(
+			Get(iterVar, Token.identifier("next", collection), Type.ofFunction("next", /*todo*/Type.NULLABLE_ANY, listOf())),
 			Token.identifier("<synthetic iterator next call>", collection),
 			listOf(),
 			listOf()
 		)
 		element = Stmt.Var(element.name, element.type,
-			Expr.Call(
-				Expr.Get(iterVar, Token.identifier("current",element.name),/*todo*/Type.ofFunction("current",Type.NULLABLE_ANY, listOf())),
+			Call(
+				Get(iterVar, Token.identifier("current",element.name),/*todo*/Type.ofFunction("current",Type.NULLABLE_ANY, listOf())),
 				Token.identifier("<synthetic iterator current call>", element.name),
 				listOf(),
 				listOf(),
@@ -595,7 +609,9 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite, val allowImporting: 
 
 	private fun getTypeTokens(insideUnion: Boolean = false): List<TypeToken> {
 		val mainToken = peek()
-		if (!match(TYPE_BOOLEAN, TYPE_STRING, TYPE_NUMBER, TYPE_FUNCTION, TYPE_CLASS, TYPE_ANY, TYPE_ARRAY, TYPE_TABLE, /*TYPE_GENERIC,*/ IDENTIFIER, TYPE_NIL)) {
+		if (!match(TYPE_BOOLEAN, TYPE_STRING, /*TYPE_NUMBER,*/
+				TYPE_BYTE, TYPE_SHORT, TYPE_INT, TYPE_LONG, TYPE_FLOAT, TYPE_DOUBLE,
+				TYPE_FUNCTION, TYPE_CLASS, TYPE_ANY, /*TYPE_GENERIC,*/ TYPE_ARRAY, TYPE_TABLE, IDENTIFIER, TYPE_NIL)) {
 			throw error(mainToken, "Expected type.")
 		}
 
@@ -611,7 +627,9 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite, val allowImporting: 
 					error(peek(), "Can't have more than 255 type parameters.")
 				}
 				val typeParamToken = peek()
-				if (!checkTokens(TYPE_BOOLEAN, TYPE_STRING, TYPE_NUMBER, TYPE_FUNCTION, TYPE_CLASS, TYPE_ANY, /*TYPE_GENERIC,*/ TYPE_ARRAY, TYPE_TABLE, IDENTIFIER, TYPE_NIL)) {
+				if (!checkTokens(TYPE_BOOLEAN, TYPE_STRING, /*TYPE_NUMBER,*/
+						TYPE_BYTE, TYPE_SHORT, TYPE_INT, TYPE_LONG, TYPE_FLOAT, TYPE_DOUBLE,
+						TYPE_FUNCTION, TYPE_CLASS, TYPE_ANY, /*TYPE_GENERIC,*/ TYPE_ARRAY, TYPE_TABLE, IDENTIFIER, TYPE_NIL)) {
 					throw error(typeParamToken, "Expected type for type parameter.")
 				}
 				typeParameters.addAll(getTypeTokens(false))
@@ -627,7 +645,9 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite, val allowImporting: 
 					error(peek(), "Can't have more than 255 types in a union.")
 				}
 				val unionMemberToken = peek()
-				if (!checkTokens(TYPE_BOOLEAN, TYPE_STRING, TYPE_NUMBER, TYPE_FUNCTION, TYPE_CLASS, TYPE_ANY, /*TYPE_GENERIC,*/ TYPE_ARRAY, TYPE_TABLE, IDENTIFIER, TYPE_NIL)) {
+				if (!checkTokens(TYPE_BOOLEAN, TYPE_STRING, /*TYPE_NUMBER,*/
+						TYPE_BYTE, TYPE_SHORT, TYPE_INT, TYPE_LONG, TYPE_FLOAT, TYPE_DOUBLE,
+						TYPE_FUNCTION, TYPE_CLASS, TYPE_ANY, /*TYPE_GENERIC,*/ TYPE_ARRAY, TYPE_TABLE, IDENTIFIER, TYPE_NIL)) {
 					throw error(unionMemberToken, "Expected type after '|'.")
 				}
 				val unionTypeTokens = getTypeTokens(true)
@@ -671,7 +691,7 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite, val allowImporting: 
 	}
 
 	private fun block(): List<Stmt> {
-		currentBlockDepth++;
+		currentBlockDepth++
 		val statements: MutableList<Stmt> = ArrayList()
 
 		while (!checkToken(RIGHT_BRACE) && !isAtEnd()) {
@@ -679,7 +699,7 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite, val allowImporting: 
 		}
 
 		consume(RIGHT_BRACE, "Expected '}' after block.")
-		currentBlockDepth--;
+		currentBlockDepth--
 		return statements
 	}
 
@@ -1029,11 +1049,16 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite, val allowImporting: 
 		if (match(TRUE)) return Literal(true,previous().line,previous().file, Type.BOOLEAN)
 		if (match(NIL)) return Literal(null,previous().line,previous().file, Type.NIL)
 
-		if (match(NUMBER, STRING)) {
-			if(previous().type == NUMBER){
-				return Literal(previous().literal,previous().line,previous().file, Type.NUMBER)
-			} else {
-				return Literal(previous().literal,previous().line,previous().file, Type.STRING)
+		if (match(BYTE, SHORT, INT, LONG, FLOAT, DOUBLE, STRING)) {
+			when(previous().type){
+				BYTE -> return Literal(previous().literal as Byte,previous().line,previous().file, Type.BYTE)
+				SHORT -> return Literal(previous().literal as Short,previous().line,previous().file, Type.SHORT)
+				INT -> return Literal(previous().literal as Int,previous().line,previous().file, Type.INT)
+				LONG -> return Literal(previous().literal as Long,previous().line,previous().file, Type.LONG)
+				FLOAT -> return Literal(previous().literal as Float,previous().line,previous().file, Type.FLOAT)
+				DOUBLE -> return Literal(previous().literal as Double,previous().line,previous().file, Type.DOUBLE)
+				STRING -> return Literal(previous().literal as String,previous().line,previous().file, Type.STRING)
+				else -> throw error(previous(), "Invalid literal.")
 			}
 		}
 

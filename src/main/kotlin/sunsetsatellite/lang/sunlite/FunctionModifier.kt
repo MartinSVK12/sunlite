@@ -6,7 +6,8 @@ enum class FunctionModifier {
     STATIC,
     ABSTRACT,
     NATIVE,
-    STATIC_NATIVE;
+    STATIC_NATIVE,
+    OPERATOR;
 
 
     companion object {
@@ -14,6 +15,7 @@ enum class FunctionModifier {
             return if (token?.type == TokenType.STATIC && token2 != null && token2.type == TokenType.NATIVE) STATIC_NATIVE
             else if (token?.type == TokenType.STATIC) STATIC
             else if (token?.type == TokenType.NATIVE) NATIVE
+            else if (token?.type == TokenType.OPERATOR) OPERATOR
             else NORMAL
         }
     }

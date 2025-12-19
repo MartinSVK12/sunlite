@@ -47,12 +47,18 @@ class Scanner(private val source: String, val sunlite: Sunlite) {
 			keywords["dynamic"] = DYNAMIC
 			keywords["Any"] = TYPE_ANY
 			keywords["String"] = TYPE_STRING
-			keywords["Number"] = TYPE_NUMBER
+			keywords["Byte"] = TYPE_BYTE
+			keywords["Short"] = TYPE_SHORT
+			keywords["Int"] = TYPE_INT
+			keywords["Long"] = TYPE_LONG
+			keywords["Float"] = TYPE_FLOAT
+			keywords["Double"] = TYPE_DOUBLE
+			//keywords["Number"] = TYPE_NUMBER
 			keywords["Boolean"] = TYPE_BOOLEAN
 			keywords["Function"] = TYPE_FUNCTION
 			keywords["Array"] = TYPE_ARRAY
 			keywords["Table"] = TYPE_TABLE
-			keywords["Generic"] = TYPE_GENERIC
+			//keywords["Generic"] = TYPE_GENERIC
 			keywords["Class"] = TYPE_CLASS
 			keywords["Nil"] = TYPE_NIL
 			keywords["as"] = AS
@@ -63,6 +69,8 @@ class Scanner(private val source: String, val sunlite: Sunlite) {
 			keywords["throw"] = THROW
 			keywords["in"] = IN
 			keywords["foreach"] = FOREACH
+			keywords["operator"] = OPERATOR
+			keywords["override"] = OVERRIDE
 		}
 	}
 
@@ -238,20 +246,71 @@ class Scanner(private val source: String, val sunlite: Sunlite) {
 	}
 
 	private fun number() {
+		var decimal: Boolean = false
 		while (peek() in '0'..'9') advance()
 
 		// Look for a fractional part.
 		if (peek() == '.' && peekNext() in '0'..'9') {
 			// Consume the "."
 			advance()
+			decimal = true
 
 			while (peek() in '0'..'9') advance()
 		}
 
-		addToken(
-			NUMBER,
-			source.substring(start, current).toDouble()
-		)
+		var numericType: TokenType = INT
+		var specifier: Boolean = false
+
+		when (peek()) {
+			'f', 'F' -> {
+				numericType = FLOAT
+				advance()
+				specifier = true
+			}
+			'l', 'L' -> {
+				numericType = LONG
+				advance()
+				specifier = true
+			}
+			'd', 'D' -> {
+				numericType = DOUBLE
+				advance()
+				specifier = true
+			}
+			's', 'S' -> {
+				numericType = SHORT
+				advance()
+				specifier = true
+			}
+			'b', 'B' -> {
+				numericType = BYTE
+				advance()
+				specifier = true
+			}
+		}
+
+		if (decimal && numericType == INT) numericType = DOUBLE
+
+		val numberEnd = if(specifier) current-1 else current
+
+		try {
+			when (numericType) {
+				FLOAT -> addToken(numericType, source.substring(start, numberEnd).toFloat())
+				DOUBLE -> addToken(numericType, source.substring(start, numberEnd).toDouble())
+				LONG -> addToken(numericType, source.substring(start, numberEnd).toLong())
+				INT -> addToken(numericType, source.substring(start, numberEnd).toInt())
+				SHORT -> addToken(numericType, source.substring(start, numberEnd).toShort())
+				BYTE -> addToken(numericType, source.substring(start, numberEnd).toByte())
+				else -> {}
+			}
+		} catch (e: NumberFormatException) {
+			if(e.message?.contains("Value out of range.") == true || ((numericType == INT || numericType == LONG) && e.message?.contains("For input string") == true)){
+				sunlite.error(line, "Number out of range for type '${numericType.name.lowercase()}'.", currentFile)
+			} else {
+				throw e
+			}
+		}
+
 	}
 
 	private fun identifier() {

@@ -451,6 +451,18 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>): Runnable {
 						val checkingType = Type.fromValue(checking.value, sunlite)
 						fr.push(SLBool.of(Type.contains(type.value, checkingType, sunlite)))
 					}
+
+					Opcodes.CAST -> {
+						val type = readConstant(fr) as SLType
+						val checking = fr.pop()
+						val checkingType = Type.fromValue(checking.value, sunlite)
+						if(checking is SLNumber<*>){
+							fr.push(checking.cast(type.value))
+						} else {
+							fr.push(checking)
+						}
+						//fr.push(SLBool.of(Type.contains(type.value, checkingType, sunlite)))
+					}
 				}
 			} else {
 				currentFrame = null

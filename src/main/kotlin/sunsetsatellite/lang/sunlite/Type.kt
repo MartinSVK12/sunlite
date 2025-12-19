@@ -32,6 +32,22 @@ abstract class Type {
                 return false
             }
 
+            if(type == PrimitiveType.FLOAT || type == PrimitiveType.DOUBLE){
+	            if(other.type != PrimitiveType.FLOAT && other.type != PrimitiveType.DOUBLE && numericOrder.containsKey(other.type)){
+                    return true
+                }
+            }
+
+            if(type == PrimitiveType.FLOAT && other.type == PrimitiveType.DOUBLE){
+                return false
+            } else if (type == PrimitiveType.DOUBLE && other.type == PrimitiveType.FLOAT){
+                return true
+            }
+
+            if(numericOrder.containsKey(type) && numericOrder.containsKey(other.type)) {
+                return numericOrder[other.type]!! <= numericOrder[type]!!
+            }
+
             if (type != other.type) return false
             if (ref != other.ref && ref != "") return false
 
@@ -174,6 +190,10 @@ abstract class Type {
     abstract fun getName(): String
 
     companion object {
+
+        private val numericOrder: MutableMap<PrimitiveType, Int> = mutableMapOf(
+            PrimitiveType.BYTE to 0, PrimitiveType.SHORT to 1, PrimitiveType.INT to 2, PrimitiveType.LONG to 3
+        )
 
         var currentInterpreter: Sunlite? = null
 
@@ -359,7 +379,12 @@ abstract class Type {
                 is Type -> value
                 is Param -> value.type
                 is String -> STRING
-                is Double -> NUMBER
+                is Byte -> BYTE
+                is Short -> SHORT
+                is Int -> INT
+                is Long -> LONG
+                is Float -> FLOAT
+                is Double -> DOUBLE //NUMBER
                 is Boolean -> BOOLEAN
                 is Unit -> NIL
                 is SLClosure -> {
@@ -393,7 +418,13 @@ abstract class Type {
         val ARRAY = Singular(PrimitiveType.ARRAY)
         val TABLE = Singular(PrimitiveType.TABLE)
         val NULLABLE_ANY = Union(listOf(ANY, NIL))
-        val NUMBER = Singular(PrimitiveType.NUMBER)
+        val BYTE = Singular(PrimitiveType.BYTE)
+        val SHORT = Singular(PrimitiveType.SHORT)
+        val INT = Singular(PrimitiveType.INT)
+        val LONG = Singular(PrimitiveType.LONG)
+        val FLOAT = Singular(PrimitiveType.FLOAT)
+        val DOUBLE = Singular(PrimitiveType.DOUBLE)
+        //val NUMBER = Singular(PrimitiveType.NUMBER)
         val STRING = Singular(PrimitiveType.STRING)
         val BOOLEAN = Singular(PrimitiveType.BOOLEAN)
     }

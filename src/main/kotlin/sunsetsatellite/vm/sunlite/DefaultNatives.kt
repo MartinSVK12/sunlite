@@ -35,12 +35,19 @@ object DefaultNatives: Natives {
 				return SLArrayObj(SLArray(array.size,vm.sunlite).overwrite(array))
 			}
 		})
+		vm.defineNative(object : SLNativeFunction("reflect#getFields", Type.ofArray(Type.STRING),1) {
+			override fun call(vm: VM, args: Array<AnySLValue>): AnySLValue {
+				val clazz = args[0] as SLClassObj
+				val array: Array<AnySLValue> = clazz.value.fieldDefaults.keys.map { SLString(it) }.toTypedArray()
+				return SLArrayObj(SLArray(array.size,vm.sunlite).overwrite(array))
+			}
+		})
 	}
 
 	fun registerCore(vm: VM){
-		vm.defineNative(object : SLNativeFunction("clock", Type.NUMBER,0) {
+		vm.defineNative(object : SLNativeFunction("clock", Type.DOUBLE,0) {
 			override fun call(vm: VM, args: Array<AnySLValue>): AnySLValue {
-				return SLNumber(System.currentTimeMillis().toDouble() / 1000)
+				return SLDouble(System.currentTimeMillis().toDouble() / 1000)
 			}
 		})
 
@@ -50,7 +57,7 @@ object DefaultNatives: Natives {
 			}
 		})
 
-		vm.defineNative(object : SLNativeFunction("array",Type.ofArray(Type.NULLABLE_ANY),1) {
+		vm.defineNative(object : SLNativeFunction("emptyArray",Type.ofArray(Type.NULLABLE_ANY),1) {
 			override fun call(
 				vm: VM,
 				args: Array<AnySLValue>
@@ -59,7 +66,7 @@ object DefaultNatives: Natives {
 			}
 		})
 
-		vm.defineNative(object : SLNativeFunction("table",Type.ofTable(Type.NULLABLE_ANY,Type.NULLABLE_ANY),0) {
+		vm.defineNative(object : SLNativeFunction("emptyTable",Type.ofTable(Type.NULLABLE_ANY,Type.NULLABLE_ANY),0) {
 			override fun call(
 				vm: VM,
 				args: Array<AnySLValue>
@@ -89,13 +96,13 @@ object DefaultNatives: Natives {
 			}
 		})
 
-		vm.defineNative(object : SLNativeFunction("sizeOf",Type.NUMBER,1) {
+		vm.defineNative(object : SLNativeFunction("sizeOf",Type.INT,1) {
 			override fun call(
 				vm: VM,
 				args: Array<AnySLValue>
 			): AnySLValue {
 				val array = args[0] as SLArrayObj
-				return SLNumber(array.value.size.toDouble())
+				return SLInt(array.value.size)
 			}
 		})
 
@@ -140,10 +147,10 @@ object DefaultNatives: Natives {
 	}
 
 	fun registerString(vm: VM){
-		vm.defineNative(object : SLNativeFunction("string#len",Type.NUMBER,1) {
+		vm.defineNative(object : SLNativeFunction("string#len",Type.INT,1) {
 			override fun call(vm: VM, args: Array<AnySLValue>): AnySLValue {
 				val s = (args[0] as SLString).value
-				return SLNumber(s.length.toDouble())
+				return SLInt(s.length)
 			}
 		})
 
@@ -168,7 +175,7 @@ object DefaultNatives: Natives {
 				val s = (args[0] as SLString).value
 				val n = (args[1] as SLNumber).value.toInt()
 				val separator = (args[2] as SLString).value
-				return SLString(Array(n) { it -> s}.joinToString(separator))
+				return SLString(Array(n) { s }.joinToString(separator))
 			}
 		})
 
@@ -190,176 +197,176 @@ object DefaultNatives: Natives {
 	}
 
 	fun registerMath(vm: VM){
-		vm.defineNative(object : SLNativeFunction("abs",Type.NUMBER,1) {
+		vm.defineNative(object : SLNativeFunction("abs",Type.DOUBLE,1) {
 			override fun call(vm: VM, args: Array<AnySLValue>): AnySLValue {
 				val number = (args[0] as SLNumber).value
-				return SLNumber(abs(number))
+				return SLDouble(abs(number.toDouble()))
 			}
 		})
 
-		vm.defineNative(object : SLNativeFunction("acos",Type.NUMBER,1) {
+		vm.defineNative(object : SLNativeFunction("acos",Type.DOUBLE,1) {
 			override fun call(vm: VM, args: Array<AnySLValue>): AnySLValue {
 				val number = (args[0] as SLNumber).value
-				return SLNumber(acos(number))
+				return SLDouble(acos(number.toDouble()))
 			}
 		})
 
-		vm.defineNative(object : SLNativeFunction("asin",Type.NUMBER,1) {
+		vm.defineNative(object : SLNativeFunction("asin",Type.DOUBLE,1) {
 			override fun call(vm: VM, args: Array<AnySLValue>): AnySLValue {
 				val number = (args[0] as SLNumber).value
-				return SLNumber(asin(number))
+				return SLDouble(asin(number.toDouble()))
 			}
 		})
 
-		vm.defineNative(object : SLNativeFunction("atan",Type.NUMBER,1) {
+		vm.defineNative(object : SLNativeFunction("atan",Type.DOUBLE,1) {
 			override fun call(vm: VM, args: Array<AnySLValue>): AnySLValue {
 				val number = (args[0] as SLNumber).value
-				return SLNumber(atan(number))
+				return SLDouble(atan(number.toDouble()))
 			}
 		})
 
-		vm.defineNative(object : SLNativeFunction("atan2",Type.NUMBER,2) {
+		vm.defineNative(object : SLNativeFunction("atan2",Type.DOUBLE,2) {
 			override fun call(vm: VM, args: Array<AnySLValue>): AnySLValue {
 				val y = (args[0] as SLNumber).value
 				val x = (args[1] as SLNumber).value
-				return SLNumber(atan2(y,x))
+				return SLDouble(atan2(y.toDouble(),x.toDouble()))
 			}
 		})
 
-		vm.defineNative(object : SLNativeFunction("ceil",Type.NUMBER,1) {
+		vm.defineNative(object : SLNativeFunction("ceil",Type.DOUBLE,1) {
 			override fun call(vm: VM, args: Array<AnySLValue>): AnySLValue {
 				val number = (args[0] as SLNumber).value
-				return SLNumber(ceil(number))
+				return SLDouble(ceil(number.toDouble()))
 			}
 		})
 
-		vm.defineNative(object : SLNativeFunction("cos",Type.NUMBER,1) {
+		vm.defineNative(object : SLNativeFunction("cos",Type.DOUBLE,1) {
 			override fun call(vm: VM, args: Array<AnySLValue>): AnySLValue {
 				val number = (args[0] as SLNumber).value
-				return SLNumber(cos(number))
+				return SLDouble(cos(number.toDouble()))
 			}
 		})
 
-		vm.defineNative(object : SLNativeFunction("deg",Type.NUMBER,1) {
+		vm.defineNative(object : SLNativeFunction("deg",Type.DOUBLE,1) {
 			override fun call(vm: VM, args: Array<AnySLValue>): AnySLValue {
 				val number = (args[0] as SLNumber).value
-				return SLNumber(Math.toDegrees(number))
+				return SLDouble(Math.toDegrees(number.toDouble()))
 			}
 		})
 
-		vm.defineNative(object : SLNativeFunction("rad",Type.NUMBER,1) {
+		vm.defineNative(object : SLNativeFunction("rad",Type.DOUBLE,1) {
 			override fun call(vm: VM, args: Array<AnySLValue>): AnySLValue {
 				val number = (args[0] as SLNumber).value
-				return SLNumber(Math.toRadians(number))
+				return SLDouble(Math.toRadians(number.toDouble()))
 			}
 		})
 
-		vm.defineNative(object : SLNativeFunction("exp",Type.NUMBER,1) {
+		vm.defineNative(object : SLNativeFunction("exp",Type.DOUBLE,1) {
 			override fun call(vm: VM, args: Array<AnySLValue>): AnySLValue {
 				val number = (args[0] as SLNumber).value
-				return SLNumber(exp(number))
+				return SLDouble(exp(number.toDouble()))
 			}
 		})
 
-		vm.defineNative(object : SLNativeFunction("floor",Type.NUMBER,1) {
+		vm.defineNative(object : SLNativeFunction("floor",Type.DOUBLE,1) {
 			override fun call(vm: VM, args: Array<AnySLValue>): AnySLValue {
 				val number = (args[0] as SLNumber).value
-				return SLNumber(floor(number))
+				return SLDouble(floor(number.toDouble()))
 			}
 		})
 
-		vm.defineNative(object : SLNativeFunction("fmod",Type.NUMBER,2) {
+		vm.defineNative(object : SLNativeFunction("fmod",Type.DOUBLE,2) {
 			override fun call(vm: VM, args: Array<AnySLValue>): AnySLValue {
 				val x = (args[0] as SLNumber).value
 				val y = (args[1] as SLNumber).value
-				return SLNumber(Math.floorMod(x.toInt(),y.toInt()).toDouble())
+				return SLDouble(Math.floorMod(x.toInt(),y.toInt()).toDouble())
 			}
 		})
 
-		vm.defineNative(object : SLNativeFunction("log",Type.NUMBER,2) {
+		vm.defineNative(object : SLNativeFunction("log",Type.DOUBLE,2) {
 			override fun call(vm: VM, args: Array<AnySLValue>): AnySLValue {
 				val x = (args[0] as SLNumber).value
 				val base = (args[1] as SLNumber).value
-				return SLNumber(log(x,base))
+				return SLDouble(log(x.toDouble(),base.toDouble()))
 			}
 		})
 
-		vm.defineNative(object : SLNativeFunction("max",Type.NUMBER,2) {
+		vm.defineNative(object : SLNativeFunction("max",Type.DOUBLE,2) {
 			override fun call(vm: VM, args: Array<AnySLValue>): AnySLValue {
 				val x = (args[0] as SLNumber).value
 				val y = (args[1] as SLNumber).value
-				return SLNumber(max(x,y))
+				return SLDouble(max(x.toDouble(),y.toDouble()))
 			}
 		})
 
-		vm.defineNative(object : SLNativeFunction("min",Type.NUMBER,2) {
+		vm.defineNative(object : SLNativeFunction("min",Type.DOUBLE,2) {
 			override fun call(vm: VM, args: Array<AnySLValue>): AnySLValue {
 				val x = (args[0] as SLNumber).value
 				val y = (args[1] as SLNumber).value
-				return SLNumber(min(x,y))
+				return SLDouble(min(x.toDouble(),y.toDouble()))
 			}
 		})
 
-		vm.defineNative(object : SLNativeFunction("pow",Type.NUMBER,2) {
+		vm.defineNative(object : SLNativeFunction("pow",Type.DOUBLE,2) {
 			override fun call(vm: VM, args: Array<AnySLValue>): AnySLValue {
 				val x = (args[0] as SLNumber).value
 				val y = (args[1] as SLNumber).value
-				return SLNumber(x.pow(y))
+				return SLDouble(x.toDouble().pow(y.toDouble()))
 			}
 		})
 
-		vm.defineNative(object : SLNativeFunction("pi",Type.NUMBER,0) {
+		vm.defineNative(object : SLNativeFunction("pi",Type.DOUBLE,0) {
 			override fun call(vm: VM, args: Array<AnySLValue>): AnySLValue {
-				return SLNumber(Math.PI)
+				return SLDouble(Math.PI)
 			}
 		})
 
-		vm.defineNative(object : SLNativeFunction("sin",Type.NUMBER,1) {
-			override fun call(vm: VM, args: Array<AnySLValue>): AnySLValue {
-				val number = (args[0] as SLNumber).value
-				return SLNumber(sin(number))
-			}
-		})
-
-		vm.defineNative(object : SLNativeFunction("sqrt",Type.NUMBER,1) {
+		vm.defineNative(object : SLNativeFunction("sin",Type.DOUBLE,1) {
 			override fun call(vm: VM, args: Array<AnySLValue>): AnySLValue {
 				val number = (args[0] as SLNumber).value
-				return SLNumber(sqrt(number))
+				return SLDouble(sin(number.toDouble()))
 			}
 		})
 
-		vm.defineNative(object : SLNativeFunction("tan",Type.NUMBER,1) {
+		vm.defineNative(object : SLNativeFunction("sqrt",Type.DOUBLE,1) {
 			override fun call(vm: VM, args: Array<AnySLValue>): AnySLValue {
 				val number = (args[0] as SLNumber).value
-				return SLNumber(tan(number))
+				return SLDouble(sqrt(number.toDouble()))
 			}
 		})
 
-		vm.defineNative(object : SLNativeFunction("exit",Type.NUMBER,1) {
+		vm.defineNative(object : SLNativeFunction("tan",Type.DOUBLE,1) {
+			override fun call(vm: VM, args: Array<AnySLValue>): AnySLValue {
+				val number = (args[0] as SLNumber).value
+				return SLDouble(tan(number.toDouble()))
+			}
+		})
+
+		vm.defineNative(object : SLNativeFunction("exit",Type.DOUBLE,1) {
 			override fun call(vm: VM, args: Array<AnySLValue>): AnySLValue {
 				val number = (args[0] as SLNumber).value
 				exitProcess(number.toInt())
 			}
 		})
 
-		vm.defineNative(object : SLNativeFunction("cosh",Type.NUMBER,1) {
+		vm.defineNative(object : SLNativeFunction("cosh",Type.DOUBLE,1) {
 			override fun call(vm: VM, args: Array<AnySLValue>): AnySLValue {
 				val number = (args[0] as SLNumber).value
-				return SLNumber(cosh(number))
+				return SLDouble(cosh(number.toDouble()))
 			}
 		})
 
-		vm.defineNative(object : SLNativeFunction("sinh",Type.NUMBER,1) {
+		vm.defineNative(object : SLNativeFunction("sinh",Type.DOUBLE,1) {
 			override fun call(vm: VM, args: Array<AnySLValue>): AnySLValue {
 				val number = (args[0] as SLNumber).value
-				return SLNumber(sinh(number))
+				return SLDouble(sinh(number.toDouble()))
 			}
 		})
 
-		vm.defineNative(object : SLNativeFunction("tanh",Type.NUMBER,1) {
+		vm.defineNative(object : SLNativeFunction("tanh",Type.DOUBLE,1) {
 			override fun call(vm: VM, args: Array<AnySLValue>): AnySLValue {
 				val number = (args[0] as SLNumber).value
-				return SLNumber(tanh(number))
+				return SLDouble(tanh(number.toDouble()))
 			}
 		})
 	}

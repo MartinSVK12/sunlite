@@ -72,6 +72,7 @@ object Disassembler {
 			Opcodes.THROW -> return simpleInstruction(sb, opcode.name, offset)
             Opcodes.CHECK -> return constantInstruction(sb, opcode.name, chunk, offset)
 			Opcodes.TYPE_PARAM -> return constantInstruction(sb, opcode.name, chunk, offset)
+			Opcodes.CAST -> return constantInstruction(sb, opcode.name, chunk, offset)
         }
 	}
 
@@ -112,7 +113,7 @@ object Disassembler {
 		val byte = chunk.code[offset + 1]
 		val byte2 = chunk.code[offset + 2]
 		sb.append(String.format("%-16s (%02X) %4d %4d\n", name, Opcodes.valueOf(name).ordinal, byte, byte2))
-		return offset + 2
+		return offset + 3
 	}
 
 	private fun shortInstruction(sb: StringBuilder, name: String, chunk: Chunk, offset: Int): Int {

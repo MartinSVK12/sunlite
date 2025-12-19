@@ -65,7 +65,7 @@ class TypeChecker(val sunlite: Sunlite, val vm: VM?): Expr.Visitor<Unit>, Stmt.V
 
     override fun visitAssignExpr(expr: Expr.Assign) {
         check(expr.value)
-        checkType(expr.getExprType(), expr.value.getExprType(),false,expr.name)
+        checkType(expr.value.getExprType(), expr.getExprType(),false,expr.name)
     }
 
     override fun visitLogicalExpr(expr: Expr.Logical) {
@@ -112,7 +112,7 @@ class TypeChecker(val sunlite: Sunlite, val vm: VM?): Expr.Visitor<Unit>, Stmt.V
     override fun visitArrayGetExpr(expr: Expr.ArrayGet) {
         check(expr.obj)
         check(expr.what)
-        var indexType: Type = Type.NUMBER
+        var indexType: Type = Type.INT
         if(expr.obj.getExprType() is Type.Reference){
             val ref = expr.obj.getExprType() as Type.Reference
             if(ref.type == PrimitiveType.TABLE){
@@ -127,7 +127,7 @@ class TypeChecker(val sunlite: Sunlite, val vm: VM?): Expr.Visitor<Unit>, Stmt.V
         check(expr.what)
         check(expr.value)
         val exprType = expr.getExprType()
-        var indexType: Type = Type.NUMBER
+        var indexType: Type = Type.INT
         if(expr.obj.getExprType() is Type.Reference){
             val ref = expr.obj.getExprType() as Type.Reference
             if(ref.type == PrimitiveType.TABLE){

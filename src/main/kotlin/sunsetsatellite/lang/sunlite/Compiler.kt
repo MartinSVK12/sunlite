@@ -1,13 +1,20 @@
 package sunsetsatellite.lang.sunlite
 
+import sunsetsatellite.lang.sunlite.Expr.Get
 import sunsetsatellite.lang.sunlite.TokenType.*
 import sunsetsatellite.vm.sunlite.AnySLValue
 import sunsetsatellite.vm.sunlite.Disassembler
 import sunsetsatellite.vm.sunlite.MutableChunk
 import sunsetsatellite.vm.sunlite.Opcodes
+import sunsetsatellite.vm.sunlite.SLByte
+import sunsetsatellite.vm.sunlite.SLDouble
+import sunsetsatellite.vm.sunlite.SLFloat
 import sunsetsatellite.vm.sunlite.SLFuncObj
 import sunsetsatellite.vm.sunlite.SLFunction
+import sunsetsatellite.vm.sunlite.SLInt
+import sunsetsatellite.vm.sunlite.SLLong
 import sunsetsatellite.vm.sunlite.SLNumber
+import sunsetsatellite.vm.sunlite.SLShort
 import sunsetsatellite.vm.sunlite.SLString
 import sunsetsatellite.vm.sunlite.SLType
 import sunsetsatellite.vm.sunlite.VM
@@ -59,7 +66,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?): Expr
 			emitShort(0, statements.lastOrNull())
 			emitByte(Opcodes.RETURN, statements.lastOrNull())
 		} else {
-			emitByte(Opcodes.NIL,statements.lastOrNull());
+			emitByte(Opcodes.NIL,statements.lastOrNull())
 			emitByte(Opcodes.RETURN,statements.lastOrNull())
 		}
 
@@ -181,6 +188,68 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?): Expr
 	}
 
 	override fun visitBinaryExpr(expr: Expr.Binary) {
+		val leftType = expr.left.getExprType()
+		if(leftType is Type.Reference){
+			if (leftType.type == PrimitiveType.OBJECT) {
+				when (expr.operator.type) {
+					PLUS, MINUS, SLASH, STAR, GREATER, GREATER_EQUAL, LESS, LESS_EQUAL, EQUAL_EQUAL, BANG_EQUAL -> {
+						var not: Boolean = false
+						val name = when(expr.operator.type){
+							PLUS -> {
+								Token.identifier("add", expr.left.getLine(), currentFile)
+							}
+							MINUS -> {
+								Token.identifier("subtract", expr.left.getLine(), currentFile)
+							}
+							SLASH -> {
+								Token.identifier("divide", expr.left.getLine(), currentFile)
+							}
+							STAR -> {
+								Token.identifier("multiply", expr.left.getLine(), currentFile)
+							}
+							GREATER -> {
+								Token.identifier("greater", expr.left.getLine(), currentFile)
+							}
+							GREATER_EQUAL -> {
+								Token.identifier("greaterEqual", expr.left.getLine(), currentFile)
+							}
+							LESS -> {
+								Token.identifier("less", expr.left.getLine(), currentFile)
+							}
+							LESS_EQUAL -> {
+								Token.identifier("lessEqual", expr.left.getLine(), currentFile)
+							}
+							EQUAL_EQUAL -> {
+								Token.identifier("equals", expr.left.getLine(), currentFile)
+							}
+							BANG_EQUAL -> {
+								not = true
+								Token.identifier("equals", expr.left.getLine(), currentFile)
+							}
+							else -> null
+						}
+						if(name != null && sunlite.collector != null){
+							val type = sunlite.collector?.findType(name, Token.identifier(expr.left.getExprType().getName(),-1,currentFile))
+
+							if(type is TypeCollector.FunctionPrototype){
+								if(type.modifier == FunctionModifier.OPERATOR){
+									val get = Get(expr.left, name, type.getElementType(), type.isConstant())
+									val call = Expr.Call(get,
+										Token.identifier("<operator overload>", expr.left),
+										listOf(expr.right),
+										listOf())
+									visitCallExpr(call)
+									if(not) emitByte(Opcodes.NOT, expr)
+									return
+								}
+							}
+						}
+					}
+					else -> {}
+				}
+			}
+		}
+
 		compile(expr.left)
 		compile(expr.right)
 
@@ -250,8 +319,23 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?): Expr
 					false -> emitByte(Opcodes.FALSE, expr)
 				}
 			}
+			is Byte -> {
+				emitConstant(SLByte(expr.value),expr)
+			}
+			is Short -> {
+				emitConstant(SLShort(expr.value),expr)
+			}
+			is Int -> {
+				emitConstant(SLInt(expr.value),expr)
+			}
+			is Long -> {
+				emitConstant(SLLong(expr.value),expr)
+			}
+			is Float -> {
+				emitConstant(SLFloat(expr.value),expr)
+			}
 			is Double -> {
-				emitConstant(SLNumber(expr.value),expr)
+				emitConstant(SLDouble(expr.value),expr)
 			}
 			is String -> {
 				emitConstant(SLString(expr.value),expr)
@@ -296,7 +380,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?): Expr
 	}
 
 	private fun resolveUpvalue(compiler: Compiler?, expr: Expr.NamedExpr): Int {
-		if(compiler == null) return -1;
+		if(compiler == null) return -1
 		val local: Int = compiler.resolveLocal(expr)
 		if(local != -1){
 			compiler.locals[local].isCaptured = true
@@ -321,8 +405,8 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?): Expr
 		}
 
 		if (upvalues.size >= Short.MAX_VALUE) {
-			sunlite.error(expr.getNameToken(),"Too many upvalues in function.");
-			return 0;
+			sunlite.error(expr.getNameToken(),"Too many upvalues in function.")
+			return 0
 		}
 
 
@@ -391,7 +475,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?): Expr
 		makeFunction(expr.function)
 	}
 
-	override fun visitGetExpr(expr: Expr.Get) {
+	override fun visitGetExpr(expr: Get) {
 		compile(expr.obj)
 		val name = addIdentifier(expr.name.lexeme, expr)
 		emitByte(Opcodes.GET_PROP, expr)
@@ -464,8 +548,10 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?): Expr
 	}
 
 	override fun visitCastExpr(expr: Expr.Cast) {
-		//todo
 		compile(expr.left)
+		val index = addConstant(SLType(expr.right), expr)
+		emitByte(Opcodes.CAST,expr)
+		emitShort(index, expr)
 	}
 
 	override fun visitExprStmt(stmt: Stmt.Expression) {
@@ -554,11 +640,8 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?): Expr
 	private fun endScope(e: Element){
 		localScopeDepth--
 		locals.removeIf {
-			if(it.depth > localScopeDepth){
-				//emitByte(Opcodes.POP, e)
-				return@removeIf true
-			}
-			return@removeIf false
+			return@removeIf it.depth > localScopeDepth
+			//emitByte(Opcodes.POP, e)
 		}
 	}
 
@@ -684,7 +767,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?): Expr
 			defineVariable(0, stmt)
 			compile(Expr.Variable(className))
 			emitByte(Opcodes.INHERIT,stmt.superclass)
-			classCompiler.hasSuperclass = true;
+			classCompiler.hasSuperclass = true
 		}
 
 		stmt.superinterfaces.forEach {

@@ -16,16 +16,45 @@ abstract class Expr: Element {
 
 		override fun getExprType(): Type {
             if (operator.type == TokenType.STAR || operator.type == TokenType.SLASH || operator.type == TokenType.MINUS) {
-                return Type.NUMBER
+	            if(left.getExprType() == Type.DOUBLE || right.getExprType() == Type.DOUBLE){
+		            return Type.DOUBLE
+	            }
+				else if(left.getExprType() == Type.FLOAT || right.getExprType() == Type.FLOAT){
+					return Type.FLOAT
+				}
+	            else if(left.getExprType() == Type.LONG || right.getExprType() == Type.LONG){
+		            return Type.LONG
+	            }
+	            else if(left.getExprType() == Type.INT || right.getExprType() == Type.INT){
+		            return Type.INT
+	            }
+	            else if(left.getExprType() == Type.SHORT || right.getExprType() == Type.SHORT){
+		            return Type.SHORT
+	            }
+                return Type.BYTE
             }
 			if(operator.type != TokenType.PLUS) {
 				return Type.BOOLEAN
 			} else {
-				if(left.getExprType() == Type.NUMBER && right.getExprType() == Type.NUMBER) {
-					return Type.NUMBER
-				} else {
-					return Type.STRING
+				if(left.getExprType() == Type.DOUBLE || right.getExprType() == Type.DOUBLE){
+					return Type.DOUBLE
 				}
+				else if(left.getExprType() == Type.FLOAT || right.getExprType() == Type.FLOAT){
+					return Type.FLOAT
+				}
+				else if(left.getExprType() == Type.LONG || right.getExprType() == Type.LONG){
+					return Type.LONG
+				}
+				else if(left.getExprType() == Type.INT || right.getExprType() == Type.INT){
+					return Type.INT
+				}
+				else if(left.getExprType() == Type.SHORT || right.getExprType() == Type.SHORT){
+					return Type.SHORT
+				}
+				else if(left.getExprType() == Type.BYTE || right.getExprType() == Type.BYTE){
+					return Type.BYTE
+				}
+				return Type.STRING
 			}
         }
 	}
@@ -65,7 +94,7 @@ abstract class Expr: Element {
 			if(operator.type == TokenType.BANG) {
 				return Type.BOOLEAN
 			} else if(operator.type == TokenType.MINUS) {
-				return Type.NUMBER
+				return right.getExprType()
 			}
 			return Type.UNKNOWN
 		}

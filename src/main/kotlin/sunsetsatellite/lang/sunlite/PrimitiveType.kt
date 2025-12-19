@@ -2,7 +2,13 @@ package sunsetsatellite.lang.sunlite
 
 enum class PrimitiveType {
     ANY,
-    NUMBER,
+    BYTE,
+    SHORT,
+    INT,
+    LONG,
+    FLOAT,
+    DOUBLE,
+    //NUMBER,
     STRING,
     BOOLEAN,
     FUNCTION,
@@ -21,7 +27,13 @@ enum class PrimitiveType {
                 TokenType.TYPE_STRING -> STRING
                 TokenType.TYPE_BOOLEAN -> BOOLEAN
                 TokenType.TYPE_FUNCTION -> FUNCTION
-                TokenType.TYPE_NUMBER -> NUMBER
+                TokenType.TYPE_BYTE -> BYTE
+                TokenType.TYPE_SHORT -> SHORT
+                TokenType.TYPE_INT -> INT
+                TokenType.TYPE_LONG -> LONG
+                TokenType.TYPE_FLOAT -> FLOAT
+                TokenType.TYPE_DOUBLE -> DOUBLE
+                //TokenType.TYPE_NUMBER -> NUMBER
                 TokenType.TYPE_CLASS -> CLASS
                 TokenType.IDENTIFIER -> OBJECT
                 TokenType.TYPE_ARRAY -> ARRAY
