@@ -5,6 +5,7 @@ import sunsetsatellite.lang.sunlite.PrimitiveType
 import sunsetsatellite.lang.sunlite.Token
 import sunsetsatellite.lang.sunlite.Type
 import kotlin.math.*
+import kotlin.random.Random
 import kotlin.system.exitProcess
 
 object DefaultNatives: Natives {
@@ -56,6 +57,14 @@ object DefaultNatives: Natives {
 				return SLString(args[0].toString())
 			}
 		})
+
+		vm.defineNative(object : SLNativeFunction("rand",Type.INT,1) {
+			override fun call(vm: VM, args: Array<AnySLValue>): AnySLValue {
+				val number = (args[0] as SLNumber).value
+				return SLInt(Random.nextInt(number.toInt()))
+			}
+		})
+
 
 		vm.defineNative(object : SLNativeFunction("emptyArray",Type.ofArray(Type.NULLABLE_ANY),1) {
 			override fun call(

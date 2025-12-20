@@ -52,6 +52,7 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite, val allowImporting: 
 			match(LEFT_BRACE) -> Stmt.Block(block(), previous().line, previous().file)
 			match(IF) -> ifStatement()
 			match(WHILE) -> whileStatement()
+			match(MATCH) -> matchStatement()
 			match(FOR) -> forStatement()
 			match(FOREACH) -> foreachStatement()
 			match(BREAK) -> breakStatement()
@@ -591,6 +592,125 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite, val allowImporting: 
 		}
 
 		return Stmt.If(condition, thenBranch, elseBranch)
+	}
+
+	private fun matchStatement(): Stmt {
+		consume(LEFT_PAREN, "Expected '(' after 'match'.")
+		val matchVariable = consume(IDENTIFIER, "Expected match variable name.")
+		consume(RIGHT_PAREN, "Expected ')' after 'match'.")
+		consume(LEFT_BRACE, "Expected '{' after 'match(...)'.")
+		//
+
+		val cases: MutableList<Pair<List<Expr>,List<Stmt>>> = mutableListOf()
+		var elseCase: List<Stmt>? = null
+		while (!checkToken(RIGHT_BRACE) && !isAtEnd()) {
+			if(match(ELSE)){
+				if(elseCase != null) throw error(peek(),"Can't have multiple 'else' cases in a 'match' statement.")
+				consume(COLON,"Expected ':' after match case.")
+				consume(LEFT_BRACE, "Expected '{' after ':' in match case.")
+				elseCase = block()
+				continue
+			}
+			val matchers: MutableList<Expr> = mutableListOf()
+			do {
+				matchers.add(expression())
+			} while (match(COMMA))
+			consume(COLON,"Expected ':' after match case.")
+			consume(LEFT_BRACE, "Expected '{' after ':' in match case.")
+			val block = block()
+			cases.add(Pair(matchers,block))
+		}
+
+		consume(RIGHT_BRACE, "Expected '}' after 'match' statement.")
+
+		if(cases.isEmpty()){
+			throw error(peek(), "Expected at least one match case in 'match' statement.")
+		}
+
+		val matchers = cases.last().first
+		var condition: Expr
+		if(matchers.size < 2){
+			condition = Binary(
+				Variable(matchVariable),
+				Token(EQUAL_EQUAL,"==",null,peek().line,peek().file,Token.Position(-1,-1)),
+				matchers.first())
+		} else {
+			condition = Logical(
+				Binary(
+					Variable(matchVariable),
+					Token(EQUAL_EQUAL,"==",null,peek().line,peek().file,Token.Position(-1,-1)),
+					matchers[0]),
+				Token(OR,"or",null,peek().line,peek().file,Token.Position(-1,-1)),
+				Binary(
+					Variable(matchVariable),
+					Token(EQUAL_EQUAL,"==",null,peek().line,peek().file,Token.Position(-1,-1)),
+					matchers[1]),
+			)
+			if(matchers.size > 2){
+				for(i in 2 until matchers.size){
+					condition = Logical(
+						condition,
+						Token(OR,"or",null,peek().line,peek().file,Token.Position(-1,-1)),
+						Binary(
+							Variable(matchVariable),
+							Token(EQUAL_EQUAL,"==",null,peek().line,peek().file,Token.Position(-1,-1)),
+							matchers[i]
+						),
+					)
+				}
+			}
+		}
+
+
+		var stmt: Stmt = Stmt.If(
+			condition,
+			Stmt.Block(cases.last().second, peek().line, peek().file),
+			Stmt.Block(elseCase?:listOf(),peek().line,peek().file))
+
+		cases.reversed().slice(1..<cases.size).forEach {
+
+			val matchers = it.first
+			var condition: Expr
+			if(matchers.size < 2){
+				condition = Binary(
+					Variable(matchVariable),
+					Token(EQUAL_EQUAL,"==",null,peek().line,peek().file,Token.Position(-1,-1)),
+					matchers.first())
+			} else {
+				condition = Logical(
+					Binary(
+						Variable(matchVariable),
+						Token(EQUAL_EQUAL,"==",null,peek().line,peek().file,Token.Position(-1,-1)),
+						matchers[0]),
+					Token(OR,"or",null,peek().line,peek().file,Token.Position(-1,-1)),
+					Binary(
+						Variable(matchVariable),
+						Token(EQUAL_EQUAL,"==",null,peek().line,peek().file,Token.Position(-1,-1)),
+						matchers[1]),
+				)
+				if(matchers.size > 2){
+					for(i in 2 until matchers.size){
+						condition = Logical(
+							condition,
+							Token(OR,"or",null,peek().line,peek().file,Token.Position(-1,-1)),
+							Binary(
+								Variable(matchVariable),
+								Token(EQUAL_EQUAL,"==",null,peek().line,peek().file,Token.Position(-1,-1)),
+								matchers[i]
+							),
+						)
+					}
+				}
+			}
+
+			stmt = Stmt.If(
+				condition,
+				Stmt.Block(it.second, peek().line, peek().file),
+				stmt
+			)
+		}
+
+		return stmt
 	}
 
 	private fun varDeclaration(modifier: FieldModifier = FieldModifier.NORMAL, foreach: Boolean = false): Stmt.Var {

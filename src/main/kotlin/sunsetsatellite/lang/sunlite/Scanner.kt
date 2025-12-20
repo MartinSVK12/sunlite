@@ -71,6 +71,7 @@ class Scanner(private val source: String, val sunlite: Sunlite) {
 			keywords["foreach"] = FOREACH
 			keywords["operator"] = OPERATOR
 			keywords["override"] = OVERRIDE
+			keywords["match"] = MATCH
 		}
 	}
 
