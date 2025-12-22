@@ -158,5 +158,9 @@ class SymbolFinder(val name: String, val line: Int, val column: Int): Expr.Visit
 		expr.left.accept(this)
 	}
 
+	override fun visitArrayExpr(expr: Expr.Array) {
+		expr.expr.forEach { it.accept(this) }
+	}
+
 
 }

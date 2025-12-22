@@ -1225,6 +1225,21 @@ class Parser(val tokens: List<Token>, val sunlite: Sunlite, val allowImporting: 
 			return Grouping(expr)
 		}
 
+		if(match(LEFT_BRACKET)) {
+			val bracket = previous()
+			val list: MutableList<Expr> = ArrayList()
+			if (!checkToken(RIGHT_BRACKET)) {
+				do {
+					if (list.size >= 255) {
+						error(peek(), "Can't have more than 255 elements in an array literal.")
+					}
+					list.add(expression())
+				} while (match(COMMA))
+			}
+			consume(RIGHT_BRACKET, "Expected ']' after array elements.")
+			return Expr.Array(list, bracket)
+		}
+
 		if (match(IDENTIFIER)) {
 			val varToken = previous()
 			if(sunlite.collector != null){

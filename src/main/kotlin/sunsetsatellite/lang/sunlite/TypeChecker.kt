@@ -167,6 +167,10 @@ class TypeChecker(val sunlite: Sunlite, val vm: VM?): Expr.Visitor<Unit>, Stmt.V
        check(expr.left)
     }
 
+    override fun visitArrayExpr(expr: Expr.Array) {
+        expr.expr.forEach { check(it) }
+    }
+
     override fun visitExprStmt(stmt: Stmt.Expression) {
        check(stmt.expr)
     }

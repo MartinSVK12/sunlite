@@ -175,14 +175,14 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>): Runnable {
 							runtimeError("Operands must be a number.")
 							return
 						}
-						fr.push(SLBool.of(fr.pop() as SLNumber > fr.pop() as SLNumber))
+						fr.push(SLBool.of((fr.pop() as SLNumber) < (fr.pop() as SLNumber)))
 					}
 					Opcodes.LESS -> {
 						if(fr.peek() !is SLNumber || fr.peek(1) !is SLNumber){
 							runtimeError("Operands must be a number.")
 							return
 						}
-						fr.push(SLBool.of((fr.pop() as SLNumber) < (fr.pop() as SLNumber)))
+						fr.push(SLBool.of((fr.pop() as SLNumber) > (fr.pop() as SLNumber)))
 					}
 					Opcodes.PRINT -> println(fr.pop())
 					Opcodes.POP -> fr.pop()

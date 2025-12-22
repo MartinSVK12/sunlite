@@ -190,6 +190,15 @@ class Sunlite(val args: Array<String>) {
 		val scanner = Scanner(source, this)
 		val tokens: List<Token> = scanner.scanTokens(shortPath)
 
+		if(debug){
+			printInfo("Tokens: ")
+			printInfo("-----")
+			tokens.forEach { printInfo("${it.lexeme} ${it.type}") }
+			printInfo("-----")
+			printInfo()
+		}
+
+
 		var parser = Parser(tokens,this)
 		var statements: MutableList<Stmt> = parser.parse(shortPath).toMutableList()
 
@@ -259,7 +268,7 @@ class Sunlite(val args: Array<String>) {
 		val compiler = Compiler(this, vm, null)
 
 		val allStatements: MutableList<Stmt> = mutableListOf()
-		imports.values.sortedBy { it.first }.forEach { allStatements.addAll(it.second) }
+		imports.values.sortedBy { it.first }.reversed().forEach { allStatements.addAll(it.second) }
 		allStatements.addAll(statements)
 
 		val program: SLFunction = compiler.compile(FunctionType.NONE, FunctionModifier.NORMAL, Type.NIL, listOf(), listOf(), allStatements, shortPath)

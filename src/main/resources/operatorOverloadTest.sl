@@ -1,5 +1,6 @@
 import "/object.sl";
 import "/reflect.sl";
+import "/array.sl";
 
 class Vec2 extends Object {
     var x: Int = 0;

@@ -554,6 +554,12 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?): Expr
 		emitShort(index, expr)
 	}
 
+	override fun visitArrayExpr(expr: Expr.Array) {
+		val f = Expr.Variable(Token.identifier("arrayOf",expr.getLine(),expr.getFile()))
+		val call = Expr.Call(f,Token.identifier("<array literal>", expr),expr.expr,listOf())
+		visitCallExpr(call)
+	}
+
 	override fun visitExprStmt(stmt: Stmt.Expression) {
 		compile(stmt.expr)
 		emitByte(Opcodes.POP, stmt)

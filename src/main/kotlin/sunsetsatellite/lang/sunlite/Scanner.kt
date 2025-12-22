@@ -103,7 +103,7 @@ class Scanner(private val source: String, val sunlite: Sunlite) {
 			'[' -> addToken(LEFT_BRACKET)
 			']' -> addToken(RIGHT_BRACKET)
 			',' -> addToken(COMMA)
-			'.' -> addToken(DOT)
+			'.' -> addToken(if(match('.')) DOT_DOT else DOT)
 			'-' -> addToken(if(match('=')) MINUS_EQUAL else MINUS)
 			'+' -> addToken(if(match('=')) PLUS_EQUAL else PLUS)
 			';' -> addToken(SEMICOLON)

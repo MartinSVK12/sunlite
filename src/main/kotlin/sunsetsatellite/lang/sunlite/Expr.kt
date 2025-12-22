@@ -434,6 +434,25 @@ abstract class Expr: Element {
 		}
 	}
 
+	data class Array(val expr: List<Expr>, val bracket: Token): Expr(){
+		override fun <R> accept(visitor: Visitor<R>): R? {
+			return visitor.visitArrayExpr(this)
+		}
+
+		override fun getExprType(): Type {
+			return Type.ofArray(Type.NULLABLE_ANY)
+		}
+
+		override fun getLine(): Int {
+			return bracket.line
+		}
+
+		override fun getFile(): String? {
+			return bracket.file
+		}
+
+	}
+
 	interface Visitor<R> {
 		fun visitBinaryExpr(expr: Binary): R
 		fun visitGroupingExpr(expr: Grouping): R
@@ -452,6 +471,7 @@ abstract class Expr: Element {
 		fun visitSuperExpr(expr: Super): R
 		fun visitCheckExpr(expr: Check): R
 		fun visitCastExpr(expr: Cast): R
+		fun visitArrayExpr(expr: Array): R
 	}
 
 	interface NamedExpr: Element {

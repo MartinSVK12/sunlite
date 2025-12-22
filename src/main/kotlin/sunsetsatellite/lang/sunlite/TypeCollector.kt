@@ -306,4 +306,8 @@ class TypeCollector(val sunlite: Sunlite): Stmt.Visitor<Unit>, Expr.Visitor<Unit
         expr.left.accept(this)
     }
 
+    override fun visitArrayExpr(expr: Expr.Array) {
+        expr.expr.forEach { it.accept(this) }
+    }
+
 }

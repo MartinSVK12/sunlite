@@ -84,6 +84,10 @@ object AstPrinter : Expr.Visitor<String>, Stmt.Visitor<String> {
 		return "(cast ${print(expr.left)} ${expr.operator.lexeme} ${expr.right.getName()})"
 	}
 
+	override fun visitArrayExpr(expr: Expr.Array): String {
+		return "(array literal ${parenthesizeList("elements",expr.expr)})"
+	}
+
 	override fun visitUnaryExpr(expr: Expr.Unary): String {
 		return parenthesize(expr.operator.lexeme, expr.right)
 	}
