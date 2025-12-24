@@ -13,7 +13,7 @@ import java.util.EmptyStackException
 import java.util.Stack
 
 // todo: more runtime checks
-class VM(val sunlite: Sunlite, val launchArgs: Array<String>): Runnable {
+class VM(val sunlite: Sunlite, val launchArgs: Array<String>): Runnable, NativesContainer {
 
 	var ignoreBreakpoints: Boolean = false
 	var breakpointHit: Boolean = false
@@ -27,6 +27,9 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>): Runnable {
 
 	val typeChecker = TypeChecker(sunlite, this)
 
+	val globals: MutableMap<String, AnySLValue> = mutableMapOf()
+	val primitiveWrappers: MutableMap<Class<out AnySLValue>,String> = mutableMapOf()
+
 	init {
 		globals.clear()
 		openUpvalues.clear()
@@ -37,8 +40,6 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>): Runnable {
 	companion object {
 		const val MAX_FRAMES: Int = 255
 
-		val globals: MutableMap<String, AnySLValue> = HashMap()
-		val primitiveWrappers: MutableMap<Class<out AnySLValue>,String> = HashMap()
 		val openUpvalues: MutableList<SLUpvalue> = mutableListOf()
 
 		fun arrayOfNils(size: Int): Array<AnySLValue> {
@@ -56,8 +57,12 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>): Runnable {
 	}
 
 
-	fun defineNative(function: SLNativeFunction){
+	override fun defineNative(function: SLNativeFunction){
 		globals[function.name] = SLNativeFuncObj(function)
+	}
+
+	override fun getNatives(): Map<String, AnySLValue> {
+		return globals
 	}
 
 	fun isInitialized(): Boolean {

@@ -1,8 +1,5 @@
 package sunsetsatellite.vm.sunlite
 
-import sunsetsatellite.lang.sunlite.Param
-import sunsetsatellite.lang.sunlite.PrimitiveType
-import sunsetsatellite.lang.sunlite.Token
 import sunsetsatellite.lang.sunlite.Type
 import kotlin.math.*
 import kotlin.random.Random
@@ -10,15 +7,31 @@ import kotlin.system.exitProcess
 
 object DefaultNatives: Natives {
 
-	override fun registerNatives(vm: VM) {
-		registerCore(vm)
-		registerIO(vm)
-		registerString(vm)
-		registerMath(vm)
-		registerReflect(vm)
+	data object DefaultNativesContainer: NativesContainer {
+		private val natives: MutableMap<String, AnySLValue> = mutableMapOf()
+
+		init {
+			registerNatives(this)
+		}
+
+		override fun defineNative(function: SLNativeFunction) {
+			natives[function.name] = SLNativeFuncObj(function)
+		}
+
+		override fun getNatives(): Map<String, AnySLValue> {
+			return natives
+		}
 	}
 
-	fun registerIO(vm: VM){
+	override fun registerNatives(consumer: NativesContainer) {
+		registerCore(consumer)
+		registerIO(consumer)
+		registerString(consumer)
+		registerMath(consumer)
+		registerReflect(consumer)
+	}
+
+	fun registerIO(vm: NativesContainer){
 		vm.defineNative(object : SLNativeFunction("print",Type.NIL,1) {
 			override fun call(vm: VM, args: Array<AnySLValue>): AnySLValue {
 				val value = args[0]
@@ -28,7 +41,7 @@ object DefaultNatives: Natives {
 		})
 	}
 
-	fun registerReflect(vm: VM){
+	fun registerReflect(vm: NativesContainer){
 		vm.defineNative(object : SLNativeFunction("reflect#getMethods", Type.ofArray(Type.STRING),1) {
 			override fun call(vm: VM, args: Array<AnySLValue>): AnySLValue {
 				val clazz = args[0] as SLClassObj
@@ -45,7 +58,7 @@ object DefaultNatives: Natives {
 		})
 	}
 
-	fun registerCore(vm: VM){
+	fun registerCore(vm: NativesContainer){
 		vm.defineNative(object : SLNativeFunction("clock", Type.DOUBLE,0) {
 			override fun call(vm: VM, args: Array<AnySLValue>): AnySLValue {
 				return SLDouble(System.currentTimeMillis().toDouble() / 1000)
@@ -155,7 +168,7 @@ object DefaultNatives: Natives {
 		})
 	}
 
-	fun registerString(vm: VM){
+	fun registerString(vm: NativesContainer){
 		vm.defineNative(object : SLNativeFunction("string#len",Type.INT,1) {
 			override fun call(vm: VM, args: Array<AnySLValue>): AnySLValue {
 				val s = (args[0] as SLString).value
@@ -205,7 +218,7 @@ object DefaultNatives: Natives {
 		})
 	}
 
-	fun registerMath(vm: VM){
+	fun registerMath(vm: NativesContainer){
 		vm.defineNative(object : SLNativeFunction("abs",Type.DOUBLE,1) {
 			override fun call(vm: VM, args: Array<AnySLValue>): AnySLValue {
 				val number = (args[0] as SLNumber).value

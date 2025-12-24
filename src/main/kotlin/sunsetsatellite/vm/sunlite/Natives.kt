@@ -1,5 +1,5 @@
 package sunsetsatellite.vm.sunlite
 
 interface Natives {
-	fun registerNatives(vm: VM)
+	fun registerNatives(consumer: NativesContainer)
 }
