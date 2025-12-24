@@ -21,6 +21,7 @@ class Sunlite(val args: Array<String>) {
 	val imports: MutableMap<String,Pair<Int,List<Stmt>>> = mutableMapOf()
 
 	val logEntryReceivers: MutableList<LogEntryReceiver> = mutableListOf()
+	val dataReceiver: MutableList<CompilerDataReceiver> = mutableListOf()
 	val breakpointListeners: MutableList<BreakpointListener> = mutableListOf()
 
 	var breakpoints: MutableMap<String,IntArray> = mutableMapOf()
@@ -108,10 +109,12 @@ class Sunlite(val args: Array<String>) {
 		var parser = Parser(tokens,this)
 		var statements = parser.parse(shortPath)
 
+		val nativesObj = BasicNativesContainer()
+		natives.registerNatives(nativesObj)
 		// Stop if there was a syntax error.
 		if (hadError) return null
 
-		collector = TypeCollector(this)
+		collector = TypeCollector(this, nativesObj)
 		collector?.collect(statements, shortPath)
 
 		// Stop if there was a type collection error.
@@ -123,7 +126,7 @@ class Sunlite(val args: Array<String>) {
 		// Stop if there was a syntax error.
 		if (hadError) return null
 
-		collector = TypeCollector(this)
+		collector = TypeCollector(this, nativesObj)
 		collector?.collect(statements, shortPath)
 
 		// Stop if there was a type collection error.
@@ -208,7 +211,7 @@ class Sunlite(val args: Array<String>) {
 		vm = VM(this, if(args.size == 4)args[3].split(";").toTypedArray() else arrayOf())
 		uninitialized = false
 
-		collector = TypeCollector(this)
+		collector = TypeCollector(this, vm)
 		collector?.collect(statements, shortPath)
 
 		// Stop if there was a type collection error.
@@ -220,7 +223,7 @@ class Sunlite(val args: Array<String>) {
 		// Stop if there was a syntax error.
 		if (hadError) return null
 
-		collector = TypeCollector(this)
+		collector = TypeCollector(this, vm)
 		collector?.collect(statements, shortPath)
 
 		// Stop if there was a type collection error.
@@ -250,7 +253,7 @@ class Sunlite(val args: Array<String>) {
 			printInfo()
 			printInfo("Type Hierarchy: ")
 			printInfo("--------")
-			collector?.typeHierarchy?.forEach { printInfo("${it.key}<${it.value.third.joinToString()}> extends ${it.value.first} implements ${if(it.value.second.isNotEmpty())it.value.second.joinToString() else "<nil>"}") }
+			collector?.typeHierarchy?.forEach { printInfo("${it.key}<${it.value.typeParameters.joinToString()}> extends ${it.value.superclass} implements ${if(it.value.superinterfaces.isNotEmpty())it.value.superinterfaces.joinToString() else "<nil>"}") }
 			printInfo("--------")
 			printInfo("--------")
 			printInfo()
@@ -321,6 +324,7 @@ class Sunlite(val args: Array<String>) {
 	}
 
 	fun error(token: Token, message: String) {
+		dataReceiver.forEach { it.error(CompilerError(token, message)) }
 		if (token.type == TokenType.EOF) {
 			reportError(token.line, " at end", message, token.file)
 		} else {

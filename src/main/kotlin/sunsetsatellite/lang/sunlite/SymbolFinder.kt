@@ -1,6 +1,8 @@
 package sunsetsatellite.lang.sunlite
 
-class SymbolFinder(val name: String, val line: Int, val column: Int): Expr.Visitor<Unit>, Stmt.Visitor<Unit> {
+import kotlin.math.abs
+
+class SymbolFinder(val name: String?, val line: Int, val column: Int): Expr.Visitor<Unit>, Stmt.Visitor<Unit> {
 
 	var found: Element? = null
 
@@ -96,7 +98,14 @@ class SymbolFinder(val name: String, val line: Int, val column: Int): Expr.Visit
 	}
 
 	override fun visitVariableExpr(expr: Expr.Variable) {
-		if(expr.name.lexeme == name && expr.name.line == line){
+		if((expr.name.lexeme == name || name == null) && expr.name.line == line){
+			if(name == null){
+				if(found != null && found is Expr.NamedExpr){
+					if(abs(expr.name.pos.start - column) < abs((found as Expr.NamedExpr).getNameToken().pos.start - column)){
+						found = expr
+					}
+				}
+			}
 			found = expr
 		}
 	}
@@ -121,7 +130,14 @@ class SymbolFinder(val name: String, val line: Int, val column: Int): Expr.Visit
 
 	override fun visitGetExpr(expr: Expr.Get) {
 		expr.obj.accept(this)
-		if(expr.name.lexeme == name && expr.name.line == line){
+		if((expr.name.lexeme == name || name == null) && expr.name.line == line){
+			if(name == null){
+				if(found != null && found is Expr.NamedExpr){
+					if(abs(expr.name.pos.start - column) < abs((found as Expr.NamedExpr).getNameToken().pos.start - column)){
+						found = expr
+					}
+				}
+			}
 			found = expr
 		}
 	}

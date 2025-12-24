@@ -1,13 +1,13 @@
 package sunsetsatellite.lang.sunlite
 
-enum class FunctionModifier {
-    NORMAL,
-    INIT,
-    STATIC,
-    ABSTRACT,
-    NATIVE,
-    STATIC_NATIVE,
-    OPERATOR;
+enum class FunctionModifier(val s: String) {
+    NORMAL(""),
+    INIT(""),
+    STATIC("static "),
+    ABSTRACT("abstract "),
+    NATIVE("native "),
+    STATIC_NATIVE("static native "),
+    OPERATOR("operator ");
 
 
     companion object {
@@ -18,5 +18,9 @@ enum class FunctionModifier {
             else if (token?.type == TokenType.OPERATOR) OPERATOR
             else NORMAL
         }
+    }
+
+    override fun toString(): String {
+        return s
     }
 }

@@ -69,7 +69,7 @@ abstract class Type {
         override fun toString(): String {
             when (type) {
                 PrimitiveType.FUNCTION -> {
-                    return "${type.name.lowercase()}${if(typeParams.isNotEmpty()) "<${typeParams.joinToString()}>" else ""} '${ref}(${params.map { it.type }.joinToString()}): ${returnType}'"
+                    return "${type.name.lowercase()}${if(typeParams.isNotEmpty()) "<${typeParams.joinToString()}>" else ""} '${ref}(${params.map { "${it.token.lexeme}: ${it.type}" }.joinToString()}): ${returnType}'"
                 }
                 PrimitiveType.ARRAY -> {
                     return "${type.name.lowercase()} '${returnType}'"
@@ -126,8 +126,8 @@ abstract class Type {
 
         private fun traverseTypeHierarchy(other: String): Boolean {
             val parents = currentInterpreter?.collector?.typeHierarchy[other]
-            val superclass = parents?.first
-            val interfaces = parents?.second
+            val superclass = parents?.superclass
+            val interfaces = parents?.superinterfaces
             if(superclass == this.ref) return true
             if(interfaces != null && interfaces.contains(this.ref)) return true
             if((superclass == null || superclass == "<nil>" || superclass == "") && (interfaces == null || interfaces.isEmpty())) return false
@@ -277,7 +277,7 @@ abstract class Type {
                                 if(topmostType.typeParameters.isNotEmpty()) {
                                     val types = topmostType.typeParameters.map { of(listOf(it), sunlite,false) }
                                     val name = singleToken.key.lexeme
-                                    val typeParams = sunlite.collector?.typeHierarchy[name]?.third
+                                    val typeParams = sunlite.collector?.typeHierarchy[name]?.typeParameters
                                     return ofGenericObject(singleToken.key.lexeme, types.mapIndexed { i, it -> Param(Token.identifier(typeParams?.get(i) ?: "?"), it) })
                                 }
                                 return ofObject(singleToken.key.lexeme)
@@ -330,7 +330,7 @@ abstract class Type {
                                     if(singleType.typeParameters.isNotEmpty()) {
                                         val types = singleType.typeParameters.map { of(listOf(it), sunlite,false) }
                                         val name = singleToken.key.lexeme
-                                        val typeParams = sunlite.collector?.typeHierarchy[name]?.third
+                                        val typeParams = sunlite.collector?.typeHierarchy[name]?.typeParameters
                                         return ofGenericObject(singleToken.key.lexeme, types.mapIndexed { i, it -> Param(Token.identifier(typeParams?.get(i) ?: "?"), it) })
                                     }
                                     return ofObject(singleToken.key.lexeme)
