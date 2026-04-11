@@ -483,3 +483,19 @@ class SLBoundMethodObj(value: SLBoundMethod) : SLObj<SLBoundMethod>(value) {
 		return SLBoundMethodObj(value.copy())
 	}
 }
+
+class SLForeignObject(value: Any) : SLObj<Any>(value) {
+
+	override fun equals(other: Any?): Boolean {
+		if (other !is SLForeignObject) return false
+		return other.value == value
+	}
+
+	override fun hashCode(): Int {
+		return javaClass.hashCode()
+	}
+
+	override fun copy(): SLValue<Any> {
+		return SLForeignObject(value)
+	}
+}

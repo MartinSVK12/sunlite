@@ -1,9 +1,9 @@
-class Hello {
-    func greet(name: String): String {
-        return "Hello, ${name}!";
-    }
+import "/stdlib/io.sl";
+
+func main(){
+    val file: File = IO.open("sl_file_open");
+    print(file);
 }
 
-val greeting: String = Hello().greet("world");
+main();
 
-print(greeting);

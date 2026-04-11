@@ -1,6 +1,8 @@
 package sunsetsatellite.vm.sunlite
 
 import sunsetsatellite.lang.sunlite.Type
+import java.io.File
+import java.io.IOException
 import kotlin.math.*
 import kotlin.random.Random
 import kotlin.system.exitProcess
@@ -37,6 +39,26 @@ object DefaultNatives: Natives {
 				val value = args[0]
 				vm.sunlite.printInfo(if(value is SLString) value.value else value.toString())
 				return SLNil
+			}
+		})
+
+		vm.defineNative(object : SLNativeFunction("IO#openNative", Type.ofObject("File"), 1) {
+			override fun call(
+				vm: VM,
+				args: Array<AnySLValue>
+			): AnySLValue {
+				val slFile = (args[0] as SLClassInstanceObj).value
+				vm.typeChecker.checkType(Type.ofObject("File"), Type.fromValue(slFile, vm.sunlite), true)
+				val filename = (slFile.fields["filename"]?.value as SLString).value
+				val file = File(filename)
+				try {
+					file.createNewFile()
+					slFile.fields["<foreign>fileHandle"] = SLField(Type.UNKNOWN, SLForeignObject(file))
+					return args[0]
+				} catch (e: IOException){
+					vm.runtimeError(e.message ?: "null")
+					return SLNil
+				}
 			}
 		})
 	}
