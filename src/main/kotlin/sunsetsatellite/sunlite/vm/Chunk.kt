@@ -1,0 +1,50 @@
+package sunsetsatellite.sunlite.vm
+
+class ChunkDebugInfo(
+	val lines: IntArray,
+	val file: String?,
+	val name: String = "<script>",
+)
+class MutableChunkDebugInfo(val lines: MutableList<Int> = mutableListOf(), var file: String? = null, var name: String = "<script>") {
+	fun toImmutable(): ChunkDebugInfo {
+		return ChunkDebugInfo(lines.toIntArray(), file, name)
+	}
+}
+
+class Chunk(val code: ByteArray, val exceptions: Map<IntRange, IntRange>, val constants: Array<AnySLValue>, val debugInfo: ChunkDebugInfo) {
+
+	fun size(): Int {
+		return code.size
+	}
+
+	override fun toString(): String {
+		val sb = StringBuilder()
+		sb.append("==== ${debugInfo.file.toString()}::${debugInfo.name} ====\n")
+		for ((index, byte) in code.withIndex()) {
+			sb.append(String.format("%04X: %02X\n", index, byte))
+		}
+		sb.append("=====${"=".repeat(debugInfo.file?.length?.plus(debugInfo.name.length) ?: 0)}=====\n")
+		return sb.toString()
+	}
+}
+
+class MutableChunk(val code: MutableList<Byte> = mutableListOf(), val exceptions: MutableMap<IntRange, IntRange> = mutableMapOf(), val constants: MutableList<AnySLValue> = mutableListOf(), val debugInfo: MutableChunkDebugInfo = MutableChunkDebugInfo()) {
+
+	fun size(): Int {
+		return code.size
+	}
+
+	fun toImmutable(): Chunk {
+		return Chunk(code.toByteArray(), exceptions.toMap(), constants.toTypedArray(), debugInfo.toImmutable())
+	}
+
+	override fun toString(): String {
+		val sb = StringBuilder()
+		sb.append("==== ${debugInfo.file.toString()}::${debugInfo.name} (mutable) ====\n")
+		for ((index, byte) in code.withIndex()) {
+			sb.append(String.format("%04X: %02X\n", index, byte))
+		}
+		sb.append("=====${"=".repeat(debugInfo.file?.length?.plus(debugInfo.name.length) ?: 0)}=====\n")
+		return sb.toString()
+	}
+}

@@ -1,0 +1,889 @@
+package sunsetsatellite.sunlite.lang
+
+import sunsetsatellite.sunlite.lang.Expr.Get
+import sunsetsatellite.sunlite.lang.TokenType.*
+import sunsetsatellite.sunlite.vm.AnySLValue
+import sunsetsatellite.sunlite.vm.Disassembler
+import sunsetsatellite.sunlite.vm.MutableChunk
+import sunsetsatellite.sunlite.vm.Opcodes
+import sunsetsatellite.sunlite.vm.SLByte
+import sunsetsatellite.sunlite.vm.SLDouble
+import sunsetsatellite.sunlite.vm.SLFloat
+import sunsetsatellite.sunlite.vm.SLFuncObj
+import sunsetsatellite.sunlite.vm.SLFunction
+import sunsetsatellite.sunlite.vm.SLInt
+import sunsetsatellite.sunlite.vm.SLLong
+import sunsetsatellite.sunlite.vm.SLShort
+import sunsetsatellite.sunlite.vm.SLString
+import sunsetsatellite.sunlite.vm.SLType
+import sunsetsatellite.sunlite.vm.VM
+
+
+class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?): Expr.Visitor<Unit>, Stmt.Visitor<Unit> {
+
+	class Local(val name: Token, var depth: Int, var isCaptured: Boolean = false)
+
+	class Upvalue(val index: Int, val isLocal: Boolean)
+
+	var currentClass: ClassCompiler? = null
+
+	var currentFile: String? = null
+	var currentFunctionType: FunctionType = FunctionType.FUNCTION
+	val chunk = MutableChunk()
+	val locals: MutableList<Local> = mutableListOf()
+	var localsCount = 0
+	val upvalues: MutableList<Upvalue> = mutableListOf()
+	var localScopeDepth: Int = 0
+	var topLevel: Boolean = false
+
+	val incompleteBreaks: MutableList<Int> = mutableListOf()
+	val incompleteContinues: MutableList<Int> = mutableListOf()
+
+	fun compile(type: FunctionType, modifier: FunctionModifier, returnType: Type, params: List<Param>, typeParams: List<Param>, statements: List<Stmt>, path: String? = null, name: String = "", arity: Int = 0): SLFunction {
+		localsCount = arity
+		currentFile = path
+		chunk.debugInfo.file = currentFile
+		currentFunctionType = type
+
+		if(type == FunctionType.METHOD || type == FunctionType.INITIALIZER) {
+			addIdentifier("this",Expr.This(Token.identifier("this")) )
+			locals.add(0,Local(Token.identifier("this", -1, currentFile), 0))
+			localsCount++
+		}
+
+		for (statement in statements) {
+			compile(statement)
+		}
+		if(name == ""){
+			topLevel = true
+		} else {
+			chunk.debugInfo.name = name
+		}
+
+		if(type == FunctionType.INITIALIZER){
+			emitByte(Opcodes.GET_LOCAL, statements.lastOrNull())
+			emitShort(0, statements.lastOrNull())
+			emitByte(Opcodes.RETURN, statements.lastOrNull())
+		} else {
+			emitByte(Opcodes.NIL,statements.lastOrNull())
+			emitByte(Opcodes.RETURN,statements.lastOrNull())
+		}
+
+		if(Sunlite.debug){
+			sunlite.printInfo(Disassembler.disassembleChunk(chunk.toImmutable()))
+		}
+
+		incompleteBreaks.forEach {
+			sunlite.error(chunk.debugInfo.lines[it], "Unexpected 'break' outside of loop.", chunk.debugInfo.file)
+		}
+		incompleteContinues.forEach {
+			sunlite.error(chunk.debugInfo.lines[it], "Unexpected 'continue' outside of loop.", chunk.debugInfo.file)
+		}
+
+		return SLFunction(name, returnType, params, typeParams,chunk.toImmutable(), arity, upvalues.size, localsCount, modifier)
+	}
+
+	private fun compile(stmt: Stmt) {
+		stmt.accept(this)
+	}
+
+	private fun compile(expr: Expr) {
+		expr.accept(this)
+	}
+
+	private fun emitByte(byte: Int, expr: Element) {
+		chunk.code.add(byte.toByte())
+		chunk.debugInfo.lines.add(expr.getLine())
+	}
+
+	private fun emitBytes(byte: Int, byte2: Int, expr: Element) {
+		emitByte(byte, expr)
+		emitByte(byte2, expr)
+	}
+
+
+	private fun emitByte(byte: Opcodes, expr: Element?) {
+		chunk.code.add(byte.ordinal.toByte())
+		chunk.debugInfo.lines.add(expr?.getLine() ?: 0)
+	}
+
+	private fun emitShort(short: Int, expr: Element?) {
+		chunk.code.add(((short ushr 8) and 0xFF).toByte())
+		chunk.code.add((short and 0xFF).toByte())
+		chunk.debugInfo.lines.add(expr?.getLine() ?: 0)
+		chunk.debugInfo.lines.add(expr?.getLine() ?: 0)
+	}
+
+	private fun emitBytes(byte: Opcodes, byte2: Opcodes, expr: Element) {
+		emitByte(byte, expr)
+		emitByte(byte2, expr)
+	}
+
+	private fun emitBytes(byte: Int, byte2: Opcodes, expr: Element) {
+		emitByte(byte, expr)
+		emitByte(byte2, expr)
+	}
+
+	private fun emitBytes(byte: Opcodes, byte2: Int, expr: Element) {
+		emitByte(byte, expr)
+		emitByte(byte2, expr)
+	}
+
+	private fun emitBytes(byte: Opcodes, byte2: Int, byte3: Int, expr: Element) {
+		emitByte(byte, expr)
+		emitByte(byte2, expr)
+		emitByte(byte3, expr)
+	}
+
+	private fun emitConstant(value: AnySLValue, expr: Element) {
+		emitByte(Opcodes.CONSTANT, expr)
+		emitShort(addConstant(value, expr), expr)
+	}
+
+	private fun emitLoop(loopStart: Int, e: Element) {
+		emitByte(Opcodes.LOOP, e)
+		val offset = chunk.size() - loopStart + 2
+		if(offset > Short.MAX_VALUE){
+			sunlite.error(e.getLine(),"Loop body too large.")
+		}
+
+		emitByte((offset shr 8) and 0xff, e)
+		emitByte(offset and 0xff, e)
+	}
+
+	private fun emitJump(byte: Opcodes, e: Element): Int {
+		emitByte(byte, e)
+		emitByte(0xFF,e)
+		emitByte(0xFF,e)
+		return chunk.size() - 2
+	}
+
+	private fun patchJump(offset: Int, e: Element) {
+		val jump = chunk.size() - offset - 2
+
+		if(jump > Short.MAX_VALUE) {
+			sunlite.error(e.getLine(), "Too much code to jump over.")
+		}
+
+		chunk.code[offset] = ((jump ushr 8) and 0xFF).toByte()
+		chunk.code[offset + 1] = (jump and 0xFF).toByte()
+	}
+
+	private fun addConstant(value: AnySLValue, e: Element): Int {
+		if(chunk.constants.contains(value)) {
+			return chunk.constants.indexOf(value)
+		}
+		chunk.constants.add(value)
+		val index: Int = chunk.constants.size - 1
+		if(index > Short.MAX_VALUE) {
+			sunlite.error(e.getLine(), "Too many constants in one chunk.")
+			return 0
+		}
+		return index
+	}
+
+	private fun addIdentifier(string: String, e: Element): Int {
+		return addConstant(SLString(string), e)
+	}
+
+	override fun visitBinaryExpr(expr: Expr.Binary) {
+		val leftType = expr.left.getExprType()
+		if(leftType is Type.Reference){
+			if (leftType.type == PrimitiveType.OBJECT) {
+				when (expr.operator.type) {
+					PLUS, MINUS, SLASH, STAR, GREATER, GREATER_EQUAL, LESS, LESS_EQUAL, EQUAL_EQUAL, BANG_EQUAL -> {
+						var not: Boolean = false
+						val name = when(expr.operator.type){
+							PLUS -> {
+								Token.identifier("add", expr.left.getLine(), currentFile)
+							}
+							MINUS -> {
+								Token.identifier("subtract", expr.left.getLine(), currentFile)
+							}
+							SLASH -> {
+								Token.identifier("divide", expr.left.getLine(), currentFile)
+							}
+							STAR -> {
+								Token.identifier("multiply", expr.left.getLine(), currentFile)
+							}
+							GREATER -> {
+								Token.identifier("greater", expr.left.getLine(), currentFile)
+							}
+							GREATER_EQUAL -> {
+								Token.identifier("greaterEqual", expr.left.getLine(), currentFile)
+							}
+							LESS -> {
+								Token.identifier("less", expr.left.getLine(), currentFile)
+							}
+							LESS_EQUAL -> {
+								Token.identifier("lessEqual", expr.left.getLine(), currentFile)
+							}
+							EQUAL_EQUAL -> {
+								Token.identifier("equals", expr.left.getLine(), currentFile)
+							}
+							BANG_EQUAL -> {
+								not = true
+								Token.identifier("equals", expr.left.getLine(), currentFile)
+							}
+							else -> null
+						}
+						if(name != null && sunlite.collector != null){
+							val type = sunlite.collector?.findType(name, Token.identifier(expr.left.getExprType().getName(),-1,currentFile))
+
+							if(type is TypeCollector.FunctionPrototype){
+								if(type.modifier == FunctionModifier.OPERATOR){
+									val get = Get(expr.left, name, type.getElementType(), type.isConstant())
+									val call = Expr.Call(get,
+										Token.identifier("<operator overload>", expr.left),
+										listOf(expr.right),
+										listOf())
+									visitCallExpr(call)
+									if(not) emitByte(Opcodes.NOT, expr)
+									return
+								}
+							}
+						}
+					}
+					else -> {}
+				}
+			}
+		}
+
+		compile(expr.left)
+		compile(expr.right)
+
+		when (expr.operator.type) {
+			MINUS -> {
+				emitByte(Opcodes.SUB, expr)
+			}
+			SLASH -> {
+				emitByte(Opcodes.DIVIDE, expr)
+			}
+			STAR -> {
+				emitByte(Opcodes.MULTIPLY, expr)
+			}
+			PLUS -> {
+				emitByte(Opcodes.ADD, expr)
+			}
+			GREATER -> {
+				emitByte(Opcodes.GREATER, expr)
+			}
+			GREATER_EQUAL -> {
+				emitBytes(Opcodes.LESS, Opcodes.NOT, expr)
+			}
+			LESS -> {
+				emitByte(Opcodes.LESS, expr)
+			}
+			LESS_EQUAL -> {
+				emitBytes(Opcodes.GREATER, Opcodes.NOT, expr)
+			}
+			BANG_EQUAL -> {
+				emitBytes(Opcodes.EQUAL, Opcodes.NOT, expr)
+			}
+			EQUAL_EQUAL -> {
+				emitByte(Opcodes.EQUAL, expr)
+			}
+			IS -> {
+				TODO("Not yet implemented")
+			}
+			IS_NOT -> {
+				TODO("Not yet implemented")
+			}
+			else -> return
+		}
+	}
+
+	override fun visitGroupingExpr(expr: Expr.Grouping) {
+		compile(expr.expression)
+	}
+
+	override fun visitUnaryExpr(expr: Expr.Unary) {
+		compile(expr.right)
+		when (expr.operator.type) {
+			MINUS -> {
+				emitByte(Opcodes.NEGATE, expr)
+			}
+			BANG -> {
+				emitByte(Opcodes.NOT, expr)
+			}
+			else -> return
+		}
+	}
+
+	override fun visitLiteralExpr(expr: Expr.Literal) {
+		when(expr.value) {
+			is Boolean -> {
+				when(expr.value){
+					true -> emitByte(Opcodes.TRUE, expr)
+					false -> emitByte(Opcodes.FALSE, expr)
+				}
+			}
+			is Byte -> {
+				emitConstant(SLByte(expr.value),expr)
+			}
+			is Short -> {
+				emitConstant(SLShort(expr.value),expr)
+			}
+			is Int -> {
+				emitConstant(SLInt(expr.value),expr)
+			}
+			is Long -> {
+				emitConstant(SLLong(expr.value),expr)
+			}
+			is Float -> {
+				emitConstant(SLFloat(expr.value),expr)
+			}
+			is Double -> {
+				emitConstant(SLDouble(expr.value),expr)
+			}
+			is String -> {
+				emitConstant(SLString(expr.value),expr)
+			}
+			null -> {
+				emitByte(Opcodes.NIL, expr)
+			}
+			else -> return
+		}
+	}
+
+	override fun visitVariableExpr(expr: Expr.Variable) {
+		val getOp: Opcodes
+
+		var arg = resolveLocal(expr)
+		if(arg != -1){
+			getOp = Opcodes.GET_LOCAL
+		} else {
+			arg = resolveUpvalue(enclosing, expr)
+			if(arg != -1){
+				getOp = Opcodes.GET_UPVALUE
+			} else {
+				arg = addIdentifier(expr.name.lexeme,expr)
+				getOp = Opcodes.GET_GLOBAL
+			}
+		}
+		emitByte(getOp, expr)
+		emitShort(arg, expr)
+	}
+
+	private fun resolveLocal(expr: Expr.NamedExpr): Int {
+		for ((i, local) in locals.withIndex()) {
+			if(local.name.lexeme == expr.getNameToken().lexeme){
+				if(local.depth == -1){
+					sunlite.error(expr.getLine(), "Can't read local variable in its own initializer.")
+				}
+				return i
+			}
+		}
+
+		return -1
+	}
+
+	private fun resolveUpvalue(compiler: Compiler?, expr: Expr.NamedExpr): Int {
+		if(compiler == null) return -1
+		val local: Int = compiler.resolveLocal(expr)
+		if(local != -1){
+			compiler.locals[local].isCaptured = true
+			return addUpvalue(local, true, expr)
+		}
+
+		val upvalue: Int = resolveUpvalue(compiler.enclosing, expr)
+		if(upvalue != -1){
+			return addUpvalue(upvalue, false, expr)
+		}
+
+		return -1
+	}
+
+	private fun addUpvalue(local: Int, isLocal: Boolean, expr: Expr.NamedExpr): Int {
+
+		for (i in 0 until upvalues.size) {
+			val upvalue = upvalues[i]
+			if(upvalue.index == local && upvalue.isLocal == isLocal){
+				return i
+			}
+		}
+
+		if (upvalues.size >= Short.MAX_VALUE) {
+			sunlite.error(expr.getNameToken(),"Too many upvalues in function.")
+			return 0
+		}
+
+
+		upvalues.add(Upvalue(local, isLocal))
+		return upvalues.size-1
+	}
+
+	override fun visitAssignExpr(expr: Expr.Assign) {
+		val setOp: Opcodes
+
+		var arg = resolveLocal(expr)
+		if(arg != -1){
+			setOp = Opcodes.SET_LOCAL
+		} else {
+			arg = resolveUpvalue(enclosing, expr)
+			if(arg != -1){
+				setOp = Opcodes.SET_UPVALUE
+			} else {
+				arg = addIdentifier(expr.name.lexeme,expr)
+				setOp = Opcodes.SET_GLOBAL
+			}
+		}
+		compile(expr.value)
+		emitByte(setOp, expr)
+		emitShort(arg, expr)
+	}
+
+	override fun visitLogicalExpr(expr: Expr.Logical) {
+		when(expr.operator.type){
+			AND -> {
+				compile(expr.left)
+				val jmp = emitJump(Opcodes.JUMP_IF_FALSE, expr)
+				emitByte(Opcodes.POP, expr)
+				compile(expr.right)
+				patchJump(jmp, expr)
+			}
+			OR -> {
+				compile(expr.left)
+				val elseJmp = emitJump(Opcodes.JUMP_IF_FALSE, expr)
+				val endJmp = emitJump(Opcodes.JUMP, expr)
+				patchJump(elseJmp, expr)
+				emitByte(Opcodes.POP, expr)
+				compile(expr.right)
+				patchJump(endJmp, expr)
+			}
+			else -> return
+		}
+	}
+
+	override fun visitCallExpr(expr: Expr.Call) {
+		compile(expr.callee)
+		val argCount: Int = argumentList(expr)
+		expr.typeArgs.forEach { emitConstant(SLType(it.type), expr) }
+		val typeArgCount = expr.typeArgs.size
+		emitBytes(Opcodes.CALL, argCount, typeArgCount, expr)
+	}
+
+	private fun argumentList(expr: Expr.Call): Int {
+		for (argument in expr.arguments) {
+			compile(argument)
+		}
+		return expr.arguments.size
+	}
+
+	override fun visitLambdaExpr(expr: Expr.Lambda) {
+		makeFunction(expr.function)
+	}
+
+	override fun visitGetExpr(expr: Get) {
+		compile(expr.obj)
+		val name = addIdentifier(expr.name.lexeme, expr)
+		emitByte(Opcodes.GET_PROP, expr)
+		emitShort(name, expr)
+	}
+
+	override fun visitArrayGetExpr(expr: Expr.ArrayGet) {
+		compile(expr.what)
+		compile(expr.obj)
+		emitByte(Opcodes.ARRAY_GET, expr)
+	}
+
+	override fun visitArraySetExpr(expr: Expr.ArraySet) {
+		compile(expr.value)
+		compile(expr.what)
+		compile(expr.obj)
+		emitByte(Opcodes.ARRAY_SET, expr)
+	}
+
+	override fun visitSetExpr(expr: Expr.Set) {
+		val name = addIdentifier(expr.name.lexeme, expr)
+		compile(expr.obj)
+		compile(expr.value)
+		emitByte(Opcodes.SET_PROP, expr)
+		emitShort(name, expr)
+	}
+
+	override fun visitThisExpr(expr: Expr.This) {
+		var compiler: Compiler? = this
+		while (compiler != null){
+			if(compiler.currentClass != null) break
+			compiler = compiler.enclosing
+		}
+
+		if(compiler == null) {
+			sunlite.error(expr.getLine(), "Can't refer to 'this' outside of a class.", currentFile)
+			return
+		}
+
+		compile(Expr.Variable(expr.keyword))
+	}
+
+	override fun visitSuperExpr(expr: Expr.Super) {
+		var compiler: Compiler? = this
+		while (compiler != null){
+			if(compiler.currentClass != null) break
+			compiler = compiler.enclosing
+		}
+
+		if(compiler == null) {
+			sunlite.error(expr.getLine(), "Can't refer to 'super' outside of a class.", currentFile)
+			return
+		} else if(compiler.currentClass?.hasSuperclass == false){
+			sunlite.error(expr.getLine(), "Can't refer to 'super' in a class with no superclass.", currentFile)
+			return
+		}
+
+		compile(Expr.Variable(Token.identifier("this",expr.getLine(),expr.getFile())))
+		compile(Expr.Variable(Token.identifier("super",expr.getLine(),expr.getFile())))
+		val name = addIdentifier(expr.method.lexeme, expr)
+		emitByte(Opcodes.GET_SUPER,expr)
+		emitShort(name,expr)
+	}
+
+	override fun visitCheckExpr(expr: Expr.Check) {
+		compile(expr.left)
+		val index = addConstant(SLType(expr.right), expr)
+		emitByte(Opcodes.CHECK,expr)
+		emitShort(index, expr)
+	}
+
+	override fun visitCastExpr(expr: Expr.Cast) {
+		compile(expr.left)
+		val index = addConstant(SLType(expr.right), expr)
+		emitByte(Opcodes.CAST,expr)
+		emitShort(index, expr)
+	}
+
+	override fun visitArrayExpr(expr: Expr.Array) {
+		val f = Expr.Variable(Token.identifier("arrayOf",expr.getLine(),expr.getFile()))
+		val call = Expr.Call(f,Token.identifier("<array literal>", expr),expr.expr,listOf())
+		visitCallExpr(call)
+	}
+
+	override fun visitExprStmt(stmt: Stmt.Expression) {
+		compile(stmt.expr)
+		emitByte(Opcodes.POP, stmt)
+	}
+
+	override fun visitPrintStmt(stmt: Stmt.Print) {
+		compile(stmt.expr)
+		emitByte(Opcodes.PRINT, stmt)
+	}
+
+	override fun visitVarStmt(stmt: Stmt.Var) {
+		val constantIndex = makeVariable(stmt.name, stmt)
+		if(stmt.initializer != null) {
+			compile(stmt.initializer)
+		} else {
+			emitByte(Opcodes.NIL, stmt)
+		}
+
+		defineVariable(constantIndex, stmt, true)
+	}
+
+	private fun defineVariable(constantIndex: Int, stmt: Stmt, isVar: Boolean = false) {
+		if(localScopeDepth > 0){
+			if(isVar){
+				emitByte(Opcodes.SET_LOCAL, stmt)
+				emitShort(constantIndex, stmt)
+			}
+			markInitialized()
+			return
+		}
+
+		emitByte(Opcodes.DEF_GLOBAL, stmt)
+		emitShort(constantIndex, stmt)
+	}
+
+	private fun markInitialized() {
+		if(localScopeDepth == 0) return
+		locals[locals.size - 1].depth = localScopeDepth
+	}
+
+	private fun makeVariable(token: Token, stmt: Stmt): Int {
+		val localIndex = declareVariable(token, stmt)
+		if(localScopeDepth > 0) return localIndex
+
+		return addConstant(SLString(token.lexeme),stmt)
+	}
+
+	private fun declareVariable(token: Token, stmt: Stmt): Int {
+		if(localScopeDepth == 0) return -1
+
+		for (local in locals) {
+			if(local.depth != -1 && local.depth < localScopeDepth) break
+
+			if(local.name.lexeme == token.lexeme) {
+				sunlite.error(stmt.getLine(), "A variable with this name already exists in this scope.")
+			}
+		}
+
+		return addLocal(token, stmt)
+	}
+
+	private fun addLocal(token: Token, stmt: Stmt): Int {
+		if(locals.size >= Short.MAX_VALUE){
+			sunlite.error(stmt.getLine(), "Too many local variables in function.")
+			return -1
+		}
+
+		locals.add(Local(token, -1))
+		localsCount++
+		return localsCount-1
+	}
+
+
+	override fun visitBlockStmt(stmt: Stmt.Block) {
+		beginScope(stmt)
+		stmt.statements.forEach { compile(it) }
+		endScope(stmt)
+	}
+
+	private fun beginScope(e: Element){
+		localScopeDepth++
+	}
+
+	private fun endScope(e: Element){
+		localScopeDepth--
+		locals.removeIf {
+			return@removeIf it.depth > localScopeDepth
+			//emitByte(Opcodes.POP, e)
+		}
+	}
+
+	override fun visitIfStmt(stmt: Stmt.If) {
+		compile(stmt.condition)
+		val thenJump = emitJump(Opcodes.JUMP_IF_FALSE, stmt)
+		emitByte(Opcodes.POP, stmt)
+		compile(stmt.thenBranch)
+		val elseJump = emitJump(Opcodes.JUMP, stmt)
+		patchJump(thenJump, stmt)
+		emitByte(Opcodes.POP, stmt)
+		if(stmt.elseBranch != null) {
+			compile(stmt.elseBranch)
+		}
+		patchJump(elseJump, stmt)
+	}
+
+	override fun visitWhileStmt(stmt: Stmt.While) {
+		val loopStart = chunk.code.size
+		compile(stmt.condition)
+
+		val exitJump = emitJump(Opcodes.JUMP_IF_FALSE, stmt)
+		emitByte(Opcodes.POP, stmt)
+		val body: Stmt.Block = stmt.body as Stmt.Block
+		if(body.statements.isNotEmpty()) {
+			compile(body.statements[0])
+			if( //for loop
+				body.statements.size == 2 &&
+				body.statements[0] is Stmt.Block &&
+				body.statements[1] is Stmt.Expression &&
+				(body.statements[1] as Stmt.Expression).expr is Expr.Assign
+			) {
+				incompleteContinues.forEach {
+					patchJump(it, stmt)
+				}
+				incompleteContinues.clear()
+				compile(body.statements[1])
+			} else { //normal while loop
+				val list = body.statements.subList(1, body.statements.size)
+				list.forEach { compile(it) }
+				incompleteContinues.forEach {
+					patchJump(it, stmt)
+				}
+				incompleteContinues.clear()
+			}
+		}
+
+		emitLoop(loopStart, stmt)
+
+		patchJump(exitJump, stmt)
+		emitByte(Opcodes.POP, stmt)
+
+		incompleteBreaks.forEach { patchJump(it, stmt) }
+		incompleteBreaks.clear()
+	}
+
+	override fun visitBreakStmt(stmt: Stmt.Break) {
+		incompleteBreaks.add(emitJump(Opcodes.JUMP, stmt))
+	}
+
+	override fun visitContinueStmt(stmt: Stmt.Continue) {
+		incompleteContinues.add(emitJump(Opcodes.JUMP, stmt))
+	}
+
+	override fun visitFunctionStmt(stmt: Stmt.Function) {
+		val constantIndex: Int = addIdentifier(stmt.name.lexeme,stmt)
+		markInitialized()
+		makeFunction(stmt)
+		if(stmt.type == FunctionType.FUNCTION){
+			defineVariable(constantIndex, stmt)
+		}
+	}
+
+	private fun makeFunction(stmt: Stmt.Function){
+		val compiler = Compiler(sunlite,vm,this)
+		compiler.beginScope(stmt)
+		for (param in stmt.params) {
+			val constantIndex = compiler.makeVariable(param.token, stmt)
+			compiler.defineVariable(constantIndex, stmt)
+		}
+
+		val function: SLFunction = compiler.compile(stmt.type, stmt.modifier, stmt.returnType, stmt.params, stmt.typeParams, stmt.body, currentFile, stmt.name.lexeme, stmt.params.size)
+		emitByte(Opcodes.CLOSURE, stmt)
+		emitShort(addConstant(SLFuncObj(function),stmt),stmt)
+		for (upvalue in compiler.upvalues) {
+			emitByte(if(upvalue.isLocal) 1 else 0, stmt)
+			emitShort(upvalue.index, stmt)
+		}
+	}
+
+	override fun visitReturnStmt(stmt: Stmt.Return) {
+		if(currentFunctionType == FunctionType.INITIALIZER){
+			sunlite.error(stmt.getLine(), "Can't explicitly return from an initializer.", currentFile)
+		}
+		if(stmt.value == null){
+			emitByte(Opcodes.NIL, stmt)
+			emitByte(Opcodes.RETURN, stmt)
+		} else {
+			compile(stmt.value)
+			emitByte(Opcodes.RETURN, stmt)
+		}
+	}
+
+	override fun visitClassStmt(stmt: Stmt.Class) {
+		val className = stmt.name
+		val nameConstant = addIdentifier(className.lexeme, stmt)
+		declareVariable(className, stmt)
+
+		emitByte(Opcodes.FALSE, stmt)
+		emitByte(Opcodes.CLASS, stmt)
+		emitShort(nameConstant, stmt)
+
+		defineVariable(nameConstant,stmt)
+
+		val classCompiler = ClassCompiler(currentClass)
+		currentClass = classCompiler
+
+		if(stmt.superclass != null){
+			compile(Expr.Variable(stmt.superclass.name))
+
+			beginScope(stmt.superclass)
+			addLocal(Token.identifier("super",stmt.getLine(),stmt.getFile()), stmt)
+			defineVariable(0, stmt)
+			compile(Expr.Variable(className))
+			emitByte(Opcodes.INHERIT,stmt.superclass)
+			classCompiler.hasSuperclass = true
+		}
+
+		stmt.superinterfaces.forEach {
+			compile(Expr.Variable(it.name))
+			compile(Expr.Variable(className))
+			emitByte(Opcodes.INHERIT,it)
+		}
+
+		compile(Expr.Variable(className))
+
+		for (param in stmt.typeParameters) {
+			val name = addIdentifier(param.token.lexeme, stmt)
+			emitConstant(SLType(param.type), stmt)
+			emitByte(Opcodes.TYPE_PARAM,stmt)
+			emitShort(name,stmt)
+		}
+
+		for (vars in stmt.fieldDefaults) {
+			val name = addIdentifier(vars.name.lexeme, stmt)
+			vars.initializer?.let { compile(it) }
+			emitConstant(SLType(vars.type), vars)
+			if(vars.modifier == FieldModifier.STATIC || vars.modifier == FieldModifier.STATIC_CONST){
+				emitByte(Opcodes.STATIC_FIELD, stmt)
+			} else {
+				emitByte(Opcodes.FIELD, stmt)
+			}
+
+			emitShort(name, stmt)
+		}
+
+		for (method in stmt.methods) {
+			val methodName = addIdentifier(method.name.lexeme, stmt)
+			compile(method)
+			emitByte(Opcodes.METHOD, stmt)
+			emitShort(methodName,stmt)
+		}
+
+		emitByte(Opcodes.POP, stmt)
+
+		if(currentClass?.hasSuperclass == true){
+			endScope(stmt)
+		}
+
+		currentClass = currentClass?.enclosing
+	}
+
+	override fun visitInterfaceStmt(stmt: Stmt.Interface) {
+		val className = stmt.name
+		val nameConstant = addIdentifier(className.lexeme, stmt)
+		declareVariable(className, stmt)
+
+		emitByte(Opcodes.TRUE, stmt)
+		emitByte(Opcodes.CLASS, stmt)
+		emitShort(nameConstant, stmt)
+
+		defineVariable(nameConstant,stmt)
+
+		val classCompiler = ClassCompiler(currentClass)
+		currentClass = classCompiler
+
+		/*if(stmt.superclass != null){
+			compile(Expr.Variable(stmt.superclass.name))
+
+			beginScope(stmt.superclass)
+			addLocal(Token.identifier("super",stmt.getLine(),stmt.getFile()), stmt)
+			defineVariable(0, stmt)
+			compile(Expr.Variable(className))
+			emitByte(Opcodes.INHERIT,stmt.superclass)
+			classCompiler.hasSuperclass = true;
+		}*/
+
+		compile(Expr.Variable(className))
+
+		for (method in stmt.methods) {
+			val methodName = addIdentifier(method.name.lexeme, stmt)
+			compile(method)
+			emitByte(Opcodes.METHOD, stmt)
+			emitShort(methodName,stmt)
+		}
+
+		emitByte(Opcodes.POP, stmt)
+
+		if(currentClass?.hasSuperclass == true){
+			endScope(stmt)
+		}
+
+		currentClass = currentClass?.enclosing
+	}
+
+	override fun visitImportStmt(stmt: Stmt.Import) {
+
+	}
+
+	override fun visitTryCatchStmt(stmt: Stmt.TryCatch) {
+		val tryBegin = chunk.code.size
+		compile(stmt.tryBody)
+		val tryEnd = chunk.code.size
+		val jmp = emitJump(Opcodes.JUMP, stmt)
+		val catchBegin = chunk.code.size
+		beginScope(stmt)
+		makeVariable(stmt.catchVariable.token, stmt)
+		defineVariable(0, stmt)
+		stmt.catchBody.statements.forEach { compile(it) }
+		endScope(stmt)
+		val catchEnd = chunk.code.size
+		patchJump(jmp, stmt)
+		chunk.exceptions[tryBegin .. tryEnd] = catchBegin .. catchEnd
+	}
+
+	override fun visitThrowStmt(stmt: Stmt.Throw) {
+		compile(stmt.expr)
+		emitByte(Opcodes.THROW, stmt)
+	}
+}
