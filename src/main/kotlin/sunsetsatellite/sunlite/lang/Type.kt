@@ -1,15 +1,6 @@
 package sunsetsatellite.sunlite.lang
 
-import sunsetsatellite.sunlite.vm.SLArray
-import sunsetsatellite.sunlite.vm.SLBoundMethod
-import sunsetsatellite.sunlite.vm.SLClass
-import sunsetsatellite.sunlite.vm.SLClassInstance
-import sunsetsatellite.sunlite.vm.SLClosure
-import sunsetsatellite.sunlite.vm.SLFunction
-import sunsetsatellite.sunlite.vm.SLNativeFunction
-import sunsetsatellite.sunlite.vm.SLTable
-import sunsetsatellite.sunlite.vm.SLType
-import sunsetsatellite.sunlite.vm.SLUpvalue
+import sunsetsatellite.sunlite.vm.*
 
 abstract class Type {
 
@@ -17,6 +8,10 @@ abstract class Type {
 
         override fun getName(): String {
             return type.name.lowercase()
+        }
+
+        override fun getDescriptor(): String {
+            return type.descriptor.toString()
         }
 
         override fun toString(): String {
@@ -31,19 +26,22 @@ abstract class Type {
                 return false
             }
 
-            if(type == PrimitiveType.FLOAT || type == PrimitiveType.DOUBLE){
-	            if(other.type != PrimitiveType.FLOAT && other.type != PrimitiveType.DOUBLE && numericOrder.containsKey(other.type)){
+            if (type == PrimitiveType.FLOAT || type == PrimitiveType.DOUBLE) {
+                if (other.type != PrimitiveType.FLOAT && other.type != PrimitiveType.DOUBLE && numericOrder.containsKey(
+                        other.type
+                    )
+                ) {
                     return true
                 }
             }
 
-            if(type == PrimitiveType.FLOAT && other.type == PrimitiveType.DOUBLE){
+            if (type == PrimitiveType.FLOAT && other.type == PrimitiveType.DOUBLE) {
                 return false
-            } else if (type == PrimitiveType.DOUBLE && other.type == PrimitiveType.FLOAT){
+            } else if (type == PrimitiveType.DOUBLE && other.type == PrimitiveType.FLOAT) {
                 return true
             }
 
-            if(numericOrder.containsKey(type) && numericOrder.containsKey(other.type)) {
+            if (numericOrder.containsKey(type) && numericOrder.containsKey(other.type)) {
                 return numericOrder[other.type]!! <= numericOrder[type]!!
             }
 
@@ -60,7 +58,38 @@ abstract class Type {
         }
     }
 
-    class Reference(type: PrimitiveType, ref: String, val returnType: Type, val params: List<Param> = listOf(), val typeParams: List<Param> = listOf()) : Singular(type, ref) {
+    class Reference(
+        type: PrimitiveType,
+        ref: String,
+        val returnType: Type,
+        val params: List<Param> = listOf(),
+        val typeParams: List<Param> = listOf()
+    ) : Singular(type, ref) {
+
+        override fun getDescriptor(): String {
+            if(type.isReference){
+                when (type) {
+                    PrimitiveType.OBJECT -> {
+                        return PrimitiveType.OBJECT.descriptor+ref+";"
+                    }
+                    PrimitiveType.CLASS -> {
+                        return PrimitiveType.CLASS.descriptor+ref+";"
+                    }
+                    PrimitiveType.ARRAY -> {
+                        return PrimitiveType.ARRAY.descriptor+returnType.getDescriptor()+";"
+                    }
+                    PrimitiveType.TABLE -> {
+                        return PrimitiveType.TABLE.descriptor+typeParams[0].type.getDescriptor()+"="+returnType.getDescriptor()+";"
+                    }
+                    PrimitiveType.FUNCTION -> {
+                        return PrimitiveType.FUNCTION.descriptor+"("+ params.joinToString("") { it.type.getDescriptor() } +")"+returnType.getDescriptor()+";"
+                    }
+                    else -> super.getDescriptor()
+                }
+            }
+            return super.getDescriptor()
+        }
+
         override fun getName(): String {
             return ref
         }
@@ -68,17 +97,23 @@ abstract class Type {
         override fun toString(): String {
             when (type) {
                 PrimitiveType.FUNCTION -> {
-                    return "${type.name.lowercase()}${if(typeParams.isNotEmpty()) "<${typeParams.joinToString()}>" else ""} '${ref}(${params.map { "${it.token.lexeme}: ${it.type}" }.joinToString()}): ${returnType}'"
+                    return "${type.name.lowercase()}${if (typeParams.isNotEmpty()) "<${typeParams.joinToString()}>" else ""} '${ref}(${
+                        params.map { "${it.token.lexeme}: ${it.type}" }.joinToString()
+                    }): ${returnType}'"
                 }
+
                 PrimitiveType.ARRAY -> {
                     return "${type.name.lowercase()} '${returnType}'"
                 }
+
                 PrimitiveType.TABLE -> {
                     return "${type.name.lowercase()} '${typeParams[0].type} -> ${returnType}'"
                 }
+
                 PrimitiveType.OBJECT -> {
-                    return "${type.name.lowercase()}${if(typeParams.isNotEmpty()) "<${typeParams.joinToString()}>" else ""}${if (ref != "") " '${ref}'" else ""}"
+                    return "${type.name.lowercase()}${if (typeParams.isNotEmpty()) "<${typeParams.joinToString()}>" else ""}${if (ref != "") " '${ref}'" else ""}"
                 }
+
                 else -> {
                     return "${type.name.lowercase()}${if (ref != "") " '${ref}'" else ""}"
                 }
@@ -86,36 +121,40 @@ abstract class Type {
         }
 
         override fun equals(other: Any?): Boolean {
-            if(other !is Reference) return false
-            if(other.type != type) return false
+            if (other !is Reference) return false
+            if (other.type != type) return false
             when (this.type) {
                 PrimitiveType.FUNCTION -> {
-                    if(this.returnType == other.returnType) {
-                        if(this.params.size != other.params.size) return false
+                    if (this.returnType == other.returnType) {
+                        if (this.params.size != other.params.size) return false
                         val types = params.map { it.type }
                         val otherTypes = other.params.map { it.type }
-                        if(types.zip(otherTypes).any { !contains(it.second, it.first, currentInterpreter!!) }) return false
-                        return true
+                        return !types.zip(otherTypes)
+                            .any { !contains(it.second, it.first, currentInterpreter!!) }
                     }
                 }
+
                 PrimitiveType.OBJECT -> {
-                    if(currentInterpreter == null) return false
-                    if(ref == other.ref) return true
+                    if (currentInterpreter == null) return false
+                    if (ref == other.ref) return true
                     return traverseTypeHierarchy(other.ref)
                 }
+
                 PrimitiveType.ARRAY -> {
-                    if(contains(returnType, other.returnType, currentInterpreter!!)) return true
-                    return false
+                    return contains(returnType, other.returnType, currentInterpreter!!)
                 }
+
                 PrimitiveType.TABLE -> {
-                    if(!contains(typeParams[0].type, other.typeParams[0].type, currentInterpreter!!)) return false
-                    if(!contains(returnType, other.returnType, currentInterpreter!!)) return false
+                    if (!contains(typeParams[0].type, other.typeParams[0].type, currentInterpreter!!)) return false
+                    if (!contains(returnType, other.returnType, currentInterpreter!!)) return false
                     return true
                 }
+
                 PrimitiveType.CLASS -> {
-                    if(this.ref == "") return true
-                    if(this.ref == other.ref) return true
+                    if (this.ref == "") return true
+                    if (this.ref == other.ref) return true
                 }
+
                 else -> {
                     return true
                 }
@@ -127,17 +166,17 @@ abstract class Type {
             val parents = currentInterpreter?.collector?.typeHierarchy[other]
             val superclass = parents?.superclass
             val interfaces = parents?.superinterfaces
-            if(superclass == this.ref) return true
-            if(interfaces != null && interfaces.contains(this.ref)) return true
-            if((superclass == null || superclass == "<nil>" || superclass == "") && (interfaces == null || interfaces.isEmpty())) return false
-            if(superclass != null){
+            if (superclass == this.ref) return true
+            if (interfaces != null && interfaces.contains(this.ref)) return true
+            if ((superclass == null || superclass == "<nil>" || superclass == "") && (interfaces == null || interfaces.isEmpty())) return false
+            if (superclass != null) {
                 val success = traverseTypeHierarchy(superclass)
-                if(success) return true
+                if (success) return true
             }
-            if(interfaces != null) {
+            if (interfaces != null) {
                 for (int in interfaces) {
                     val intSuccess = traverseTypeHierarchy(int)
-                    if(intSuccess) return true
+                    if (intSuccess) return true
                 }
             }
             return false
@@ -156,6 +195,10 @@ abstract class Type {
             return types.joinToString(" | ")
         }
 
+        override fun getDescriptor(): String {
+            return types.joinToString("|") { it.getDescriptor() }
+        }
+
         override fun toString(): String {
             return getName()
         }
@@ -164,6 +207,10 @@ abstract class Type {
     class Parameter(val name: Token) : Singular(PrimitiveType.GENERIC, name.lexeme) {
         override fun getName(): String {
             return name.lexeme
+        }
+
+        override fun getDescriptor(): String {
+            return PrimitiveType.GENERIC.descriptor.toString()
         }
 
         override fun toString(): String {
@@ -187,6 +234,7 @@ abstract class Type {
     }
 
     abstract fun getName(): String
+    abstract fun getDescriptor(): String
 
     companion object {
 
@@ -205,7 +253,13 @@ abstract class Type {
         }
 
         fun ofTable(keyType: Type, valueType: Type): Reference {
-            return Reference(PrimitiveType.TABLE, "<table>", valueType, listOf(), listOf(Param(Token.identifier("<key>"),keyType)))
+            return Reference(
+                PrimitiveType.TABLE,
+                "<table>",
+                valueType,
+                listOf(),
+                listOf(Param(Token.identifier("<key>"), keyType))
+            )
         }
 
         fun ofFunction(name: String, returnType: Type, params: List<Param>): Reference {
@@ -235,118 +289,171 @@ abstract class Type {
         }
 
         fun of(tokens: List<TypeToken>, sunlite: Sunlite, topmost: Boolean = true): Type {
-            if(tokens.isEmpty()) {
+            if (tokens.isEmpty()) {
                 throw IllegalArgumentException("No types provided.")
-            } else if(tokens.size > 1 && topmost) {
+            } else if (tokens.size > 1 && topmost) {
                 throw IllegalArgumentException("There can be only one topmost type.")
             } else {
-                if(topmost){
+                if (topmost) {
                     val topmostType = tokens.first()
-                    if(topmostType.tokens.size == 1) {
+                    if (topmostType.tokens.size == 1) {
                         val singleToken = topmostType.tokens.entries.first()
                         when (singleToken.key.type) {
                             TokenType.TYPE_FUNCTION -> {
-                                val returnType = if(topmostType.typeParameters.isEmpty()) Type.NIL else of(listOf(topmostType.typeParameters.last()), sunlite,false)
+                                val returnType = if (topmostType.typeParameters.isEmpty()) NIL else of(
+                                    listOf(topmostType.typeParameters.last()),
+                                    sunlite,
+                                    false
+                                )
                                 val paramTokens = topmostType.typeParameters.dropLast(1)
-                                val params = paramTokens.map { Param(Token.identifier(""), of(listOf(it), sunlite,false)) }
+                                val params =
+                                    paramTokens.map { Param(Token.identifier(""), of(listOf(it), sunlite, false)) }
                                 return ofFunction("", returnType, params)
                             }
+
                             TokenType.TYPE_ARRAY -> {
-                                val elementType = if(topmostType.typeParameters.isEmpty()) NULLABLE_ANY else of(topmostType.typeParameters, sunlite,false)
+                                val elementType = if (topmostType.typeParameters.isEmpty()) NULLABLE_ANY else of(
+                                    topmostType.typeParameters,
+                                    sunlite,
+                                    false
+                                )
                                 return ofArray(elementType)
                             }
+
                             TokenType.TYPE_TABLE -> {
-                                val keyType = if(topmostType.typeParameters.isEmpty()) NULLABLE_ANY else of(listOf(
-                                    topmostType.typeParameters[0]
-                                ), sunlite,false)
-                                val valueType = if(topmostType.typeParameters.isEmpty()) NULLABLE_ANY else of(listOf(
-                                    topmostType.typeParameters[1]
-                                ), sunlite,false)
+                                val keyType = if (topmostType.typeParameters.isEmpty()) NULLABLE_ANY else of(
+                                    listOf(
+                                        topmostType.typeParameters[0]
+                                    ), sunlite, false
+                                )
+                                val valueType = if (topmostType.typeParameters.isEmpty()) NULLABLE_ANY else of(
+                                    listOf(
+                                        topmostType.typeParameters[1]
+                                    ), sunlite, false
+                                )
                                 return ofTable(keyType, valueType)
                             }
+
                             TokenType.TYPE_CLASS -> {
-                                if(topmostType.typeParameters.isEmpty()) {
+                                if (topmostType.typeParameters.isEmpty()) {
                                     return ofClass("")
                                 }
                                 val className =
                                     topmostType.typeParameters.first().tokens.entries.first().key.lexeme
                                 return ofClass(className)
                             }
+
                             TokenType.IDENTIFIER -> {
-                                if(topmostType.typeParameters.isNotEmpty()) {
-                                    val types = topmostType.typeParameters.map { of(listOf(it), sunlite,false) }
+                                if (topmostType.typeParameters.isNotEmpty()) {
+                                    val types = topmostType.typeParameters.map { of(listOf(it), sunlite, false) }
                                     val name = singleToken.key.lexeme
                                     val typeParams = sunlite.collector?.typeHierarchy[name]?.typeParameters
-                                    return ofGenericObject(singleToken.key.lexeme, types.mapIndexed { i, it -> Param(Token.identifier(typeParams?.get(i) ?: "?"), it) })
+                                    return ofGenericObject(
+                                        singleToken.key.lexeme,
+                                        types.mapIndexed { i, it ->
+                                            Param(
+                                                Token.identifier(typeParams?.get(i) ?: "?"),
+                                                it
+                                            )
+                                        })
                                 }
                                 return ofObject(singleToken.key.lexeme)
                             }
+
                             TokenType.TYPE_GENERIC -> {
                                 return Parameter(topmostType.typeParameters.first().tokens.keys.first())
                             }
+
                             else -> {
                                 return Singular(PrimitiveType.get(singleToken.key))
                             }
                         }
                     } else {
-                        val types = topmostType.tokens.values.map { of(it, sunlite,false) as Singular }
+                        val types = topmostType.tokens.values.map { of(it, sunlite, false) as Singular }
                         return Union(types)
                     }
                 } else {
-                    if(tokens.size == 1) {
+                    if (tokens.size == 1) {
                         val singleType = tokens.first()
-                        if(singleType.tokens.size == 1) {
+                        if (singleType.tokens.size == 1) {
                             val singleToken = singleType.tokens.entries.first()
                             when (singleToken.key.type) {
                                 TokenType.TYPE_FUNCTION -> {
-                                    val returnType = if(singleType.typeParameters.isEmpty()) NIL else of(listOf(singleType.typeParameters.last()),sunlite, false)
+                                    val returnType = if (singleType.typeParameters.isEmpty()) NIL else of(
+                                        listOf(singleType.typeParameters.last()),
+                                        sunlite,
+                                        false
+                                    )
                                     val paramTokens = singleType.typeParameters.dropLast(1)
-                                    val params = paramTokens.map { Param(Token.identifier(""), of(listOf(it), sunlite,false)) }
+                                    val params =
+                                        paramTokens.map { Param(Token.identifier(""), of(listOf(it), sunlite, false)) }
                                     return ofFunction("", returnType, params)
                                 }
+
                                 TokenType.TYPE_ARRAY -> {
-                                    val elementType = if(singleType.typeParameters.isEmpty()) NULLABLE_ANY else of(singleType.typeParameters, sunlite,false)
+                                    val elementType = if (singleType.typeParameters.isEmpty()) NULLABLE_ANY else of(
+                                        singleType.typeParameters,
+                                        sunlite,
+                                        false
+                                    )
                                     return ofArray(elementType)
                                 }
+
                                 TokenType.TYPE_TABLE -> {
-                                    val keyType = if(singleType.typeParameters.isEmpty()) NULLABLE_ANY else of(listOf(
-                                        singleType.typeParameters[0]
-                                    ), sunlite,false)
-                                    val valueType = if(singleType.typeParameters.isEmpty()) NULLABLE_ANY else of(listOf(
-                                        singleType.typeParameters[1]
-                                    ), sunlite,false)
+                                    val keyType = if (singleType.typeParameters.isEmpty()) NULLABLE_ANY else of(
+                                        listOf(
+                                            singleType.typeParameters[0]
+                                        ), sunlite, false
+                                    )
+                                    val valueType = if (singleType.typeParameters.isEmpty()) NULLABLE_ANY else of(
+                                        listOf(
+                                            singleType.typeParameters[1]
+                                        ), sunlite, false
+                                    )
                                     return ofTable(keyType, valueType)
                                 }
+
                                 TokenType.TYPE_CLASS -> {
-                                    if(singleType.typeParameters.isEmpty()) {
+                                    if (singleType.typeParameters.isEmpty()) {
                                         return ofClass("")
                                     }
                                     val className =
                                         singleType.typeParameters.first().tokens.entries.first().key.lexeme
                                     return ofClass(className)
                                 }
+
                                 TokenType.IDENTIFIER -> {
-                                    if(singleType.typeParameters.isNotEmpty()) {
-                                        val types = singleType.typeParameters.map { of(listOf(it), sunlite,false) }
+                                    if (singleType.typeParameters.isNotEmpty()) {
+                                        val types = singleType.typeParameters.map { of(listOf(it), sunlite, false) }
                                         val name = singleToken.key.lexeme
                                         val typeParams = sunlite.collector?.typeHierarchy[name]?.typeParameters
-                                        return ofGenericObject(singleToken.key.lexeme, types.mapIndexed { i, it -> Param(Token.identifier(typeParams?.get(i) ?: "?"), it) })
+                                        return ofGenericObject(
+                                            singleToken.key.lexeme,
+                                            types.mapIndexed { i, it ->
+                                                Param(
+                                                    Token.identifier(
+                                                        typeParams?.get(i) ?: "?"
+                                                    ), it
+                                                )
+                                            })
                                     }
                                     return ofObject(singleToken.key.lexeme)
                                 }
+
                                 TokenType.TYPE_GENERIC -> {
                                     return Parameter(singleType.typeParameters.first().tokens.keys.first())
                                 }
+
                                 else -> {
                                     return Singular(PrimitiveType.get(singleToken.key))
                                 }
                             }
                         } else {
-                            val types = singleType.tokens.map { of(it.value,sunlite, false) as Singular }
+                            val types = singleType.tokens.map { of(it.value, sunlite, false) as Singular }
                             return Union(types)
                         }
                     } else {
-                        val types = tokens.map { of(listOf(it), sunlite,false) as Singular }
+                        val types = tokens.map { of(listOf(it), sunlite, false) as Singular }
                         return Union(types)
                     }
                 }
@@ -355,15 +462,15 @@ abstract class Type {
 
         fun contains(type: Type, inType: Type, sunlite: Sunlite): Boolean {
             currentInterpreter = sunlite
-            if(type == UNKNOWN) return false //can't statically determine the type
-            if(inType is Union){
-                if(type is Union) {
+            if (type == UNKNOWN) return false //can't statically determine the type
+            if (inType is Union) {
+                if (type is Union) {
                     return inType.types.containsAll(type.types) || inType.types.contains(ANY)
                 } else {
                     return inType.types.any { it.equals(type) } || inType.types.contains(ANY)
                 }
             } else {
-                if(type is Union) {
+                if (type is Union) {
                     return type.types.contains(ANY)
                 } else {
                     return inType.equals(type) || inType == ANY
@@ -372,7 +479,7 @@ abstract class Type {
         }
 
 
-	    //TODO: better runtime type get for arrays and tables
+        //TODO: better runtime type get for arrays and tables
         fun fromValue(value: Any?, sunlite: Sunlite): Type {
             return when (value) {
                 is Type -> value
@@ -390,19 +497,22 @@ abstract class Type {
                     val function = value.function
                     ofFunction(function.name, function.returnType, function.params)
                 }
+
                 is SLBoundMethod -> {
                     val function = value.method.function
                     ofFunction(function.name, function.returnType, function.params)
                 }
+
                 is SLUpvalue -> {
                     fromValue(value.closedValue, sunlite)
                 }
-                is SLNativeFunction ->  ofFunction(value.name, value.returnType, listOf())
+
+                is SLNativeFunction -> ofFunction(value.name, value.returnType, listOf())
                 is SLFunction -> ofFunction(value.name, value.returnType, value.params)
                 is SLClass -> ofClass(value.name)
                 is SLClassInstance -> ofObject(value.clazz.name)
                 is SLArray -> ofArray(NULLABLE_ANY)
-	            is SLTable -> ofTable(NULLABLE_ANY, NULLABLE_ANY)
+                is SLTable -> ofTable(NULLABLE_ANY, NULLABLE_ANY)
                 is SLType -> value.value
                 else -> UNKNOWN
             }
@@ -423,6 +533,7 @@ abstract class Type {
         val LONG = Singular(PrimitiveType.LONG)
         val FLOAT = Singular(PrimitiveType.FLOAT)
         val DOUBLE = Singular(PrimitiveType.DOUBLE)
+
         //val NUMBER = Singular(PrimitiveType.NUMBER)
         val STRING = Singular(PrimitiveType.STRING)
         val BOOLEAN = Singular(PrimitiveType.BOOLEAN)

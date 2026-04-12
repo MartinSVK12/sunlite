@@ -1,24 +1,24 @@
 package sunsetsatellite.sunlite.lang
 
-enum class PrimitiveType {
-    ANY,
-    BYTE,
-    SHORT,
-    INT,
-    LONG,
-    FLOAT,
-    DOUBLE,
+enum class PrimitiveType(val descriptor: Char, val isReference: Boolean = false) {
+    ANY('A'),
+    BYTE('b'),
+    SHORT('s'),
+    INT('i'),
+    LONG('l'),
+    FLOAT('f'),
+    DOUBLE('d'),
     //NUMBER,
-    STRING,
-    BOOLEAN,
-    FUNCTION,
-    CLASS,
-    OBJECT,
-    ARRAY,
-    TABLE,
-    GENERIC,
-    NIL,
-    UNKNOWN; //static type checker failed to get a more concrete type
+    STRING('t'),
+    BOOLEAN('z'),
+    FUNCTION('M', true),
+    CLASS('C', true),
+    OBJECT('O', true),
+    ARRAY('[', true),
+    TABLE('{', true),
+    GENERIC('G'),
+    NIL('N'),
+    UNKNOWN('U'); //static type checker failed to get a more concrete type
 
     companion object {
         fun get(token: Token?): PrimitiveType {
@@ -43,6 +43,10 @@ enum class PrimitiveType {
                 TokenType.TYPE_GENERIC -> GENERIC
                 else -> UNKNOWN
             }
+        }
+        
+        fun get(descriptor: Char): PrimitiveType {
+            return entries.find { it.descriptor == descriptor } ?: UNKNOWN
         }
     }
 

@@ -1,6 +1,4 @@
 import "/object.sl";
-import "/reflect.sl";
-import "/array.sl";
 
 class Vec2 extends Object {
     var x: Int = 0;
@@ -25,7 +23,5 @@ class Vec2 extends Object {
 }
 
 val a: Vec2 = Vec2(1,2);
-
-foreach(var field in reflect.getFields(Vec2)){
-    print(field);
-}
+val b: Vec2 = Vec2(3,1);
+print((a + b).toString());

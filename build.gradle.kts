@@ -22,6 +22,9 @@ dependencies {
     // lsp
     implementation("org.eclipse.lsp4j:org.eclipse.lsp4j:0.24.0")
     implementation("org.eclipse.lsp4j:org.eclipse.lsp4j.jsonrpc:0.24.0")
+
+    // Source: https://mvnrepository.com/artifact/org.apache.commons/commons-compress
+    implementation("org.apache.commons:commons-compress:1.28.0")
 }
 
 task("lsp", Jar::class) {
