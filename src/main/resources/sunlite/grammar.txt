@@ -12,13 +12,15 @@ classDecl      → "class" ( typeParam )? IDENTIFIER ( "extends" IDENTIFIER )? (
                  "{" varDecl* method* "}" ;
 interfaceDecl  → "interface" ( typeParam )? IDENTIFIER ( "implements" IDENTIFIER ( "," IDENTIFIER )* )?
                  "{" abstractMethod* ")" ;
-funDecl        → "fun" ( typeParam )? function ;
+funDecl        → "func" ( typeParam )? function ;
 varDecl        → ( "static" )? ( "var" | "val" ) IDENTIFIER ( "=" expression )? ( ":" type )? ";" ;
 
 // STATEMENTS
 
 statement      → exprStmt
                | forStmt
+               | foreachStmt
+               | matchStmt
                | ifStmt
                | returnStmt
                | whileStmt
@@ -32,6 +34,8 @@ exprStmt       → expression ";" ;
 forStmt        → "for" "(" ( varDecl | exprStmt | ";" )
                            expression? ";"
                            expression? ")" statement ;
+foreachStmt    → "foreach" "(" "var" IDENTIFIER (":" type)? "in" expression ")" statement ;
+matchStmt      → "match" "(" IDENTIFIER ")" "{" ( caseClause )* "}" ;
 ifStmt         → "if" "(" expression ")" statement
                  ( "else" statement )? ;
 returnStmt     → "return" expression? ";" ;
@@ -58,7 +62,7 @@ comparison     → term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
 term           → factor ( ( "-" | "+" ) factor )* ;
 factor         → unary ( ( "/" | "*" ) unary )* ;
 unary          → ( "!" | "-" ) unary | lambda ;
-lambda         → ( "fun" ( typeParam )? "(" parameters? ")" ( ":" type )? block ) | call ;
+lambda         → ( "func" ( typeParam )? "(" parameters? ")" ( ":" type )? block ) | call ;
 call           → primary ( "(" ( typeParam* )? arguments? ")" | "." IDENTIFIER )* ;
 primary        → "true" | "false" | "nil" | "this"
                | NUMBER | STRING | IDENTIFIER | "(" expression ")"
@@ -66,12 +70,13 @@ primary        → "true" | "false" | "nil" | "this"
 
 // UTILITY
 
-method         → ( "static" | "native" | "static native" )? "fun" ( typeParam )? methodSignature block? ;
-abstractMethod → ( "static" | "native" | "static native" )? "fun" ( typeParam )? methodSignature ;
+method         → ( "static" | "native" | "static native" | "operator" | "override" )? "func" ( typeParam )? methodSignature block? ;
+abstractMethod → ( "static" | "native" | "static native" )? "func" ( typeParam )? methodSignature ;
 methodSignature→ IDENTIFIER "(" parameters? ")" ( ":" type )? ;
 function       → IDENTIFIER "(" parameters? ")" ( ":" type )? block ;
 parameters     → IDENTIFIER ( ":" type )? ( "," IDENTIFIER ( ":" type )? )* ;
 arguments      → expression ( "," expression )* ;
+caseClause     → (expression | "else") ":" "{" statement "}" ;
 type           → ( "Any"
                  | "Nil"
                  | "Byte"
