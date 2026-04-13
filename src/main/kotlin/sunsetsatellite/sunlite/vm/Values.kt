@@ -416,6 +416,11 @@ class SLType(value: Type) : SLObj<Type>(value, 9) {
         return Type.contains(other.value, value, Sunlite.instance)
     }
 
+    fun strictEquals(other: Any?): Boolean {
+        if (other !is SLType) return false
+        return value == other.value
+    }
+
     override fun copy(): SLValue<Type> {
         return SLType(value)
     }

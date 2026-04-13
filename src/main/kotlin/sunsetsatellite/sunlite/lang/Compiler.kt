@@ -176,7 +176,8 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?) : Exp
     }
 
     private fun addConstant(value: AnySLValue, e: Element): Int {
-        if (chunk.constants.contains(value)) {
+        //fixme: breaks with SLType objects, cause equals in it is stupid
+        if (chunk.constants.contains(value) && value !is SLType) {
             return chunk.constants.indexOf(value)
         }
         chunk.constants.add(value)

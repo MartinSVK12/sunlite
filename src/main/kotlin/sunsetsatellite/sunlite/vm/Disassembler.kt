@@ -77,7 +77,7 @@ object Disassembler {
 
     private fun closureInstruction(sb: StringBuilder, name: String, chunk: Chunk, startOffset: Int): Int {
         var offset = startOffset
-        val constant = (chunk.code[offset + 1].toInt() shl 8) or chunk.code[offset + 2].toInt()
+        val constant = ((chunk.code[offset + 1].toInt() and 0xFF) shl 8) or (chunk.code[offset + 2].toInt() and 0xFF)
         offset += 3
         sb.append(String.format("%-16s (%02X) %4d ", name, Opcodes.valueOf(name).ordinal, constant))
         if (constant > chunk.constants.size) {
@@ -104,7 +104,7 @@ object Disassembler {
     }
 
     private fun jumpInstruction(sb: StringBuilder, name: String, sign: Int, chunk: Chunk, offset: Int): Int {
-        val jmp = (chunk.code[offset + 1].toInt() shl 8) or chunk.code[offset + 2].toInt()
+        val jmp = ((chunk.code[offset + 1].toInt() and 0xFF) shl 8) or (chunk.code[offset + 2].toInt() and 0xFF)
         sb.append(
             String.format(
                 "%-16s (%02X) %4d -> %d\n",
@@ -131,13 +131,13 @@ object Disassembler {
     }
 
     private fun shortInstruction(sb: StringBuilder, name: String, chunk: Chunk, offset: Int): Int {
-        val short = (chunk.code[offset + 1].toInt() shl 8) or chunk.code[offset + 2].toInt()
+        val short = ((chunk.code[offset + 1].toInt() and 0xFF) shl 8) or (chunk.code[offset + 2].toInt() and 0xFF)
         sb.append(String.format("%-16s (%02X) %4d\n", name, Opcodes.valueOf(name).ordinal, short))
         return offset + 3
     }
 
     private fun constantInstruction(sb: StringBuilder, name: String, chunk: Chunk, offset: Int): Int {
-        val constant = (chunk.code[offset + 1].toInt() shl 8) or chunk.code[offset + 2].toInt()
+        val constant = ((chunk.code[offset + 1].toInt() and 0xFF) shl 8) or (chunk.code[offset + 2].toInt() and 0xFF)
         sb.append(String.format("%-16s (%02X) %4d ", name, Opcodes.valueOf(name).ordinal, constant))
         if (constant > chunk.constants.size) {
             sb.append("<error reading constant>")

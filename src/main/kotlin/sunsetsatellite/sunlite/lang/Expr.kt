@@ -308,6 +308,9 @@ abstract class Expr : Element {
                     return ref.returnType
                 }
             }
+            if(obj.getExprType() == Type.STRING){
+                return Type.STRING
+            }
             return Type.UNKNOWN
         }
     }

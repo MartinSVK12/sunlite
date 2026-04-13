@@ -200,12 +200,15 @@ class Scanner(private val source: String, val sunlite: Sunlite) {
                     't' -> sb.append('\t')
                     '\\' -> sb.append('\\')
                     '"' -> sb.append('\"')
+                    '0' -> sb.append('\u0000')
                     else -> {
                         sunlite.error(line, "Invalid escape sequence.")
                         return
                     }
                 }
             }
+
+            if(peek() == '\"') break
 
             if (peek() == '$' && peekNext() == '{') {
                 addToken(STRING, sb.toString())

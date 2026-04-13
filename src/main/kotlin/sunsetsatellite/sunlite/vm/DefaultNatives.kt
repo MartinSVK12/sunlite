@@ -114,6 +114,26 @@ object DefaultNatives : Natives {
             }
         })
 
+        vm.defineNative(object : SLNativeFunction("parseDouble", Type.DOUBLE, 1) {
+            override fun call(vm: VM, args: Array<AnySLValue>): AnySLValue {
+                val s = (args[0] as SLString).value
+                return SLDouble(s.toDouble())
+            }
+        })
+
+        vm.defineNative(object : SLNativeFunction("parseInt", Type.INT, 1) {
+            override fun call(vm: VM, args: Array<AnySLValue>): AnySLValue {
+                val s = (args[0] as SLString).value
+                return SLInt(s.toInt())
+            }
+        })
+
+        vm.defineNative(object : SLNativeFunction("ord", Type.SHORT, 1) {
+            override fun call(vm: VM, args: Array<AnySLValue>): AnySLValue {
+                return SLShort((args[0] as SLString).value.codePointAt(0).toShort())
+            }
+        })
+
         vm.defineNative(object : SLNativeFunction("rand", Type.INT, 1) {
             override fun call(vm: VM, args: Array<AnySLValue>): AnySLValue {
                 val number = (args[0] as SLNumber).value
@@ -154,8 +174,8 @@ object DefaultNatives : Natives {
                 vm: VM,
                 args: Array<AnySLValue>
             ): AnySLValue {
-                val array = args[1] as SLArrayObj
-                val newSize = args[0] as SLNumber
+                val array = args[0] as SLArrayObj
+                val newSize = args[1] as SLNumber
                 array.value.resize(newSize.value.toInt())
                 return SLNil
             }
@@ -258,6 +278,14 @@ object DefaultNatives : Natives {
                 val s = (args[0] as SLString).value
                 val s2 = (args[1] as SLString).value
                 return SLBool.of(s.contains(s2))
+            }
+        })
+
+        vm.defineNative(object : SLNativeFunction("string#at", Type.STRING, 2) {
+            override fun call(vm: VM, args: Array<AnySLValue>): AnySLValue {
+                val s = (args[0] as SLString).value
+                val index = (args[1] as SLInt).value
+                return SLString(s[index].toString())
             }
         })
     }

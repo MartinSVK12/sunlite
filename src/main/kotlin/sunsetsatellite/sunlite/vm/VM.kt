@@ -176,19 +176,25 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                     Opcodes.NOT -> fr.push(SLBool.of(isFalse(fr.pop())))
                     Opcodes.EQUAL -> fr.push(SLBool.of(fr.pop() == fr.pop()))
                     Opcodes.GREATER -> {
-                        if (fr.peek() !is SLNumber || fr.peek(1) !is SLNumber) {
-                            runtimeError("Operands must be a number.")
+                        if (fr.peek() is SLNumber && fr.peek(1) is SLNumber) {
+                            fr.push(SLBool.of((fr.pop() as SLNumber) < (fr.pop() as SLNumber)))
+                        } else if(fr.peek() is SLString && fr.peek(1) is SLString){
+                            fr.push(SLBool.of((fr.pop() as SLString).value < (fr.pop() as SLString).value))
+                        } else {
+                            runtimeError("Operands must be numbers or strings.")
                             return
                         }
-                        fr.push(SLBool.of((fr.pop() as SLNumber) < (fr.pop() as SLNumber)))
                     }
 
                     Opcodes.LESS -> {
-                        if (fr.peek() !is SLNumber || fr.peek(1) !is SLNumber) {
-                            runtimeError("Operands must be a number.")
+                        if (fr.peek() is SLNumber && fr.peek(1) is SLNumber) {
+                            fr.push(SLBool.of((fr.pop() as SLNumber) > (fr.pop() as SLNumber)))
+                        } else if(fr.peek() is SLString && fr.peek(1) is SLString){
+                            fr.push(SLBool.of((fr.pop() as SLString).value > (fr.pop() as SLString).value))
+                        } else {
+                            runtimeError("Operands must be numbers or strings.")
                             return
                         }
-                        fr.push(SLBool.of((fr.pop() as SLNumber) > (fr.pop() as SLNumber)))
                     }
 
                     Opcodes.PRINT -> println(fr.pop())
@@ -396,11 +402,19 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                     }
 
                     Opcodes.ARRAY_GET -> {
-                        if (fr.peek(0) !is SLArrayObj && fr.peek(0) !is SLTableObj) {
-                            runtimeError("Only arrays or tables support the indexing operator.")
+                        if (fr.peek(0) !is SLArrayObj && fr.peek(0) !is SLTableObj && fr.peek(0) !is SLString) {
+                            runtimeError("Only arrays, tables and strings support getting with the indexing operator.")
                             return
                         }
-                        if (fr.peek(0) is SLArrayObj) {
+                        if(fr.peek(0) is SLString){
+                            val s = (fr.pop() as SLString).value
+                            val index = fr.pop()
+                            if (index !is SLNumber) {
+                                runtimeError("String index must be a number.")
+                                return
+                            }
+                            fr.push(SLString(s[index.value.toInt()].toString()))
+                        } else if (fr.peek(0) is SLArrayObj) {
                             val arr = (fr.pop() as SLArrayObj).value
                             val index = fr.pop()
                             if (index !is SLNumber) {
@@ -418,7 +432,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
 
                     Opcodes.ARRAY_SET -> {
                         if (fr.peek(0) !is SLArrayObj && fr.peek(0) !is SLTableObj) {
-                            runtimeError("Only arrays or tables support the indexing operator.")
+                            runtimeError("Only arrays or tables support setting with the indexing operator.")
                             return
                         }
                         if (fr.peek(0) is SLArrayObj) {
@@ -833,7 +847,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
         frame.pc += 2
         val upperByte = frame.closure.function.chunk.code[frame.pc - 2]
         val lowerByte = frame.closure.function.chunk.code[frame.pc - 1]
-        return (upperByte.toInt() shl 8 or lowerByte.toInt())
+        return ((upperByte.toInt() and 0xFF) shl 8 or (lowerByte.toInt() and 0xFF))
     }
 
     fun throwException(index: Int, e: AnySLValue) {
@@ -923,9 +937,9 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
     }
 
     fun runtimeError(message: String) {
-        if (stacktrace) {
+        /*if (stacktrace) {
             Exception("runtime error: $message").printStackTrace()
-        }
+        }*/
 
         sunlite.hadRuntimeError = true
 
