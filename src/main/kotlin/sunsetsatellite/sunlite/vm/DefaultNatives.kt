@@ -134,6 +134,12 @@ object DefaultNatives : Natives {
             }
         })
 
+        vm.defineNative(object : SLNativeFunction("chr", Type.STRING, 1) {
+            override fun call(vm: VM, args: Array<AnySLValue>): AnySLValue {
+                return SLString((args[0] as SLNumber).value.toInt().toChar().toString())
+            }
+        })
+
         vm.defineNative(object : SLNativeFunction("rand", Type.INT, 1) {
             override fun call(vm: VM, args: Array<AnySLValue>): AnySLValue {
                 val number = (args[0] as SLNumber).value
@@ -270,6 +276,22 @@ object DefaultNatives : Natives {
                 val s = (args[0] as SLString).value
                 val fmt = (args[1] as SLArrayObj).value.internal()
                 return SLString(s.format(*fmt))
+            }
+        })
+
+        vm.defineNative(object : SLNativeFunction("string#replace", Type.STRING, 3) {
+            override fun call(vm: VM, args: Array<AnySLValue>): AnySLValue {
+                val s = (args[0] as SLString).value
+                val replace = (args[0] as SLString).value
+                val with = (args[0] as SLString).value
+                return SLString(s.replace(replace, with))
+            }
+        })
+
+        vm.defineNative(object : SLNativeFunction("string#trim", Type.STRING, 1) {
+            override fun call(vm: VM, args: Array<AnySLValue>): AnySLValue {
+                val s = (args[0] as SLString).value
+                return SLString(s.filterNot { it.isWhitespace() })
             }
         })
 

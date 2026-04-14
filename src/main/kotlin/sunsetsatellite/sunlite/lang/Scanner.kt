@@ -105,8 +105,29 @@ class Scanner(private val source: String, val sunlite: Sunlite) {
             ']' -> addToken(RIGHT_BRACKET)
             ',' -> addToken(COMMA)
             '.' -> addToken(if (match('.')) DOT_DOT else DOT)
-            '-' -> addToken(if (match('=')) MINUS_EQUAL else MINUS)
-            '+' -> addToken(if (match('=')) PLUS_EQUAL else PLUS)
+            '-' -> {
+                if(peek() == '='){
+                    advance()
+                    addToken(MINUS_EQUAL)
+                } else if(peek() == '-'){
+                    advance()
+                    addToken(MINUS_MINUS)
+                } else {
+                    addToken(MINUS)
+                }
+
+            }
+            '+' -> {
+                if(peek() == '='){
+                    advance()
+                    addToken(PLUS_EQUAL)
+                } else if(peek() == '+'){
+                    advance()
+                    addToken(PLUS_PLUS)
+                } else {
+                    addToken(PLUS)
+                }
+            }
             ';' -> addToken(SEMICOLON)
             '*' -> addToken(STAR)
             ':' -> addToken(COLON)

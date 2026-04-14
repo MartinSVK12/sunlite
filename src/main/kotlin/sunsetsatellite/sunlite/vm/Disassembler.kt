@@ -21,6 +21,7 @@ object Disassembler {
     }
 
     fun disassembleInstruction(sb: StringBuilder, chunk: Chunk, offset: Int): Int {
+        val offset = Math.min(chunk.debugInfo.lines.size-1, offset);
         sb.append(String.format("%04d ", offset))
         if (offset > 0 && chunk.debugInfo.lines[offset] == chunk.debugInfo.lines[offset - 1]) {
             sb.append("   | ")
@@ -72,6 +73,7 @@ object Disassembler {
             Opcodes.CHECK -> return constantInstruction(sb, opcode.name, chunk, offset)
             Opcodes.TYPE_PARAM -> return constantInstruction(sb, opcode.name, chunk, offset)
             Opcodes.CAST -> return constantInstruction(sb, opcode.name, chunk, offset)
+            Opcodes.SWAP -> return simpleInstruction(sb, opcode.name, offset)
         }
     }
 

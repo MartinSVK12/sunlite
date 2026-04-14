@@ -104,6 +104,12 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
 
                     Opcodes.RETURN -> {
                         val value: AnySLValue = fr.pop()
+                        val type = Type.fromValue(value.value, sunlite)
+                        val retType = frameStack.peek().closure.function.returnType
+                        if(frameStack.peek().closure.function.name != "init"){
+                            typeChecker.checkType(retType, type, true)
+                        }
+
                         if (frameStack.size == 1) {
                             return
                         }
@@ -384,7 +390,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                                 fr.push(closure)
                                 fr.push(SLArrayObj(instance))
                             } else {
-                                runtimeError("internal vm error: missing stdlib classes")
+                                runtimeError("InternalError: missing stdlib classes")
                                 return
                             }
                         } else if (primitiveWrappers.containsKey(arg.javaClass)) {
@@ -485,6 +491,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                         }
 
                         subclass.value.methods.putAll(superclass.value.methods)
+                        subclass.value.fieldDefaults.putAll(superclass.value.fieldDefaults)
                         fr.pop()
                     }
 
@@ -528,6 +535,13 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                         }
                         //fr.push(SLBool.of(Type.contains(type.value, checkingType, sunlite)))
                     }
+
+	                Opcodes.SWAP -> {
+                        val v1 = fr.pop()
+                        val v2 = fr.pop()
+                        fr.push(v1)
+                        fr.push(v2)
+                    }
                 }
             } else {
                 currentFrame = null
@@ -541,12 +555,13 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
             }
         } catch (e: Exception) {
             if (Sunlite.tickMode) {
-                runtimeError("Internal VM error: $e")
+                runtimeError("InternalError: $e")
                 if (stacktrace) {
                     e.printStackTrace()
                 }
                 return
             } else {
+                printStacktrace("InternalError: $e")
                 throw e
             }
         }
@@ -897,39 +912,47 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
 
         val sb = StringBuilder()
         for (frame in frameStack) {
-            sb.append("\tat ")
-            sb.append(frame)
-            sb.append("\n")
+            try {
+                sb.append("\tat ")
+                sb.append(frame)
+                sb.append("\n")
+            } catch (e: Exception) {
+                sb.append("<error>")
+            }
         }
         sb.append("\n")
 
         if (Sunlite.debug) {
-            if (fr != null) {
-                sb.append("stack @ ${fr.closure.function.chunk.debugInfo.file}::${fr.closure.function.chunk.debugInfo.name}: ")
-                for (value in fr.stack) {
-                    sb.append("[ ")
-                    sb.append(value)
-                    sb.append(" ]")
+            try {
+                if (fr != null) {
+                    sb.append("stack @ ${fr.closure.function.chunk.debugInfo.file}::${fr.closure.function.chunk.debugInfo.name}: ")
+                    for (value in fr.stack) {
+                        sb.append("[ ")
+                        sb.append(value)
+                        sb.append(" ]")
+                    }
+                    sb.append("\n")
+                    sb.append("-> ")
+                    val offset = Disassembler.disassembleInstruction(sb, fr.closure.function.chunk, fr.pc)
+                } else {
+                    sb.append("<empty stack>")
+                    sb.append("\n")
                 }
-                sb.append("\n")
-                sb.append("-> ")
-                val offset = Disassembler.disassembleInstruction(sb, fr.closure.function.chunk, fr.pc)
-            } else {
-                sb.append("<empty stack>")
-                sb.append("\n")
-            }
 
-            if (fr != null) {
-                sb.append("locals @ ${fr.closure.function.chunk.debugInfo.file}::${fr.closure.function.chunk.debugInfo.name}: ")
-                for (value in fr.locals) {
-                    sb.append("[ ")
-                    sb.append(value)
-                    sb.append(" ]")
+                if (fr != null) {
+                    sb.append("locals @ ${fr.closure.function.chunk.debugInfo.file}::${fr.closure.function.chunk.debugInfo.name}: ")
+                    for (value in fr.locals) {
+                        sb.append("[ ")
+                        sb.append(value)
+                        sb.append(" ]")
+                    }
+                    if (fr.locals.isEmpty()) {
+                        sb.append("[ ]")
+                    }
+                    sb.append("\n")
                 }
-                if (fr.locals.isEmpty()) {
-                    sb.append("[ ]")
-                }
-                sb.append("\n")
+            } catch (e: Exception){
+                sb.append("\n<error in disassembly>")
             }
         }
 

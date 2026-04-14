@@ -1147,6 +1147,12 @@ class Parser(
             return Unary(operator, right)
         }
 
+        if(checkNext(PLUS_PLUS, MINUS_MINUS)){
+            val left = primary()
+            val operator = advance()
+            return Unary(operator, left)
+        }
+
         return lambda()
     }
 
@@ -1221,6 +1227,10 @@ class Parser(
                     expr = Get(expr, name, type?.getElementType() ?: Type.UNKNOWN, type?.isConstant() ?: false)
                 } else {
                     expr = Get(expr, name)
+                }
+                if(match(PLUS_PLUS, MINUS_MINUS)){
+                    val operator = previous()
+                    expr = Unary(operator, expr)
                 }
             } else if (match(LEFT_BRACKET)) {
                 val name = expression()
@@ -1383,11 +1393,21 @@ class Parser(
         if (match(IDENTIFIER)) {
             val varToken = previous()
             if (sunlite.collector != null) {
-                val type = sunlite.collector?.findType(
+                val pair = sunlite.collector?.findProp(
                     varToken,
                     if (currentFunction != null) currentFunction else Token.identifier("<global>", -1, currentFile),
                     currentBlockDepth
                 )
+                val scope = pair?.first
+                val type = pair?.second
+                if(pair != null && scope != null && type != null && scope.representing != null){
+                    //
+                    val self = This(
+                        Token(THIS, "this", null, varToken.line, varToken.file, varToken.pos),
+                        (scope.representing!!.getElementType() as Type.Reference?)?.returnType ?: Type.UNKNOWN
+                    )
+                    return Get(self, varToken, type.getElementType(), type.isConstant())
+                }
                 return Variable(varToken, type?.getElementType() ?: Type.UNKNOWN, type?.isConstant() ?: false)
             }
             return Variable(varToken)

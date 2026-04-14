@@ -11,7 +11,11 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?) : Exp
 
     class Upvalue(val index: Int, val isLocal: Boolean)
 
-    var currentClass: ClassCompiler? = null
+    class ClassInfo(val enclosing: ClassInfo? = null) {
+        var hasSuperclass: Boolean = false
+    }
+
+    var currentClass: ClassInfo? = null
 
     var currentFile: String? = null
     var currentFunctionType: FunctionType = FunctionType.FUNCTION
@@ -100,6 +104,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?) : Exp
     private fun emitByte(byte: Int, expr: Element) {
         chunk.code.add(byte.toByte())
         chunk.debugInfo.lines.add(expr.getLine())
+        chunk.debugInfo.originalFile[expr.getLine()] = expr.getFile()
     }
 
     private fun emitBytes(byte: Int, byte2: Int, expr: Element) {
@@ -111,6 +116,9 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?) : Exp
     private fun emitByte(byte: Opcodes, expr: Element?) {
         chunk.code.add(byte.ordinal.toByte())
         chunk.debugInfo.lines.add(expr?.getLine() ?: 0)
+        if(expr != null){
+            chunk.debugInfo.originalFile[expr.getLine()] = expr.getFile()
+        }
     }
 
     private fun emitShort(short: Int, expr: Element?) {
@@ -118,6 +126,9 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?) : Exp
         chunk.code.add((short and 0xFF).toByte())
         chunk.debugInfo.lines.add(expr?.getLine() ?: 0)
         chunk.debugInfo.lines.add(expr?.getLine() ?: 0)
+        if(expr != null){
+            chunk.debugInfo.originalFile[expr.getLine()] = expr.getFile()
+        }
     }
 
     private fun emitBytes(byte: Opcodes, byte2: Opcodes, expr: Element) {
@@ -239,7 +250,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?) : Exp
 
                             BANG_EQUAL -> {
                                 not = true
-                                Token.identifier("equals", expr.left.getLine(), currentFile)
+                                Token.identifier("notEquals", expr.left.getLine(), currentFile)
                             }
 
                             else -> null
@@ -342,6 +353,53 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?) : Exp
             BANG -> {
                 emitByte(Opcodes.NOT, expr)
             }
+
+            PLUS_PLUS -> {
+                val bin = Expr.Binary(
+                    expr.right,
+                    Token(PLUS, "+", null, expr.getLine(), expr.getFile(), expr.operator.pos),
+                    Expr.Literal(1, expr.getLine(), expr.getFile(), expr.right.getExprType())
+                )
+                if(expr.right is Expr.Variable) {
+                    val assign = Expr.Assign(expr.right.name, bin, EQUAL, expr.right.getExprType())
+                    visitAssignExpr(assign)
+                    emitByte(Opcodes.POP, expr)
+                } else if(expr.right is Get) {
+                    compile(expr.right)
+                    visitLiteralExpr(Expr.Literal(1, expr.getLine(), expr.getFile(), expr.right.getExprType()))
+                    emitByte(Opcodes.ADD, expr)
+                    compile(expr.right.obj)
+                    val name = addIdentifier(expr.right.name.lexeme, expr)
+                    emitByte(Opcodes.SWAP, expr)
+                    emitByte(Opcodes.SET_PROP, expr)
+                    emitShort(name, expr)
+                    emitByte(Opcodes.POP, expr)
+                }
+            }
+
+            MINUS_MINUS -> {
+                val bin = Expr.Binary(
+                    expr.right,
+                    Token(MINUS, "-", null, expr.getLine(), expr.getFile(), expr.operator.pos),
+                    Expr.Literal(1, expr.getLine(), expr.getFile(), expr.right.getExprType())
+                )
+                if(expr.right is Expr.Variable) {
+                    val assign = Expr.Assign(expr.right.name, bin, EQUAL, expr.right.getExprType())
+                    visitAssignExpr(assign)
+                    emitByte(Opcodes.POP, expr)
+                } else if(expr.right is Get) {
+                    compile(expr.right)
+                    visitLiteralExpr(Expr.Literal(1, expr.getLine(), expr.getFile(), expr.right.getExprType()))
+                    emitByte(Opcodes.SUB, expr)
+                    compile(expr.right.obj)
+                    val name = addIdentifier(expr.right.name.lexeme, expr)
+                    emitByte(Opcodes.SWAP, expr)
+                    emitByte(Opcodes.SET_PROP, expr)
+                    emitShort(name, expr)
+                    emitByte(Opcodes.POP, expr)
+                }
+            }
+
 
             else -> return
         }
@@ -819,8 +877,8 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?) : Exp
 
         defineVariable(nameConstant, stmt)
 
-        val classCompiler = ClassCompiler(currentClass)
-        currentClass = classCompiler
+        val classInfo = ClassInfo(currentClass)
+        currentClass = classInfo
 
         if (stmt.superclass != null) {
             compile(Expr.Variable(stmt.superclass.name))
@@ -830,7 +888,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?) : Exp
             defineVariable(0, stmt)
             compile(Expr.Variable(className))
             emitByte(Opcodes.INHERIT, stmt.superclass)
-            classCompiler.hasSuperclass = true
+            classInfo.hasSuperclass = true
         }
 
         stmt.superinterfaces.forEach {
@@ -888,8 +946,8 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?) : Exp
 
         defineVariable(nameConstant, stmt)
 
-        val classCompiler = ClassCompiler(currentClass)
-        currentClass = classCompiler
+        val classInfo = ClassInfo(currentClass)
+        currentClass = classInfo
 
         /*if(stmt.superclass != null){
             compile(Expr.Variable(stmt.superclass.name))

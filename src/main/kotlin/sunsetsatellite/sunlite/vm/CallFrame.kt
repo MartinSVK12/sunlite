@@ -1,6 +1,7 @@
 package sunsetsatellite.sunlite.vm
 
 import java.util.*
+import kotlin.io.path.Path
 
 class CallFrame(val closure: SLClosure, val locals: MutableList<AnySLValue>) {
     var pc: Int = 0
@@ -26,6 +27,10 @@ class CallFrame(val closure: SLClosure, val locals: MutableList<AnySLValue>) {
     }
 
     override fun toString(): String {
-        return "[line ${closure.function.chunk.debugInfo.lines[pc]}] in ${if (closure.function.name == "") "${closure.function.chunk.debugInfo.file}" else "${closure.function.name}()"}"
+        val line = closure.function.chunk.debugInfo.lines[Math.min(pc, closure.function.chunk.debugInfo.lines.size-1)]
+        val name = closure.function.name
+        val file = closure.function.chunk.debugInfo.originalFile[line]
+        return "${if (name == "") "<script>" else name} in ${if(file != null) Path(file).fileName else "<unknown file>"}:${line}"
+        //return "[line ${closure.function.chunk.debugInfo.lines[pc]}] in ${if (closure.function.name == "") "${closure.function.chunk.debugInfo.file}" else "${closure.function.name}()"}"
     }
 }

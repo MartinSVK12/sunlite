@@ -31,10 +31,10 @@ class List {
     }
     
     func add(o: Any?): Boolean {
-        if(this._l > sizeOf(this._a)){
+        if(this._l >= sizeOf(this._a)){
             inc(this._a);
         }
-        this._a[this._l-1] = o;
+        this._a[this._l] = o;
         this._l = this._l + 1;
         return true;
     }

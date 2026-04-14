@@ -7,6 +7,7 @@ class ChunkDebugInfo(
     val lines: IntArray,
     val file: String?,
     val name: String = "<script>",
+    val originalFile: Map<Int, String?> = mapOf(),
 ) {
 
     companion object {
@@ -30,10 +31,11 @@ class ChunkDebugInfo(
 class MutableChunkDebugInfo(
     val lines: MutableList<Int> = mutableListOf(),
     var file: String? = null,
-    var name: String = "<script>"
+    var name: String = "<script>",
+    val originalFile: MutableMap<Int, String?> = mutableMapOf(),
 ) {
     fun toImmutable(): ChunkDebugInfo {
-        return ChunkDebugInfo(lines.toIntArray(), file, name)
+        return ChunkDebugInfo(lines.toIntArray(), file, name, originalFile)
     }
 }
 

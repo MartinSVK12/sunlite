@@ -32,7 +32,7 @@ enum class Opcodes {
     SET_UPVALUE,
     CLASS,
     SET_PROP,
-    GET_PROP, //todo: INVOKE instruction that combines GET_PROP and CALL
+    GET_PROP,
     METHOD,
     FIELD,
     STATIC_FIELD,
@@ -43,5 +43,6 @@ enum class Opcodes {
     ARRAY_GET,
     THROW,
     CHECK,
-    CAST
+    CAST,
+    SWAP
 }

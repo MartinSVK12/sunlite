@@ -55,7 +55,8 @@ class TypeCollector(val sunlite: Sunlite, val natives: NativesContainer) : Stmt.
         val contents: MutableMap<Token, ElementPrototype>,
         val depth: Int = -1,
         var outer: Scope? = null,
-        var inner: MutableList<Scope> = mutableListOf()
+        var inner: MutableList<Scope> = mutableListOf(),
+        var representing: ElementPrototype? = null
     ) {
         override fun toString(): String {
             return "scope '${name.lexeme}'"
@@ -87,12 +88,14 @@ class TypeCollector(val sunlite: Sunlite, val natives: NativesContainer) : Stmt.
         }
     }
 
-    fun addVariable(name: Token, type: Type, constant: Boolean = false) {
+    fun addVariable(name: Token, type: Type, constant: Boolean = false): VariablePrototype {
         if (currentScope?.contents?.mapKeys { it.key.lexeme }?.containsKey(name.lexeme) == true) sunlite.error(
             name,
             "Variable '${name.lexeme}' already declared in this scope."
         )
-        currentScope?.contents?.put(name, VariablePrototype(type, constant))
+        val v = VariablePrototype(type, constant)
+        currentScope?.contents?.put(name, v)
+        return v
     }
 
     fun addFunction(
@@ -113,12 +116,12 @@ class TypeCollector(val sunlite: Sunlite, val natives: NativesContainer) : Stmt.
         currentScope?.contents?.put(name, FunctionPrototype(name, modifier, params, returnType, typeParams))
     }
 
-    fun addScope(name: Token) {
+    fun addScope(name: Token, representing: ElementPrototype? = null) {
         if (currentScope == null) {
-            currentScope = Scope(name, mutableMapOf())
+            currentScope = Scope(name, mutableMapOf(), representing = representing)
             typeScopes.add(currentScope!!)
         } else {
-            val scope = Scope(name, mutableMapOf(), currentScope!!.depth + 1)
+            val scope = Scope(name, mutableMapOf(), currentScope!!.depth + 1, representing = representing)
             currentScope!!.inner.add(scope)
             scope.outer = currentScope
             currentScope = scope
@@ -174,6 +177,18 @@ class TypeCollector(val sunlite: Sunlite, val natives: NativesContainer) : Stmt.
         if (scope == null && currentScopeCandidate == null) return null
         if (currentScopeCandidate != null) return currentScopeCandidate!!.contents.mapKeys { it.key.lexeme }[name.lexeme]
         return scope?.contents?.mapKeys { it.key.lexeme }[name.lexeme]
+    }
+
+    fun findProp(name: Token, enclosing: Token? = null, offset: Int = 0): Pair<Scope?,ElementPrototype?>? {
+        currentScopeCandidate = null
+        val globalScope = typeScopes[0]
+        if (globalScope.contents.keys.map { it.lexeme }.contains(name.lexeme)) {
+            return globalScope to globalScope.contents.mapKeys { it.key.lexeme }[name.lexeme]
+        }
+        val scope = getValidScope(typeScopes.firstOrNull(), name, enclosing, offset)
+        if (scope == null && currentScopeCandidate == null) return null
+        if (currentScopeCandidate != null) return currentScopeCandidate to currentScopeCandidate!!.contents.mapKeys { it.key.lexeme }[name.lexeme]
+        return scope to scope?.contents?.mapKeys { it.key.lexeme }[name.lexeme]
     }
 
     override fun visitExprStmt(stmt: Stmt.Expression) {
@@ -234,8 +249,8 @@ class TypeCollector(val sunlite: Sunlite, val natives: NativesContainer) : Stmt.
 
     override fun visitClassStmt(stmt: Stmt.Class) {
         val classParams = stmt.methods.find { it.name.lexeme == "init" }?.params ?: listOf()
-        addVariable(stmt.name, Type.ofClass(stmt.name.lexeme, classParams))
-        addScope(stmt.name)
+        val v = addVariable(stmt.name, Type.ofClass(stmt.name.lexeme, classParams))
+        addScope(stmt.name, v)
         currentClass = stmt
         val superclass = stmt.superclass?.name?.lexeme ?: "<nil>"
         val superinterfaces = stmt.superinterfaces.map { it.name.lexeme }.toMutableList()

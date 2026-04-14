@@ -367,7 +367,7 @@ class Sunlite(val args: Array<String>) {
                 if (stacktrace) {
                     e.printStackTrace()
                 }
-                vm.runtimeError("Internal VM error: $e")
+                vm.runtimeError("InternalError: $e")
             }
             return null
         }

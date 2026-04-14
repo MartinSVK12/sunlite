@@ -86,6 +86,8 @@ abstract class Expr : Element {
                 return Type.BOOLEAN
             } else if (operator.type == TokenType.MINUS) {
                 return right.getExprType()
+            } else if(operator.type == TokenType.PLUS_PLUS || operator.type == TokenType.MINUS_MINUS) {
+                return right.getExprType()
             }
             return Type.UNKNOWN
         }
