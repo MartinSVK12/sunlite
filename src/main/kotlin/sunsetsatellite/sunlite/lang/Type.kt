@@ -82,7 +82,7 @@ abstract class Type {
                         return PrimitiveType.TABLE.descriptor+typeParams[0].type.getDescriptor()+"="+returnType.getDescriptor()+";"
                     }
                     PrimitiveType.FUNCTION -> {
-                        return PrimitiveType.FUNCTION.descriptor+"("+ params.joinToString("") { it.type.getDescriptor() } +")"+returnType.getDescriptor()+";"
+                        return PrimitiveType.FUNCTION.descriptor + params.joinToString("") { it.type.getDescriptor() } +")"+returnType.getDescriptor()+";"
                     }
                     else -> super.getDescriptor()
                 }

@@ -44,7 +44,7 @@ class Scanner(private val source: String, val sunlite: Sunlite) {
             keywords["is"] = IS
             keywords["isnt"] = IS_NOT
             keywords["import"] = IMPORT
-            keywords["dynamic"] = DYNAMIC
+            //keywords["dynamic"] = DYNAMIC
             keywords["Any"] = TYPE_ANY
             keywords["String"] = TYPE_STRING
             keywords["Byte"] = TYPE_BYTE

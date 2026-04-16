@@ -11,7 +11,7 @@ enum class PrimitiveType(val descriptor: Char, val isReference: Boolean = false)
     //NUMBER,
     STRING('t'),
     BOOLEAN('z'),
-    FUNCTION('M', true),
+    FUNCTION('(', true),
     CLASS('C', true),
     OBJECT('O', true),
     ARRAY('[', true),

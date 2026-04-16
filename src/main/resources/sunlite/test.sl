@@ -1,17 +1,13 @@
 class A {
-    
-    var v: Int = 42;
 
-    func g(){
-        var v: Int = 24;
-        print(v);
+    init(i: Int, o: String?){
+
+    }
+
+    init(l: Long){
+
     }
 
 }
 
-class B extends A {
-    func f() {
-        g();
-    }
-}
-B().f();
+A(1,nil);

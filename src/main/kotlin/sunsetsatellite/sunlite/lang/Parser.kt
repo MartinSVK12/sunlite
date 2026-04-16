@@ -365,11 +365,11 @@ class Parser(
     }
 
     private fun funcSignature(kind: FunctionType): Triple<Token, List<Param>, Type> {
-        val name = if (kind == FunctionType.INITIALIZER) Token.identifier("init") else consume(
+        var name = if (kind == FunctionType.INITIALIZER) Token.identifier("init", -1, currentFile) else consume(
             IDENTIFIER,
             "Expected ${kind.toString().lowercase()} name."
         )
-        currentFunction = name
+
         consume(LEFT_PAREN, "Expected '(' after ${kind.toString().lowercase()} name.")
         val parameters: MutableList<Param> = ArrayList()
         if (!checkToken(RIGHT_PAREN)) {
@@ -387,6 +387,12 @@ class Parser(
 
         val type = getType(function = true)
 
+        if (kind == FunctionType.INITIALIZER) {
+            val desc = "init"+Type.ofFunction("init", Type.NIL, parameters).getDescriptor()
+            name = Token.identifier(desc, -1, currentFile)
+        }
+
+        currentFunction = name
         return Triple(name, parameters, type)
     }
 
@@ -1401,7 +1407,6 @@ class Parser(
                 val scope = pair?.first
                 val type = pair?.second
                 if(pair != null && scope != null && type != null && scope.representing != null){
-                    //
                     val self = This(
                         Token(THIS, "this", null, varToken.line, varToken.file, varToken.pos),
                         (scope.representing!!.getElementType() as Type.Reference?)?.returnType ?: Type.UNKNOWN

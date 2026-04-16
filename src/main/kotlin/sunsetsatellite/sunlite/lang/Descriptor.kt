@@ -56,7 +56,6 @@ class Descriptor(private val source: String) {
                 }
 
                 PrimitiveType.FUNCTION -> {
-                    advance()
                     val params: MutableList<Type> = mutableListOf()
                     if(peek() != ')'){
                         do {
@@ -65,7 +64,7 @@ class Descriptor(private val source: String) {
                     }
                     advance()
                     val returnType: Type = scanInner()
-                    currentType = Type.ofFunction("",returnType,params.map { Param(Token.unknown(), it) })
+                    currentType = Type.ofFunction("",returnType,params.map { Param(Token.identifier(""), it) })
                     advance()
                 }
 

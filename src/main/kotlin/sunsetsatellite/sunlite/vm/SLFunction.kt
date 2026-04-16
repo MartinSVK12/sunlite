@@ -52,7 +52,7 @@ class SLFunction(
     }
 
     override fun toString(): String {
-        return "<function '${name}(${params.map { it.type }.joinToString()}): ${returnType}'>"
+        return "<function '${name.replace(Regex("\\(.*\\).*;"),"")}(${params.map { it.type }.joinToString()}): ${returnType}'>"
     }
 
     fun copy(): SLFunction {

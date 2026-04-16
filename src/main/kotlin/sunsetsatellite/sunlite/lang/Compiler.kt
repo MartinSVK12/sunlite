@@ -47,6 +47,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?) : Exp
 
         if (type == FunctionType.METHOD || type == FunctionType.INITIALIZER) {
             addIdentifier("this", Expr.This(Token.identifier("this")))
+            chunk.debugInfo.locals.add(0,"this")
             locals.add(0, Local(Token.identifier("this", -1, currentFile), 0))
             localsCount++
         }
@@ -104,7 +105,12 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?) : Exp
     private fun emitByte(byte: Int, expr: Element) {
         chunk.code.add(byte.toByte())
         chunk.debugInfo.lines.add(expr.getLine())
-        chunk.debugInfo.originalFile[expr.getLine()] = expr.getFile()
+        recordOriginalFile(expr)
+    }
+
+    private fun recordOriginalFile(expr: Element) {
+        chunk.debugInfo.lineData[expr.getLine()] = expr.getFile()
+        vm.globalProgramData.getOrPut(expr.getFile()!!) { mutableListOf() }.add(expr.getLine())
     }
 
     private fun emitBytes(byte: Int, byte2: Int, expr: Element) {
@@ -117,7 +123,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?) : Exp
         chunk.code.add(byte.ordinal.toByte())
         chunk.debugInfo.lines.add(expr?.getLine() ?: 0)
         if(expr != null){
-            chunk.debugInfo.originalFile[expr.getLine()] = expr.getFile()
+            recordOriginalFile(expr)
         }
     }
 
@@ -127,7 +133,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?) : Exp
         chunk.debugInfo.lines.add(expr?.getLine() ?: 0)
         chunk.debugInfo.lines.add(expr?.getLine() ?: 0)
         if(expr != null){
-            chunk.debugInfo.originalFile[expr.getLine()] = expr.getFile()
+            recordOriginalFile(expr)
         }
     }
 
@@ -731,7 +737,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?) : Exp
             sunlite.error(stmt.getLine(), "Too many local variables in function.")
             return -1
         }
-
+        chunk.debugInfo.locals.add(token.lexeme)
         locals.add(Local(token, -1))
         localsCount++
         return localsCount - 1

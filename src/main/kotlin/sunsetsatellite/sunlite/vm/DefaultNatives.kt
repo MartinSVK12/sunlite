@@ -52,7 +52,6 @@ object DefaultNatives : Natives {
                 val filename = (slFile.fields["filename"]?.value as SLString).value
                 val file = File(filename)
                 try {
-                    file.mkdirs()
                     file.createNewFile()
                     slFile.fields["<foreign>fileHandle"] = SLField(Type.UNKNOWN, SLForeignObject(file))
                     return args[0]

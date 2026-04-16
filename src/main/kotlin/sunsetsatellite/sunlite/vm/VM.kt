@@ -4,6 +4,7 @@ import sunsetsatellite.sunlite.lang.*
 import sunsetsatellite.sunlite.lang.Scanner
 import sunsetsatellite.sunlite.lang.Sunlite.Companion.stacktrace
 import java.util.*
+import kotlin.io.path.Path
 
 // todo: more runtime checks
 class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, NativesContainer {
@@ -23,9 +24,12 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
     val globals: MutableMap<String, AnySLValue> = mutableMapOf()
     val primitiveWrappers: MutableMap<Class<out AnySLValue>, String> = mutableMapOf()
 
+    val globalProgramData: MutableMap<String, MutableList<Int>> = mutableMapOf()
+
     init {
         globals.clear()
         openUpvalues.clear()
+        globalProgramData.clear()
         sunlite.natives.registerNatives(this)
         primitiveWrappers[SLString::class.java] = "string"
     }
@@ -106,7 +110,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                         val value: AnySLValue = fr.pop()
                         val type = Type.fromValue(value.value, sunlite)
                         val retType = frameStack.peek().closure.function.returnType
-                        if(frameStack.peek().closure.function.name != "init"){
+                        if(!frameStack.peek().closure.function.name.contains("init")){
                             typeChecker.checkType(retType, type, true)
                         }
 
@@ -568,12 +572,12 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
     }
 
     override fun run() {
-        val fr = frameStack.peek()
+        var fr = frameStack.peek()
         currentFrame = fr
 
         while (fr.pc < fr.closure.function.chunk.code.size) {
             val currentLine = fr.closure.function.chunk.debugInfo.lines[fr.pc]
-            val currentFile = fr.closure.function.chunk.debugInfo.file
+            val currentFile = Path(fr.closure.function.chunk.debugInfo.lineData[currentLine]!!).fileName.toString()
 
             if (sunlite.breakpoints[currentFile]?.contains(currentLine) == true && !ignoreBreakpoints) {
                 if (lastBreakpointLine != currentLine) {
@@ -601,6 +605,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                 }
             }
             tick()
+            fr = currentFrame!!
         }
     }
 
@@ -694,8 +699,30 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                     val instance =
                         SLClassInstanceObj(SLClassInstance(callee.value, mutableMapOf(), fields))
                     stack[stack.size - argCount - 1 - typeArgCount] = instance
-                    if (callee.value.methods.containsKey("init")) {
-                        val initMethod = callee.value.methods["init"]!!
+                    if (callee.value.methods.keys.any { it.contains("init") }) {
+                        val args = Array(argCount) { i -> Param(Type.fromValue(frameStack.peek().peek(i).value, sunlite)) }.reversedArray()
+                        val type = Type.ofFunction("", Type.NIL, args.toList())
+                        val constructor =
+                            callee.value.methods
+                                .map { it.value.value.function }
+                                .filter { it.name.contains("init") }
+                                .filter { it.returnType == Type.NIL }
+                                .filter { it.params.size == args.size }
+                                .filter { it.params.zip(args).all { (p, a) -> Type.contains(a.type, p.type, sunlite) } }
+                        if(constructor.size > 1){
+                            runtimeError("Multiple identical constructors defined.")
+                            return false
+                        }
+                        if(constructor.isEmpty()){
+                            val availableConstructors =
+                                callee.value.methods.keys
+                                    .filter { it.contains("init") }
+                                    .map{ it.replace("init","") }
+                                    .map{ Descriptor(it).getType() }.joinToString("\n\t")
+                            runtimeError("Parameters do not match any defined constructor.\nGot ${type}, expected one of\n\t${availableConstructors}\n")
+                            return false
+                        }
+                        val initMethod = callee.value.methods[constructor.first().name]!!
                         val typeArgs = listOf(*Array(typeArgCount) { i -> (frameStack.peek().pop() as SLType).value })
                         typeArgs.forEachIndexed { i, it ->
                             instance.value.typeParams[callee.value.typeParams.keys.toList()[i]] = it
