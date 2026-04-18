@@ -864,7 +864,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?) : Exp
             stmt.params,
             stmt.typeParameters,
             stmt.body,
-            currentFile,
+            stmt.name.file,
             stmt.name.lexeme,
             stmt.params.size
         )
