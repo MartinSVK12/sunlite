@@ -94,7 +94,7 @@ object DefaultNatives : Natives {
         vm.defineNative(object : SLNativeFunction("reflect#getFields", Type.ofArray(Type.STRING), 1) {
             override fun call(vm: VM, args: Array<AnySLValue>): AnySLValue {
                 val clazz = args[0] as SLClassObj
-                val array: Array<AnySLValue> = clazz.value.fieldDefaults.keys.map { SLString(it) }.toTypedArray()
+                val array: Array<AnySLValue> = clazz.value.fieldDefaults.map { SLString("${it.key}: ${it.value.type}") }.toTypedArray()
                 return SLArrayObj(SLArray(array.size, vm.sunlite).overwrite(array))
             }
         })

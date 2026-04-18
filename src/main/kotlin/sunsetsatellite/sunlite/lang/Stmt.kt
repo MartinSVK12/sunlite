@@ -131,10 +131,9 @@ abstract class Stmt : Element {
         val body: List<Stmt>,
         var modifier: FunctionModifier,
         val returnType: Type,
-        val typeParams: List<Param>,
+        val typeParameters: List<Param>,
         val annotation: List<Annotation> = listOf()
-    ) : Stmt(), Annotatable,
-        NamedStmt {
+    ) : Stmt(), Annotatable, NamedStmt, GenericStmt {
         override fun <R> accept(visitor: Visitor<R>): R {
             return visitor.visitFunctionStmt(this)
         }
@@ -153,6 +152,10 @@ abstract class Stmt : Element {
 
         override fun getAnnotations(): List<Annotation> {
             return annotation
+        }
+
+        override fun getTypeParams(): List<Param> {
+            return typeParameters
         }
     }
 
@@ -206,8 +209,7 @@ abstract class Stmt : Element {
         val superinterfaces: List<Expr.Variable>,
         val modifier: ClassModifier,
         val typeParameters: List<Param>
-    ) : Stmt(),
-        NamedStmt {
+    ) : Stmt(), NamedStmt, GenericStmt {
         override fun <R> accept(visitor: Visitor<R>): R {
             return visitor.visitClassStmt(this)
         }
@@ -223,6 +225,10 @@ abstract class Stmt : Element {
         override fun getNameToken(): Token {
             return name
         }
+
+        override fun getTypeParams(): List<Param> {
+            return typeParameters
+        }
     }
 
     data class Interface(
@@ -230,8 +236,7 @@ abstract class Stmt : Element {
         val methods: List<Function>,
         val superinterfaces: List<Expr.Variable>,
         val typeParameters: List<Param>
-    ) : Stmt(),
-        NamedStmt {
+    ) : Stmt(), NamedStmt, GenericStmt {
         override fun <R> accept(visitor: Visitor<R>): R {
             return visitor.visitInterfaceStmt(this)
         }
@@ -246,6 +251,10 @@ abstract class Stmt : Element {
 
         override fun getNameToken(): Token {
             return name
+        }
+
+        override fun getTypeParams(): List<Param> {
+            return typeParameters
         }
     }
 
@@ -329,6 +338,10 @@ abstract class Stmt : Element {
 
     interface Annotatable {
         fun getAnnotations(): List<Annotation>
+    }
+
+    interface GenericStmt {
+        fun getTypeParams(): List<Param>
     }
 
     abstract fun <R> accept(visitor: Visitor<R>): R

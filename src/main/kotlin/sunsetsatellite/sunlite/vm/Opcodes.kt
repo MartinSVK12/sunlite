@@ -9,6 +9,7 @@ enum class Opcodes {
     SUB,
     MULTIPLY,
     DIVIDE,
+    REMAINDER,
     NIL,
     TRUE,
     FALSE,

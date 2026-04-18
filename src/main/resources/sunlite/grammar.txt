@@ -60,7 +60,7 @@ cast           → equality ( "as" ) equality ;
 equality       → comparison ( ( "!=" | "==" ) comparison )* ;
 comparison     → term ( ( ">" | ">=" | "<" | "<=" ) term )* ;
 term           → factor ( ( "-" | "+" ) factor )* ;
-factor         → unary ( ( "/" | "*" ) unary )* ;
+factor         → unary ( ( "/" | "*" | "%" ) unary )* ;
 unary          → ( "!" | "-" ) unary | lambda ;
 lambda         → ( "func" ( typeParam )? "(" parameters? ")" ( ":" type )? block ) | call ;
 call           → primary ( "(" ( typeParam* )? arguments? ")" | "." IDENTIFIER )* ;

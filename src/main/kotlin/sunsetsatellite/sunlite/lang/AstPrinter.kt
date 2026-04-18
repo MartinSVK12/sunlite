@@ -228,7 +228,7 @@ object AstPrinter : Expr.Visitor<String>, Stmt.Visitor<String> {
         return parenthesize(
             "${stmt.modifier.name.lowercase()} ${
                 stmt.type.toString().lowercase()
-            }${if (stmt.typeParams.isEmpty()) "" else "<${stmt.typeParams.joinToString(", ") { it.token.lexeme }}>"} ${stmt.name.lexeme}( ${
+            }${if (stmt.typeParameters.isEmpty()) "" else "<${stmt.typeParameters.joinToString(", ") { it.token.lexeme }}>"} ${stmt.name.lexeme}( ${
                 stmt.params.toString().replace("[", "").replace("]", "")
             } ): ${stmt.returnType.getName()}", stmt.body
         )

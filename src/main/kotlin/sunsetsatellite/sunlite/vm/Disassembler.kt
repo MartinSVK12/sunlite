@@ -38,6 +38,7 @@ object Disassembler {
             Opcodes.SUB -> return simpleInstruction(sb, opcode.name, offset)
             Opcodes.MULTIPLY -> return simpleInstruction(sb, opcode.name, offset)
             Opcodes.DIVIDE -> return simpleInstruction(sb, opcode.name, offset)
+            Opcodes.REMAINDER -> return simpleInstruction(sb, opcode.name, offset)
             Opcodes.NIL -> return simpleInstruction(sb, opcode.name, offset)
             Opcodes.TRUE -> return simpleInstruction(sb, opcode.name, offset)
             Opcodes.FALSE -> return simpleInstruction(sb, opcode.name, offset)

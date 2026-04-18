@@ -194,8 +194,22 @@ abstract class Expr : Element {
         }
     }
 
-    data class Call(val callee: Expr, val paren: Token, val arguments: List<Expr>, val typeArgs: List<Param>) : Expr(),
-        GenericExpr {
+    data class Call(val callee: Expr, val paren: Token, val arguments: List<Expr>, val typeArgs: List<Param>,
+                    var safe: Boolean = false
+    ) : Expr(), GenericExpr {
+
+        init {
+            safe = if(callee is Get){
+                callee.safe
+            } else {
+                if(callee is Call){
+                    callee.safe
+                } else {
+                    false
+                }
+            }
+        }
+
         override fun <R> accept(visitor: Visitor<R>): R? {
             return visitor.visitCallExpr(this)
         }
@@ -250,7 +264,7 @@ abstract class Expr : Element {
     }
 
     data class Get(
-        val obj: Expr, val name: Token, val type: Type = Type.UNKNOWN, val constant: Boolean = false,
+        val obj: Expr, val name: Token, val type: Type = Type.UNKNOWN, val constant: Boolean = false, val safe: Boolean = false,
         var typeParams: List<Param> =
             if (obj.getExprType() is Type.Reference) {
                 val ref = obj.getExprType() as Type.Reference

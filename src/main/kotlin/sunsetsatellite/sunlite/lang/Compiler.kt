@@ -215,7 +215,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?) : Exp
         if (leftType is Type.Reference) {
             if (leftType.type == PrimitiveType.OBJECT) {
                 when (expr.operator.type) {
-                    PLUS, MINUS, SLASH, STAR, GREATER, GREATER_EQUAL, LESS, LESS_EQUAL, EQUAL_EQUAL, BANG_EQUAL -> {
+                    PLUS, MINUS, SLASH, STAR, GREATER, GREATER_EQUAL, LESS, LESS_EQUAL, EQUAL_EQUAL, BANG_EQUAL, PERCENT -> {
                         var not: Boolean = false
                         val name = when (expr.operator.type) {
                             PLUS -> {
@@ -259,6 +259,9 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?) : Exp
                                 Token.identifier("notEquals", expr.left.getLine(), currentFile)
                             }
 
+                            PERCENT -> {
+                                Token.identifier("remainder", expr.left.getLine(), currentFile)
+                            }
                             else -> null
                         }
                         if (name != null && sunlite.collector != null) {
@@ -307,6 +310,10 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?) : Exp
 
             PLUS -> {
                 emitByte(Opcodes.ADD, expr)
+            }
+
+            PERCENT -> {
+                emitByte(Opcodes.REMAINDER, expr)
             }
 
             GREATER -> {
@@ -572,6 +579,11 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?) : Exp
         val argCount: Int = argumentList(expr)
         expr.typeArgs.forEach { emitConstant(SLType(it.type), expr) }
         val typeArgCount = expr.typeArgs.size
+        if(expr.safe){
+            emitByte(Opcodes.TRUE, expr)
+        } else {
+            emitByte(Opcodes.FALSE, expr)
+        }
         emitBytes(Opcodes.CALL, argCount, typeArgCount, expr)
     }
 
@@ -589,6 +601,11 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?) : Exp
     override fun visitGetExpr(expr: Get) {
         compile(expr.obj)
         val name = addIdentifier(expr.name.lexeme, expr)
+        if(expr.safe){
+            emitByte(Opcodes.TRUE, expr)
+        } else {
+            emitByte(Opcodes.FALSE, expr)
+        }
         emitByte(Opcodes.GET_PROP, expr)
         emitShort(name, expr)
     }
@@ -845,7 +862,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?) : Exp
             stmt.modifier,
             stmt.returnType,
             stmt.params,
-            stmt.typeParams,
+            stmt.typeParameters,
             stmt.body,
             currentFile,
             stmt.name.lexeme,

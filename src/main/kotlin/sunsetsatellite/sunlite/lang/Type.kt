@@ -467,7 +467,7 @@ abstract class Type {
                 if (type is Union) {
                     return inType.types.containsAll(type.types) || inType.types.contains(ANY)
                 } else {
-                    return inType.types.any { it.equals(type) } || inType.types.contains(ANY)
+                    return inType.types.any { if(it is Parameter) true else it.equals(type) } || inType.types.contains(ANY)
                 }
             } else {
                 if (type is Union) {

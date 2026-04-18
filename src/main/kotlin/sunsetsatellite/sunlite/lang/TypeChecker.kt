@@ -81,12 +81,47 @@ class TypeChecker(val sunlite: Sunlite, val vm: VM?) : Expr.Visitor<Unit>, Stmt.
         if (calleeType is Type.Reference) {
             if (calleeType.type == PrimitiveType.FUNCTION || calleeType.type == PrimitiveType.CLASS) {
                 val typeArgs = expr.typeArgs.toMutableList()
-                val params = calleeType.params
+                /*scopes.forEach {
+                    if(it is Stmt.GenericStmt){
+                        typeArgs.addAll(it.getTypeParams())
+                    }
+                }*/
+                val args = expr.arguments
+                var params = calleeType.params
+                params = params.filter { it.type.getDescriptor().contains("G") }.map { param ->
+                    if(param.type is Type.Reference){
+                        val o = object {
+                            val primitive = param.type.type
+                            val ref = param.type.ref
+                            var params = param.type.params
+                            var returnType = param.type.returnType
+                            val typeParams = mutableListOf(*param.type.typeParams.toTypedArray())
+                        }
+                        o.params = o.params.map { refParam ->
+	                        if(refParam.type is Type.Parameter){
+                                typeArgs.find { it.token.lexeme == refParam.type.name.lexeme }?.let {
+                                    return@map Param(refParam.token, it.type)
+                                }
+                            }
+	                        return@map refParam
+                        }
+                        o.returnType = o.returnType.let { type ->
+                            if(type is Type.Parameter){
+                                typeArgs.find { it.token.lexeme == type.name.lexeme }?.let {
+                                    return@let it.type
+                                }
+                            }
+                            return@let type
+                        }
+                        return@map Param(param.token, Type.Reference(o.primitive, o.ref, o.returnType, o.params, o.typeParams))
+                    }
+                    return@map param
+                }
                 var i = 0
-                for (it in expr.arguments.zip(params)) {
+                for (it in args.zip(params)) {
                     if (it.second.type is Type.Parameter) {
                         if (typeArgs.isEmpty()) {
-                            sunlite.warn(expr.paren, "Cannot determine concrete type of ${it.second.type}")
+                            //sunlite.warn(expr.paren, "Cannot determine concrete type of ${it.second.type}")
                             //sunlite.error(expr.paren, "Missing ${it.second.type}")
                             continue
                         }

@@ -58,7 +58,7 @@ class Scanner(private val source: String, val sunlite: Sunlite) {
             keywords["Function"] = TYPE_FUNCTION
             keywords["Array"] = TYPE_ARRAY
             keywords["Table"] = TYPE_TABLE
-            //keywords["Generic"] = TYPE_GENERIC
+            keywords["Generic"] = TYPE_GENERIC
             keywords["Class"] = TYPE_CLASS
             keywords["Nil"] = TYPE_NIL
             keywords["as"] = AS
@@ -132,12 +132,13 @@ class Scanner(private val source: String, val sunlite: Sunlite) {
             '*' -> addToken(STAR)
             ':' -> addToken(COLON)
             '|' -> addToken(PIPE)
-            '?' -> addToken(QUESTION)
+            '?' -> addToken(if (match('.')) QUESTION_DOT else QUESTION)
             '!' -> addToken(if (match('=')) BANG_EQUAL else BANG)
             '=' -> addToken(if (match('=')) EQUAL_EQUAL else EQUAL)
             '<' -> addToken(if (match('=')) LESS_EQUAL else LESS)
             '>' -> addToken(if (match('=')) GREATER_EQUAL else GREATER)
             '@' -> addToken(AT)
+            '%' -> addToken(PERCENT)
             '/' -> {
                 if (match('/')) {
                     while (peek() != '\n' && !isAtEnd()) advance()

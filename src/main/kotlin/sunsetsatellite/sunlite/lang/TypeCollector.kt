@@ -234,7 +234,7 @@ class TypeCollector(val sunlite: Sunlite, val natives: NativesContainer) : Stmt.
     }
 
     override fun visitFunctionStmt(stmt: Stmt.Function) {
-        val typeParams = stmt.typeParams.toMutableList()
+        val typeParams = stmt.typeParameters.toMutableList()
         currentClass?.typeParameters?.forEach { typeParams.add(it) }
         addFunction(stmt.name, stmt.modifier, stmt.params, stmt.returnType, typeParams)
         addScope(stmt.name)

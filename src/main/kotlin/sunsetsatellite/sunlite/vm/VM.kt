@@ -4,6 +4,7 @@ import sunsetsatellite.sunlite.lang.*
 import sunsetsatellite.sunlite.lang.Scanner
 import sunsetsatellite.sunlite.lang.Sunlite.Companion.stacktrace
 import java.util.*
+import kotlin.collections.filter
 import kotlin.io.path.Path
 
 // todo: more runtime checks
@@ -180,6 +181,16 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                         fr.push(left / right)
                     }
 
+                    Opcodes.REMAINDER -> {
+                        if (fr.peek() !is SLNumber || fr.peek(1) !is SLNumber) {
+                            runtimeError("Operands must be a number.")
+                            return
+                        }
+                        val right = fr.pop() as SLNumber
+                        val left = fr.pop() as SLNumber
+                        fr.push(left % right)
+                    }
+
                     Opcodes.NIL -> fr.push(SLNil)
                     Opcodes.TRUE -> fr.push(SLBool.TRUE)
                     Opcodes.FALSE -> fr.push(SLBool.FALSE)
@@ -252,12 +263,21 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                     }
 
                     Opcodes.CALL -> {
+                        val safe: Boolean = (fr.pop() as SLBool).value
                         var argCount: Int = readByte(fr)
                         val typeArgCount: Int = readByte(fr)
                         var func = fr.peek(argCount + typeArgCount)
                         if (func is SLString || func is SLArrayObj) {
                             argCount++
                             func = fr.peek(argCount + typeArgCount)
+                        }
+                        if(func is SLNil && safe) {
+                            fr.pop()
+                            for (i in 0 until argCount) {
+                                fr.pop()
+                            }
+                            fr.push(SLNil)
+                            return
                         }
                         if (!callValue(func, argCount, typeArgCount)) {
                             return
@@ -341,9 +361,16 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                     }
 
                     Opcodes.GET_PROP -> {
+                        val safe = (fr.pop() as SLBool).value
                         val arg = fr.peek(0)
                         if (arg !is SLClassInstanceObj && arg !is SLClassObj && arg !is SLArrayObj) {
                             if (!(primitiveWrappers.containsKey(arg.javaClass))) {
+                                if(safe && arg is SLNil){
+                                    readString(fr).value
+                                    fr.pop()
+                                    fr.push(SLNil)
+                                    return
+                                }
                                 runtimeError("Only classes or class instances have properties (got ${arg}).")
                                 return
                             }
@@ -497,6 +524,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                         subclass.value.methods.putAll(superclass.value.methods)
                         subclass.value.fieldDefaults.putAll(superclass.value.fieldDefaults)
                         fr.pop()
+                        fr.pop()
                     }
 
                     Opcodes.GET_SUPER -> {
@@ -577,7 +605,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
 
         while (fr.pc < fr.closure.function.chunk.code.size) {
             val currentLine = fr.closure.function.chunk.debugInfo.lines[fr.pc]
-            val currentFile = Path(fr.closure.function.chunk.debugInfo.lineData[currentLine]!!).fileName.toString()
+            val currentFile = fr.closure.function.chunk.debugInfo.lineData[currentLine]?.let { Path(it) }?.fileName.toString()
 
             if (sunlite.breakpoints[currentFile]?.contains(currentLine) == true && !ignoreBreakpoints) {
                 if (lastBreakpointLine != currentLine) {
@@ -626,15 +654,57 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
     }
 
     private fun defineMethod(fr: CallFrame, name: String) {
-        val method = fr.peek(0) as SLClosureObj
+        var method = fr.peek(0) as SLClosureObj
         val clazz = (fr.peek(1) as SLClassObj).value
-        if (method.value.function.modifier != FunctionModifier.ABSTRACT && clazz.isAbstract) {
+        val function = method.value.function
+        if (function.modifier != FunctionModifier.ABSTRACT && clazz.isAbstract) {
             runtimeError("Attempted to define a non-abstract method '$method' on interface '$clazz'.")
             fr.pop()
             return
         }
         clazz.methods[name] = method
         fr.pop()
+    }
+
+    private fun reifyFunction(function: SLFunction, typeParams: List<Param>): SLFunction {
+        val reifiedParams = function.params.filter { it.type.getDescriptor().contains("G") }.map { param ->
+            if (param.type is Type.Reference) {
+                val o = object {
+                    val primitive = param.type.type
+                    val ref = param.type.ref
+                    var params = param.type.params
+                    var returnType = param.type.returnType
+                    val typeParams = mutableListOf(*param.type.typeParams.toTypedArray())
+                }
+                o.params = o.params.map { refParam ->
+                    if (refParam.type is Type.Parameter) {
+                        typeParams.find { it.token.lexeme == refParam.type.name.lexeme }?.let {
+                            return@map Param(refParam.token, it.type)
+                        }
+                    }
+                    return@map refParam
+                }
+                o.returnType = o.returnType.let { type ->
+                    if (type is Type.Parameter) {
+                        typeParams.find { it.token.lexeme == type.name.lexeme }?.let {
+                            return@let it.type
+                        }
+                    }
+                    return@let type
+                }
+                return@map Param(param.token, Type.Reference(o.primitive, o.ref, o.returnType, o.params, o.typeParams))
+            }
+            return@map param
+        }
+        val reifiedReturnType = function.returnType.let { type ->
+            if (type is Type.Parameter) {
+                return@let typeParams.find { it.token.lexeme == type.name.lexeme }?.let {
+                    return@let it.type
+                } ?: type
+            }
+            return@let type
+        }
+        return SLFunction(function.name, reifiedReturnType, reifiedParams, function.typeParams, function.chunk, function.arity, function.upvalueCount, function.localsCount, function.modifier)
     }
 
     private fun defineField(fr: CallFrame, name: String) {
@@ -666,10 +736,17 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
     private fun bindMethod(fr: CallFrame, clazz: SLClass, name: String): Boolean {
         if (!clazz.methods.containsKey(name)) return false
 
+        val receiver = fr.peek(0)
+        var method = clazz.methods[name]!!.value
+
+        if(receiver is SLClassInstanceObj){
+            val typeParams = receiver.value.typeParams.map { Param(Token.identifier(it.key), it.value) }
+            method = SLClosure(reifyFunction(method.function, typeParams), method.upvalues)
+        }
+
         val bound = SLBoundMethodObj(
             SLBoundMethod(
-                clazz.methods[name]!!.value,
-                fr.peek(0)
+                method, receiver
             )
         )
         fr.pop()
@@ -681,7 +758,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
         if (callee.isObj()) {
             when (callee.value) {
                 is SLClosure -> {
-                    return call(callee as SLClosureObj, argCount)
+                    return call(callee as SLClosureObj, argCount, typeArgCount)
                 }
 
                 is SLNativeFunction -> {
@@ -699,6 +776,42 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                     val instance =
                         SLClassInstanceObj(SLClassInstance(callee.value, mutableMapOf(), fields))
                     stack[stack.size - argCount - 1 - typeArgCount] = instance
+                    val typeArgs = listOf(*Array(typeArgCount) { i -> (frameStack.peek().pop() as SLType).value })
+                    typeArgs.forEachIndexed { i, it ->
+                        instance.value.typeParams[callee.value.typeParams.keys.toList()[i]] = it
+                    }
+                    fields.values.filter {
+                        if(it.type is Type.Parameter) {
+                            return@filter true
+                        } else if(it.type is Type.Union){
+                            if((it.type as Type.Union).types.any { innerIt -> innerIt is Type.Parameter }){
+                                return@filter true
+                            }
+                        }
+                        return@filter false
+                    }.forEach { field ->
+                        if(field.type is Type.Parameter){
+                            val typeParamName = (field.type as Type.Parameter).name.lexeme
+                            instance.value.typeParams[typeParamName]?.let { field.type = it }
+                        } else if(field.type is Type.Union){
+                            val types = (field.type as Type.Union).types
+                            val newTypes = mutableListOf<Type.Singular>()
+                            types.forEach {
+                                if(it !is Type.Parameter) {
+                                    newTypes.add(it)
+                                } else {
+                                    val typeParamName = it.name.lexeme
+                                    val type = instance.value.typeParams[typeParamName]
+                                    if(type is Type.Singular){
+                                        newTypes.add(type)
+                                    } else if(type is Type.Union){
+                                        newTypes.addAll(type.types)
+                                    }
+                                }
+                            }
+                            field.type = Type.Union(newTypes)
+                        }
+                    }
                     if (callee.value.methods.keys.any { it.contains("init") }) {
                         val args = Array(argCount) { i -> Param(Type.fromValue(frameStack.peek().peek(i).value, sunlite)) }.reversedArray()
                         val type = Type.ofFunction("", Type.NIL, args.toList())
@@ -723,15 +836,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                             return false
                         }
                         val initMethod = callee.value.methods[constructor.first().name]!!
-                        val typeArgs = listOf(*Array(typeArgCount) { i -> (frameStack.peek().pop() as SLType).value })
-                        typeArgs.forEachIndexed { i, it ->
-                            instance.value.typeParams[callee.value.typeParams.keys.toList()[i]] = it
-                        }
-                        fields.values.filter { it.type is Type.Parameter }.forEach {
-                            val typeParamName = (it.type as Type.Parameter).name.lexeme
-                            instance.value.typeParams[typeParamName]?.let { innerIt -> it.type = innerIt }
-                        }
-                        val success = call(initMethod, argCount)
+                        val success = call(initMethod, argCount, typeArgCount)
                         if (!success) return false
                         frameStack.peek().locals.add(0, instance)
                         return true
@@ -761,7 +866,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                             }
                             return callNative(globals[methodName] as SLNativeFuncObj, argCount)
                         }
-                        val success = call(SLClosureObj(callee.value.method), argCount)
+                        val success = call(SLClosureObj(callee.value.method), argCount, typeArgCount)
                         if (!success) return false
                         frameStack.peek().locals.add(0, callee.value.receiver)
                         return true
@@ -803,7 +908,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
         return true
     }
 
-    fun call(callee: SLClosureObj, argCount: Int): Boolean {
+    fun call(callee: SLClosureObj, argCount: Int, typeArgCount: Int = 0): Boolean {
         if (callee.value.function.modifier == FunctionModifier.ABSTRACT) {
             runtimeError("Can't call abstract method '${callee.value.function.name}'.")
             return false
@@ -821,7 +926,10 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
 
         val locals = mutableListOf<AnySLValue>()
         locals.addAll(Array(callee.value.function.localsCount - argCount) { i -> SLNil })
-        locals.addAll(Array(argCount) { i -> frameStack.peek().peek(i) })
+        for (i in 0 until argCount) {
+            locals.add(frameStack.peek().peek(typeArgCount + i))
+        }
+        //locals.addAll(Array(argCount) { i -> frameStack.peek().peek(i - typeArgCount) })
         locals.reverse()
         if (callee.value.function.modifier == FunctionModifier.STATIC) locals.add(0, SLNil)
         val frame = CallFrame(callee.value, locals)

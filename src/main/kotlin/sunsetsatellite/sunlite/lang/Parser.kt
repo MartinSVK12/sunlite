@@ -156,7 +156,7 @@ class Parser(
 
         // Stop if there was a syntax error.
         if (sunlite.hadError) {
-            sunlite.error(keyword, "ImportError, SyntaxError in file being imported.")
+            sunlite.error(keyword, "ImportError: SyntaxError in file being imported.")
             return null
         }
 
@@ -165,7 +165,7 @@ class Parser(
 
         // Stop if there was a type error.
         if (sunlite.hadError) {
-            sunlite.error(keyword, "ImportError, TypeError in file being imported.")
+            sunlite.error(keyword, "ImportError: TypeError in file being imported.")
             return null
         }
 
@@ -195,16 +195,16 @@ class Parser(
 
         val typeParameters: MutableList<Param> = ArrayList()
         if (match(LESS)) {
-            throw error(peek(), "Generic classes not supported.")
-//			do {
-//				if (typeParameters.size >= 255) {
-//					error(peek(), "Can't have more than 255 type parameters.")
-//				}
-//
-//				val identifier = consume(IDENTIFIER, "Expected type parameter name.")
-//				typeParameters.add(Param(identifier, Type.Parameter(identifier)))
-//			} while (match(COMMA))
-//			consume(GREATER, "Expected '>' after type parameter declaration.")
+            //throw error(peek(), "Generic classes not supported.")
+			do {
+				if (typeParameters.size >= 255) {
+					error(peek(), "Can't have more than 255 type parameters.")
+				}
+
+				val identifier = consume(IDENTIFIER, "Expected type parameter name.")
+				typeParameters.add(Param(identifier, Type.Parameter(identifier)))
+			} while (match(COMMA))
+			consume(GREATER, "Expected '>' after type parameter declaration.")
         }
 
         val name = consume(IDENTIFIER, "Expected class name.")
@@ -401,16 +401,16 @@ class Parser(
 
         val typeParameters: MutableList<Param> = ArrayList()
         if (match(LESS)) {
-            throw error(peek(), "Generic functions not supported.")
-//			do {
-//				if (typeParameters.size >= 255) {
-//					error(peek(), "Can't have more than 255 type parameters.")
-//				}
-//
-//				val identifier = consume(IDENTIFIER, "Expected type parameter name.")
-//				typeParameters.add(Param(identifier, Type.Parameter(identifier)))
-//			} while (match(COMMA))
-//			consume(GREATER, "Expected '>' after type parameter declaration.")
+            //throw error(peek(), "Generic functions not supported.")
+			do {
+				if (typeParameters.size >= 255) {
+					error(peek(), "Can't have more than 255 type parameters.")
+				}
+
+				val identifier = consume(IDENTIFIER, "Expected type parameter name.")
+				typeParameters.add(Param(identifier, Type.Parameter(identifier)))
+			} while (match(COMMA))
+			consume(GREATER, "Expected '>' after type parameter declaration.")
         }
 
         val signature = funcSignature(FunctionType.METHOD)
@@ -434,16 +434,16 @@ class Parser(
 
         val typeParameters: MutableList<Param> = ArrayList()
         if (match(LESS)) {
-            throw error(peek(), "Generic functions not supported.")
-//			do {
-//				if (typeParameters.size >= 255) {
-//					error(peek(), "Can't have more than 255 type parameters.")
-//				}
-//
-//				val identifier = consume(IDENTIFIER, "Expected type parameter name.")
-//				typeParameters.add(Param(identifier, Type.Parameter(identifier)))
-//			} while (match(COMMA))
-//			consume(GREATER, "Expected '>' after type parameter declaration.")
+            //throw error(peek(), "Generic functions not supported.")
+			do {
+				if (typeParameters.size >= 255) {
+					error(peek(), "Can't have more than 255 type parameters.")
+				}
+
+				val identifier = consume(IDENTIFIER, "Expected type parameter name.")
+				typeParameters.add(Param(identifier, Type.Parameter(identifier)))
+			} while (match(COMMA))
+			consume(GREATER, "Expected '>' after type parameter declaration.")
         }
 
         val funcModifier = FunctionModifier.get(modifier, modifier2)
@@ -800,11 +800,17 @@ class Parser(
     private fun varDeclaration(modifier: FieldModifier = FieldModifier.NORMAL, foreach: Boolean = false): Stmt.Var {
         val name = consume(IDENTIFIER, "Expected variable name.")
 
-        val type = getType()
+        var type = getType()
 
         var initializer: Expr? = null
         if (match(EQUAL)) {
             initializer = expression()
+        }
+
+        if(type == Type.UNKNOWN && initializer != null){
+            type = initializer.getExprType()
+        } else if(type == Type.UNKNOWN && initializer == null) {
+            throw error(peek(), "Can't infer type of variable without an initializer.")
         }
 
         if (!foreach) consume(SEMICOLON, "Expected ';' after variable declaration.")
@@ -816,7 +822,7 @@ class Parser(
         if (!match(
                 TYPE_BOOLEAN, TYPE_STRING, /*TYPE_NUMBER,*/
                 TYPE_BYTE, TYPE_SHORT, TYPE_INT, TYPE_LONG, TYPE_FLOAT, TYPE_DOUBLE,
-                TYPE_FUNCTION, TYPE_CLASS, TYPE_ANY, /*TYPE_GENERIC,*/ TYPE_ARRAY, TYPE_TABLE, IDENTIFIER, TYPE_NIL
+                TYPE_FUNCTION, TYPE_CLASS, TYPE_ANY, TYPE_GENERIC, TYPE_ARRAY, TYPE_TABLE, IDENTIFIER, TYPE_NIL
             )
         ) {
             throw error(mainToken, "Expected type.")
@@ -845,7 +851,7 @@ class Parser(
                         TYPE_DOUBLE,
                         TYPE_FUNCTION,
                         TYPE_CLASS,
-                        TYPE_ANY, /*TYPE_GENERIC,*/
+                        TYPE_ANY, TYPE_GENERIC,
                         TYPE_ARRAY,
                         TYPE_TABLE,
                         IDENTIFIER,
@@ -878,7 +884,7 @@ class Parser(
                         TYPE_DOUBLE,
                         TYPE_FUNCTION,
                         TYPE_CLASS,
-                        TYPE_ANY, /*TYPE_GENERIC,*/
+                        TYPE_ANY, TYPE_GENERIC,
                         TYPE_ARRAY,
                         TYPE_TABLE,
                         IDENTIFIER,
@@ -924,6 +930,9 @@ class Parser(
     private fun getType(function: Boolean = false, noColon: Boolean = false): Type {
         var type: Type = if (function) Type.NIL else Type.ANY
         if (match(COLON) || noColon) {
+            if(checkToken(EQUAL)){
+                return Type.UNKNOWN
+            }
             val typeTokens = getTypeTokens()
             type = Type.of(typeTokens, sunlite)
         }
@@ -1137,7 +1146,7 @@ class Parser(
     private fun factor(): Expr {
         var expr: Expr = unary()
 
-        while (match(SLASH, STAR)) {
+        while (match(SLASH, STAR, PERCENT)) {
             val operator = previous()
             val right: Expr = unary()
             expr = Binary(expr, operator, right)
@@ -1200,22 +1209,22 @@ class Parser(
 
                 val typeParameters: MutableList<Param> = ArrayList()
                 if (match(LESS)) {
-                    throw error(peek(), "Expected 0 type parameters.")
-//					var i: Int = 0
-//					do {
-//						if (typeParameters.size >= 255) {
-//							error(peek(), "Can't have more than 255 type parameters.")
-//						}
-//
-//						if(sunlite.collector != null && expr is NamedExpr){
-//							val typeParams = sunlite.collector!!.typeHierarchy[expr.getNameToken().lexeme]?.third
-//							typeParameters.add(Param(Token.identifier(typeParams?.get(i) ?: "?"),getType(function = false, noColon = true)))
-//						} else {
-//							typeParameters.add(Param(Token.identifier("?"),getType(function = false, noColon = true)))
-//						}
-//						i++
-//					} while (match(COMMA))
-//					consume(GREATER, "Expected '>' after type parameter declaration.")
+                    //throw error(peek(), "Expected 0 type parameters.")
+					var i: Int = 0
+					do {
+						if (typeParameters.size >= 255) {
+							error(peek(), "Can't have more than 255 type parameters.")
+						}
+
+						if(sunlite.collector != null && expr is NamedExpr){
+							val typeParams = sunlite.collector!!.typeHierarchy[expr.getNameToken().lexeme]?.typeParameters
+							typeParameters.add(Param(Token.identifier(typeParams?.get(i) ?: "?"),getType(function = false, noColon = true)))
+						} else {
+							typeParameters.add(Param(Token.identifier("?"),getType(function = false, noColon = true)))
+						}
+						i++
+					} while (match(COMMA))
+					consume(GREATER, "Expected '>' after type parameter declaration.")
                 }
 
                 if (expr is GenericExpr) {
@@ -1223,6 +1232,21 @@ class Parser(
                 }
 
                 expr = finishCall(expr, typeParameters)
+            } else if (match(QUESTION_DOT)) {
+                val name: Token = consume(IDENTIFIER, "Expected expression after '?.'.")
+                if (sunlite.collector != null) {
+                    val type = sunlite.collector?.findType(
+                        name,
+                        Token.identifier(expr.getExprType().getName(), -1, currentFile)
+                    )
+                    expr = Get(expr, name, type?.getElementType() ?: Type.UNKNOWN, type?.isConstant() ?: false, true)
+                } else {
+                    expr = Get(expr, name, safe = true)
+                }
+                if(match(PLUS_PLUS, MINUS_MINUS)){
+                    val operator = previous()
+                    expr = Unary(operator, expr)
+                }
             } else if (match(DOT)) {
                 val name: Token = consume(IDENTIFIER, "Expected expression after '.'.")
                 if (sunlite.collector != null) {

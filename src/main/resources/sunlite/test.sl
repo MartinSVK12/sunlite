@@ -1,13 +1,7 @@
-class A {
+import "/sunlite/stdlib/list.sl";
 
-    init(i: Int, o: String?){
+val list: List<String> = List(<String>);
 
-    }
+list.add("a");
 
-    init(l: Long){
-
-    }
-
-}
-
-A(1,nil);
+//list.forEach(func(o: String){ print(o); });
