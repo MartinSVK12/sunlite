@@ -4,6 +4,8 @@ import org.eclipse.lsp4j.DidChangeTextDocumentParams
 import org.eclipse.lsp4j.DidCloseTextDocumentParams
 import org.eclipse.lsp4j.DidOpenTextDocumentParams
 import org.eclipse.lsp4j.DidSaveTextDocumentParams
+import org.eclipse.lsp4j.MessageParams
+import org.eclipse.lsp4j.MessageType
 import org.eclipse.lsp4j.services.TextDocumentService
 import java.net.URI
 import kotlin.io.path.Path
@@ -12,10 +14,11 @@ class SunliteTextDocumentService(val languageServer: SunliteLanguageServer) : Te
     override fun didOpen(open: DidOpenTextDocumentParams?) {
         val uri = open?.textDocument?.uri ?: return
         val path = Path(URI(uri).path.replaceFirst("/", ""))
-        //languageServer.client.showMessage(MessageParams(MessageType.Info,path.toString()))
+        val loadPath = arrayOf(path.parent)
+        languageServer.client.showMessage(MessageParams(MessageType.Info, "Load path: " + loadPath.joinToString("\n")))
         SunliteCodeAnalysis(languageServer, open.textDocument.uri).analyze(
             path,
-            arrayOf(path.parent, path.parent.resolve("stdlib")),
+            loadPath,
             open.textDocument.text
         )
         //languageServer.client.showMessage(MessageParams(MessageType.Info,open?.textDocument?.uri))

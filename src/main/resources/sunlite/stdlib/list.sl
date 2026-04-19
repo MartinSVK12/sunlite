@@ -1,11 +1,3 @@
-func inc(arr: Array<Any|Nil>) {
-    resize(arr,sizeOf(arr)+1);
-}
-
-func dec(arr: Array<Any|Nil>) {
-    resize(arr,sizeOf(arr)-1);
-}
-
 class<T> List {
     
     var _l: Int = 0;
@@ -37,6 +29,10 @@ class<T> List {
         _a[_l] = o;
         _l = _l + 1;
         return true;
+    }
+    
+    func addAll(list: List<Generic<T>>) {
+        list.forEach(func(o: Generic<T>){this.add(o);});
     }
     
     func remove(o: Generic<T>): Boolean {
@@ -91,5 +87,13 @@ class<T> List {
         for(var i: Int = 0; i < _l; i = i + 1){
             callback(i,get(i));
         }
+    }
+
+    func inc(arr: Array<Any|Nil>) {
+        resize(arr,sizeOf(arr)+1);
+    }
+
+    func dec(arr: Array<Any|Nil>) {
+        resize(arr,sizeOf(arr)-1);
     }
 }

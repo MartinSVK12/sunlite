@@ -428,6 +428,9 @@ class Sunlite(val args: Array<String>) {
             try {
                 vm.run()
             } catch (e: UnhandledException) {
+                if (stacktrace) {
+                    e.printStackTrace()
+                }
                 vm.printStacktrace(e.message ?: "null")
             } catch (e: Exception) {
                 if (stacktrace) {
@@ -521,6 +524,47 @@ class Sunlite(val args: Array<String>) {
         if (logToStdout) System.err.println(message)
         logEntryReceivers.forEach { it.err(message.toString()) }
     }
+
+    /*inner class DebuggerServer(val port: Int = 24128): Thread() {
+        private val socket: ServerSocket = ServerSocket(port)
+        val clients: MutableList<ClientHandler> = mutableListOf()
+
+        inner class ClientHandler(val socket: Socket): Thread() {
+            lateinit var reader: BufferedReader
+            lateinit var writer: BufferedWriter
+
+            //val input = socket.getInputStream()
+            //val outputStream = socket.getOutputStream()
+
+            //val reader = BufferedReader(InputStreamReader(input))
+            //val writer = OutputStreamWriter(outputStream)
+
+            override fun run(){
+                reader = BufferedReader(InputStreamReader(socket.getInputStream()))
+                writer = BufferedWriter(OutputStreamWriter(socket.getOutputStream()))
+                while(true){
+
+                }
+                /*reader.close()
+                writer.close()
+                socket.close()*/
+            }
+
+        }
+
+        override fun run() {
+            while (true){
+                val clientSocket = socket.accept()
+                val clientHandler = ClientHandler(clientSocket)
+                clients.add(clientHandler)
+                clientHandler.start()
+            }
+        }
+
+        fun close(){
+            socket.close()
+        }
+    }*/
 
     companion object {
 

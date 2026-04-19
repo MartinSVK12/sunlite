@@ -214,7 +214,7 @@ abstract class Type {
         }
 
         override fun toString(): String {
-            return "type parameter '${name.lexeme}'"
+            return "generic '${name.lexeme}'"
         }
 
         override fun equals(other: Any?): Boolean {

@@ -9,11 +9,11 @@ declaration    → classDecl
                | statement ;
 
 classDecl      → "class" ( typeParam )? IDENTIFIER ( "extends" IDENTIFIER )? ( "implements" IDENTIFIER )?
-                 "{" varDecl* method* "}" ;
+                 "{" varDecl* method* initializer* "}" ;
 interfaceDecl  → "interface" ( typeParam )? IDENTIFIER ( "implements" IDENTIFIER ( "," IDENTIFIER )* )?
-                 "{" abstractMethod* ")" ;
+                 "{" abstractMethod* "}" ;
 funDecl        → "func" ( typeParam )? function ;
-varDecl        → ( "static" )? ( "var" | "val" ) IDENTIFIER ( "=" expression )? ( ":" type )? ";" ;
+varDecl        → ( "static" )? ( "var" | "val" ) IDENTIFIER ( ":" type )? ( "=" expression )?  ";" ;
 
 // STATEMENTS
 
@@ -45,16 +45,17 @@ continueStmt   → "continue;" ;
 breakStmt      → "break;" ;
 importStmt     → "import" STRING ";" ;
 tryCatchStmt   → "try" block "catch" "(" IDENTIFIER ")" block ;
+throwStmt      → "throw" expression ";" ;
 
 // EXPRESSIONS
 
 expression     → assignment ;
 
-assignment     → ( call "." )? IDENTIFIER "=" assignment
-               | logic_or ;
+assignment     → ( call "." )? IDENTIFIER ( "[" expression "]" )? "=" assignment
+               | logicOr ;
 
-logic_or       → logic_and ( "or" logic_and )* ;
-logic_and      → check ( "and" check )* ;
+logicOr       → logicAnd ( "or" logicAnd )* ;
+logicAnd      → check ( "and" check )* ;
 check          → cast ( "is" | "isnt" ) cast ;
 cast           → equality ( "as" ) equality ;
 equality       → comparison ( ( "!=" | "==" ) comparison )* ;
@@ -73,6 +74,7 @@ primary        → "true" | "false" | "nil" | "this"
 method         → ( "static" | "native" | "static native" | "operator" | "override" )? "func" ( typeParam )? methodSignature block? ;
 abstractMethod → ( "static" | "native" | "static native" )? "func" ( typeParam )? methodSignature ;
 methodSignature→ IDENTIFIER "(" parameters? ")" ( ":" type )? ;
+initializer    → "init" "(" parameters? ")" block? ;
 function       → IDENTIFIER "(" parameters? ")" ( ":" type )? block ;
 parameters     → IDENTIFIER ( ":" type )? ( "," IDENTIFIER ( ":" type )? )* ;
 arguments      → expression ( "," expression )* ;
@@ -91,9 +93,10 @@ type           → ( "Any"
                  | "Class" ( typeParam )?
                  | "Array" ( typeParam )?
                  | "Table" ( typeParam )?
+                 | "Generic" ( typeParam )?
                  | IDENTIFIER ( typeParam )?
                  ( "|" type* )? ( "?" )? ) ;
-typeParam      → "<" IDENTIFIER ( ( "," IDENTIFIER )* )? ">" ;
+typeParam      → "<" type ( ( "," type )* )? ">" ;
 
 // LEXICAL
 

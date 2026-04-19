@@ -101,7 +101,15 @@ class Parser(
 
     private fun importStatement(): Stmt? {
         val keyword = previous()
-        val what = consume(STRING, "Expected import location string.")
+        var builtin: Boolean = false
+        var what: Token
+        if(match(LESS)){
+            what = consume(STRING, "Expected import location string.")
+            consume(GREATER, "Expected '>' after import statement.")
+            builtin = true
+        } else {
+            what = consume(STRING, "Expected import location string.")
+        }
         consume(SEMICOLON, "Expected ';' after import statement.")
 
         /*sunlite.error(keyword, "Importing not yet supported!")
@@ -118,13 +126,18 @@ class Parser(
         var data: String? = null
         val invalidPaths: MutableList<String> = mutableListOf()
 
-        sunlite.path.forEach {
-            try {
-                data = sunlite.readFunction.apply(it + what.literal)
-            } catch (_: IOException) {
-                invalidPaths.add(it)
+        if(!builtin){
+            sunlite.path.forEach {
+                try {
+                    data = sunlite.readFunction.apply(it + what.literal)
+                } catch (_: IOException) {
+                    invalidPaths.add(it)
+                }
             }
+        } else {
+            data = Sunlite::class.java.getResourceAsStream(what.literal)?.bufferedReader()?.use { it.readText() }
         }
+
 
         if (data == null) {
             sunlite.error(keyword, "ImportError: Couldn't find '${what.literal}' on the load path list.")

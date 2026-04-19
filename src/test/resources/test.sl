@@ -1,11 +1,13 @@
-import "/sunlite/stdlib/file.sl";
-import "/lox/scanner.sl";
-import "/sunlite/stdlib/list.sl";
+import <"/sunlite/stdlib/list.sl">;
 
-val file: File = File.open("test.lox");
-val s: String = file.readText();
+val l := List(<String>);
+val l2 := List(<String>);
 
-val scanner: Scanner = Scanner(s);
+l.add("lol");
+l.add("yeet");
 
-val list: List = scanner.scanTokens();
-print(list.size());
+l2.add("lmao");
+
+l2.addAll(l);
+
+l2.forEach(func(o: String){ print(o); });

@@ -30,7 +30,7 @@ dependencies {
 task("lsp", Jar::class) {
     duplicatesStrategy = DuplicatesStrategy.INCLUDE
     manifest {
-        attributes["Main-Class"] = "sunsetsatellite.lsp.sunlite.LSPLauncher"
+        attributes["Main-Class"] = "sunsetsatellite.sunlite.lsp.LSPLauncher"
         exclude("META-INF/*.SF", "META-INF/*.DSA", "META-INF/*.RSA")
     }
     from(configurations.runtimeClasspath.get().map {
@@ -43,7 +43,7 @@ task("lsp", Jar::class) {
 tasks.jar {
     duplicatesStrategy = DuplicatesStrategy.INCLUDE
     manifest {
-        attributes["Main-Class"] = "sunsetsatellite.lang.sunlite.Sunlite"
+        attributes["Main-Class"] = "sunsetsatellite.sunlite.lang.Sunlite"
         exclude("META-INF/*.SF", "META-INF/*.DSA", "META-INF/*.RSA")
     }
     from(configurations.runtimeClasspath.get().map { if (it.isDirectory) it else zipTree(it) })

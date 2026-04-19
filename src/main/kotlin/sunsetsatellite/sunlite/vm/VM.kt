@@ -121,7 +121,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                         val frame = frameStack.pop()
                         fr = frameStack.peek()
                         currentFrame = fr
-                        for (i in 0 until (frame.closure.function.arity + 1 /*+ frame.closure.function.typeParams.size*/)) {
+                        for (i in 0 until (frame.closure.function.arity + 1)) {
                             fr.pop()
                         }
                         fr.push(value)
@@ -641,7 +641,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
     private fun readConstant(fr: CallFrame) = fr.closure.function.chunk.constants[readShort(fr)]
 
     private fun captureUpvalue(fr: CallFrame, index: Int): SLUpvalue {
-        val value = fr.stack.elementAt(index)
+        val value = fr.locals[index]
         val found = openUpvalues.find { it.closedValue == value }
 
         if (found != null) {
@@ -704,7 +704,10 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
             }
             return@let type
         }
-        return SLFunction(function.name, reifiedReturnType, reifiedParams, function.typeParams, function.chunk, function.arity, function.upvalueCount, function.localsCount, function.modifier)
+        val addedTypeParams = mutableListOf<Param>()
+        //addedTypeParams.addAll(typeParams)
+        addedTypeParams.addAll(function.typeParams)
+        return SLFunction(function.name, reifiedReturnType, reifiedParams, addedTypeParams, function.chunk, function.arity, function.upvalueCount, function.localsCount, function.modifier)
     }
 
     private fun defineField(fr: CallFrame, name: String) {
@@ -928,6 +931,9 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
         locals.addAll(Array(callee.value.function.localsCount - argCount) { i -> SLNil })
         for (i in 0 until argCount) {
             locals.add(frameStack.peek().peek(typeArgCount + i))
+        }
+        for (i in 0 until typeArgCount) {
+            frameStack.peek().pop()
         }
         //locals.addAll(Array(argCount) { i -> frameStack.peek().peek(i - typeArgCount) })
         locals.reverse()
