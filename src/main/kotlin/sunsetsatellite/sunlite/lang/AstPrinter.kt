@@ -277,8 +277,8 @@ object AstPrinter : Expr.Visitor<String>, Stmt.Visitor<String> {
         )
     }
 
-    override fun visitImportStmt(stmt: Stmt.Import): String {
-        return "(import ${stmt.what.lexeme})"
+    override fun visitIncludeStmt(stmt: Stmt.Include): String {
+        return "(include ${stmt.what.lexeme})"
     }
 
     override fun visitPackageStmt(stmt: Stmt.Package): String {

@@ -23,7 +23,7 @@ class Sunlite(val args: Array<String>) {
     var compileStep: Int = 0
 
     val path: MutableList<String> = mutableListOf()
-    val imports: MutableMap<String, Pair<Int, List<Stmt>>> = mutableMapOf()
+    val includes: MutableMap<String, Pair<Int, List<Stmt>>> = mutableMapOf()
 
     val logEntryReceivers: MutableList<LogEntryReceiver> = mutableListOf()
     val dataReceiver: MutableList<CompilerDataReceiver> = mutableListOf()
@@ -170,7 +170,7 @@ class Sunlite(val args: Array<String>) {
         // Stop if there was a type collection error.
         if (hadError) return null
 
-        imports.clear()
+        includes.clear()
 
         parser = Parser(tokens, this, true)
         statements = parser.parse(shortPath).toMutableList()
@@ -330,7 +330,7 @@ class Sunlite(val args: Array<String>) {
         // Stop if there was a type collection error.
         if (hadError) return null
 
-        imports.clear()
+        includes.clear()
 
         parser = Parser(tokens, this, true)
         statements = parser.parse(shortPath).toMutableList()
@@ -378,7 +378,7 @@ class Sunlite(val args: Array<String>) {
         val compiler = Compiler(this, vm, null)
 
         val allStatements: MutableList<Stmt> = mutableListOf()
-        imports.values.sortedBy { it.first }.reversed().forEach { allStatements.addAll(it.second) }
+        includes.values.sortedBy { it.first }.reversed().forEach { allStatements.addAll(it.second) }
         allStatements.addAll(statements)
 
         val program: SLFunction = compiler.compile(
@@ -470,9 +470,9 @@ class Sunlite(val args: Array<String>) {
     fun error(token: Token, message: String) {
         dataReceiver.forEach { it.error(CompilerError(token, message)) }
         if (token.type == TokenType.EOF) {
-            reportError(token.line, " at end", message, token.file)
+            reportError(token.line, " at end", message, token.file, token.pos)
         } else {
-            reportError(token.line, " at '" + token.lexeme + "'", message, token.file)
+            reportError(token.line, " at '" + token.lexeme + "'", message, token.file, token.pos)
         }
     }
 
@@ -486,9 +486,9 @@ class Sunlite(val args: Array<String>) {
 
     private fun reportError(
         line: Int, where: String,
-        message: String, file: String?
+        message: String, file: String?, position : Token.Position? = null
     ) {
-        val s = "[$file, line $line] Error$where: $message"
+        val s = "[$file, line $line${if(position != null) ", $position" else ""}] Error$where: $message"
         printErr(s)
 
         if (stacktrace) {

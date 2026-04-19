@@ -276,7 +276,7 @@ class TypeChecker(val sunlite: Sunlite, val vm: VM?) : Expr.Visitor<Unit>, Stmt.
         scopes.pop()
     }
 
-    override fun visitImportStmt(stmt: Stmt.Import) {
+    override fun visitIncludeStmt(stmt: Stmt.Include) {
 
     }
 

@@ -173,9 +173,9 @@ abstract class Stmt : Element {
         }
     }
 
-    data class Import(val keyword: Token, val what: Token) : Stmt() {
+    data class Include(val keyword: Token, val what: Token) : Stmt() {
         override fun <R> accept(visitor: Visitor<R>): R {
-            return visitor.visitImportStmt(this)
+            return visitor.visitIncludeStmt(this)
         }
 
         override fun getFile(): String? {
@@ -325,7 +325,7 @@ abstract class Stmt : Element {
         fun visitReturnStmt(stmt: Return): R
         fun visitClassStmt(stmt: Class): R
         fun visitInterfaceStmt(stmt: Interface): R
-        fun visitImportStmt(stmt: Import): R
+        fun visitIncludeStmt(stmt: Include): R
         fun visitPackageStmt(stmt: Package): R
         fun visitTryCatchStmt(stmt: TryCatch): R
         fun visitThrowStmt(stmt: Throw): R

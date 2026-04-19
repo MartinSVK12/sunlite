@@ -1,4 +1,4 @@
-import "/iterable.sl";
+include "/iterable.sl";
 
 class array {
     static func forEach(arr: Array, block: Function<Any?, Nil>) {

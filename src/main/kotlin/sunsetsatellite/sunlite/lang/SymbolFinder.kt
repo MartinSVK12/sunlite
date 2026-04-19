@@ -67,7 +67,7 @@ class SymbolFinder(val name: String?, val line: Int, val column: Int) : Expr.Vis
         stmt.methods.forEach { it.accept(this) }
     }
 
-    override fun visitImportStmt(stmt: Stmt.Import) {
+    override fun visitIncludeStmt(stmt: Stmt.Include) {
         // nothing to collect
     }
 

@@ -55,7 +55,7 @@ class<T> List {
     }
     
     func get(i: Int): Generic<T> {
-        return (_a[i] as Generic<T>);
+        return _a[i];
     }
     
     func indexOf(o: Generic<T>): Int {
@@ -88,6 +88,12 @@ class<T> List {
             callback(i,get(i));
         }
     }
+
+    //func filter(callback: Function<Generic<T>,Boolean>): List<Generic<T>> {
+    //    val list: List<Generic<T>> = List(<Generic<T>>);
+    //    this.forEach(func(o: Generic<T>){ if(callback(o)) { list.add(o as Generic<T>); }});
+    //    return list;
+    //}
 
     func inc(arr: Array<Any|Nil>) {
         resize(arr,sizeOf(arr)+1);

@@ -701,6 +701,43 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                 return@let typeParams.find { it.token.lexeme == type.name.lexeme }?.let {
                     return@let it.type
                 } ?: type
+            } else if(type is Type.Reference){
+                val o = object {
+                    val primitive = type.type
+                    val ref = type.ref
+                    var params = type.params
+                    var returnType = type.returnType
+                    var typeParams = listOf(*type.typeParams.toTypedArray())
+                }
+                o.params = o.params.map { refParam ->
+                    if (refParam.type is Type.Parameter) {
+                        typeParams.find { it.token.lexeme == refParam.type.name.lexeme }?.let {
+                            return@map Param(refParam.token, it.type)
+                        }
+                    }
+                    return@map refParam
+                }
+                o.typeParams = o.typeParams.map { refParam ->
+                    if (refParam.type is Type.Parameter) {
+                        typeParams.find { it.token.lexeme == refParam.type.name.lexeme }?.let {
+                            return@map Param(refParam.token, it.type)
+                        }
+                    }
+                    return@map refParam
+                }
+                o.returnType = o.returnType.let { type ->
+                    if (type is Type.Parameter) {
+                        typeParams.find { it.token.lexeme == type.name.lexeme }?.let {
+                            return@let it.type
+                        }
+                    }
+                    return@let type
+                }
+                var reference = Type.Reference(o.primitive, o.ref, o.returnType, o.params, o.typeParams)
+                if(reference.type == PrimitiveType.OBJECT){
+                    reference = Type.Reference(o.primitive, o.ref, reference, o.params, o.typeParams)
+                }
+                return@let reference
             }
             return@let type
         }

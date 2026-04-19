@@ -310,7 +310,7 @@ class TypeCollector(val sunlite: Sunlite, val natives: NativesContainer) : Stmt.
         removeScope()
     }
 
-    override fun visitImportStmt(stmt: Stmt.Import) {
+    override fun visitIncludeStmt(stmt: Stmt.Include) {
         // nothing to collect
     }
 

@@ -73,6 +73,7 @@ class Scanner(private val source: String, val sunlite: Sunlite) {
             keywords["override"] = OVERRIDE
             keywords["match"] = MATCH
             keywords["package"] = PACKAGE
+            keywords["include"] = INCLUDE
         }
     }
 

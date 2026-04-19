@@ -1001,7 +1001,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?) : Exp
         currentClass = currentClass?.enclosing
     }
 
-    override fun visitImportStmt(stmt: Stmt.Import) {
+    override fun visitIncludeStmt(stmt: Stmt.Include) {
 
     }
 

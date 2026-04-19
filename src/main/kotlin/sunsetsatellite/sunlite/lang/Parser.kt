@@ -10,8 +10,8 @@ class Parser(
     val tokens: List<Token>,
     val sunlite: Sunlite,
     val allowImporting: Boolean = false,
-    val importing: Boolean = false,
-    val importingDepth: Int = 0
+    val including: Boolean = false,
+    val includingDepth: Int = 0
 ) {
     private var current = 0
 
@@ -56,7 +56,7 @@ class Parser(
             //match(DYNAMIC) -> classDeclaration(ClassModifier.DYNAMIC)
             match(CLASS) -> classDeclaration(ClassModifier.NORMAL)
             match(INTERFACE) -> interfaceDeclaration()
-            match(IMPORT) -> importStatement()
+            match(INCLUDE) -> includeStatement()
             else -> /*if(!importing)*/ statement() //else null
         }
     }
@@ -99,12 +99,12 @@ class Parser(
         )
     }
 
-    private fun importStatement(): Stmt? {
+    private fun includeStatement(): Stmt? {
         val keyword = previous()
         var builtin: Boolean = false
         var what: Token
         if(match(LESS)){
-            what = consume(STRING, "Expected import location string.")
+            what = consume(STRING, "Expected builtin import location string.")
             consume(GREATER, "Expected '>' after import statement.")
             builtin = true
         } else {
@@ -115,7 +115,7 @@ class Parser(
         /*sunlite.error(keyword, "Importing not yet supported!")
         return null*/
 
-        if (sunlite.imports.contains(what.literal as String)) {
+        if (sunlite.includes.contains(what.literal as String)) {
             return null
         }
 
@@ -147,7 +147,7 @@ class Parser(
         val scanner = Scanner(data, sunlite)
         val tokens: List<Token> = scanner.scanTokens(what.literal)
 
-        var parser = Parser(tokens, sunlite, true, true, importingDepth + 1)
+        var parser = Parser(tokens, sunlite, true, true, includingDepth + 1)
         var statements = parser.parse(what.literal)
 
         // Stop if there was a syntax error.
@@ -164,7 +164,7 @@ class Parser(
             return null
         }
 
-        parser = Parser(tokens, sunlite, true, true, importingDepth + 1)
+        parser = Parser(tokens, sunlite, true, true, includingDepth + 1)
         statements = parser.parse(what.literal)
 
         // Stop if there was a syntax error.
@@ -182,7 +182,7 @@ class Parser(
             return null
         }
 
-        sunlite.imports[what.literal] = importingDepth to statements
+        sunlite.includes[what.literal] = includingDepth to statements
 
         if (Sunlite.debug) {
             sunlite.printInfo("AST: ")
@@ -200,7 +200,7 @@ class Parser(
         }
 
 
-        return Stmt.Import(keyword, what)
+        return Stmt.Include(keyword, what)
     }
 
     private fun classDeclaration(modifier: ClassModifier): Stmt {
