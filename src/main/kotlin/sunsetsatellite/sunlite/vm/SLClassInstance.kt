@@ -9,7 +9,7 @@ class SLClassInstance(
 ) {
 
     override fun toString(): String {
-        return "<object '${clazz.name}'>"
+        return "<object '${clazz.name}<${typeParams.map { "${it.key}: ${it.value}" }.joinToString(", ")}>'>"
     }
 
     fun copy(): SLClassInstance {

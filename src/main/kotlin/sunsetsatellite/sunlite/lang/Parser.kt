@@ -9,7 +9,7 @@ import java.io.IOException
 class Parser(
     val tokens: List<Token>,
     val sunlite: Sunlite,
-    val allowImporting: Boolean = false,
+    val allowIncluding: Boolean = false,
     val including: Boolean = false,
     val includingDepth: Int = 0
 ) {
@@ -119,7 +119,7 @@ class Parser(
             return null
         }
 
-        if (sunlite.collector == null || !allowImporting) {
+        if (sunlite.collector == null || !allowIncluding) {
             return null
         }
 
@@ -1231,9 +1231,9 @@ class Parser(
 
 						if(sunlite.collector != null && expr is NamedExpr){
 							val typeParams = sunlite.collector!!.typeHierarchy[expr.getNameToken().lexeme]?.typeParameters
-							typeParameters.add(Param(Token.identifier(typeParams?.get(i) ?: "?"),getType(function = false, noColon = true)))
+							typeParameters.add(Param(Token.identifier(typeParams?.get(i) ?: "???"),getType(function = false, noColon = true)))
 						} else {
-							typeParameters.add(Param(Token.identifier("?"),getType(function = false, noColon = true)))
+							typeParameters.add(Param(Token.identifier("????"),getType(function = false, noColon = true)))
 						}
 						i++
 					} while (match(COMMA))

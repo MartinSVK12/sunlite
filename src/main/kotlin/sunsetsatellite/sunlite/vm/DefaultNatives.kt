@@ -28,9 +28,9 @@ object DefaultNatives : Natives {
     override fun registerNatives(consumer: NativesContainer) {
         registerCore(consumer)
         registerIO(consumer)
-        registerString(consumer)
-        registerMath(consumer)
-        registerReflect(consumer)
+        //registerString(consumer)
+        //registerMath(consumer)
+        //registerReflect(consumer)
     }
 
     fun registerIO(vm: NativesContainer) {

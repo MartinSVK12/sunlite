@@ -120,17 +120,19 @@ class Sunlite(val args: Array<String>) {
         val scanner = Scanner(data, this)
         val tokens: List<Token> = scanner.scanTokens(shortPath)
 
-        var parser = Parser(tokens, this)
-        var statements = parser.parse(shortPath)
+        val nativesObj = BasicNativesContainer()
+        natives.registerNatives(nativesObj)
+
+        collector = TypeCollector(this, nativesObj)
+
+        var parser = Parser(tokens, this, true)
+        var statements: MutableList<Stmt> = parser.parse(shortPath).toMutableList()
 
         compileStep = 1
 
-        val nativesObj = BasicNativesContainer()
-        natives.registerNatives(nativesObj)
         // Stop if there was a syntax error.
         if (hadError) return null
 
-        collector = TypeCollector(this, nativesObj)
         collector?.collect(statements, shortPath)
 
         compileStep = 2
@@ -139,43 +141,9 @@ class Sunlite(val args: Array<String>) {
         if (hadError) return null
 
         parser = Parser(tokens, this)
-        statements = parser.parse(shortPath)
+        statements = parser.parse(shortPath).toMutableList()
 
         compileStep = 3
-
-        // Stop if there was a syntax error.
-        if (hadError) return null
-
-        collector = TypeCollector(this, nativesObj)
-        collector?.collect(statements, shortPath)
-
-        compileStep = 4
-
-        // Stop if there was a type collection error.
-        if (hadError) return null
-
-        parser = Parser(tokens, this, true)
-        statements = parser.parse(shortPath).toMutableList()
-
-        compileStep = 5
-
-        // Stop if there was a syntax error.
-        if (hadError) return null
-
-        collector = TypeCollector(this, nativesObj)
-        collector?.collect(statements, shortPath)
-
-        compileStep = 6
-
-        // Stop if there was a type collection error.
-        if (hadError) return null
-
-        includes.clear()
-
-        parser = Parser(tokens, this, true)
-        statements = parser.parse(shortPath).toMutableList()
-
-        compileStep = 7
 
         // Stop if there was a syntax error.
         if (hadError) return null
@@ -185,7 +153,7 @@ class Sunlite(val args: Array<String>) {
             checker.check(statements)
         }
 
-        compileStep = 8
+        compileStep = 4
 
         // Stop if there was a type error.
         if (hadError) return null
@@ -278,8 +246,12 @@ class Sunlite(val args: Array<String>) {
             printInfo()
         }
 
+        vm = VM(this, if (args.size == 4) args[3].split(";").toTypedArray() else arrayOf())
+        uninitialized = false
 
-        var parser = Parser(tokens, this)
+        collector = TypeCollector(this, vm)
+
+        var parser = Parser(tokens, this, true)
         var statements: MutableList<Stmt> = parser.parse(shortPath).toMutableList()
 
         compileStep = 1
@@ -287,10 +259,6 @@ class Sunlite(val args: Array<String>) {
         // Stop if there was a syntax error.
         if (hadError) return null
 
-        vm = VM(this, if (args.size == 4) args[3].split(";").toTypedArray() else arrayOf())
-        uninitialized = false
-
-        collector = TypeCollector(this, vm)
         collector?.collect(statements, shortPath)
 
         compileStep = 2
@@ -302,40 +270,6 @@ class Sunlite(val args: Array<String>) {
         statements = parser.parse(shortPath).toMutableList()
 
         compileStep = 3
-
-        // Stop if there was a syntax error.
-        if (hadError) return null
-
-        collector = TypeCollector(this, vm)
-        collector?.collect(statements, shortPath)
-
-        compileStep = 4
-
-        // Stop if there was a type collection error.
-        if (hadError) return null
-
-        parser = Parser(tokens, this, true)
-        statements = parser.parse(shortPath).toMutableList()
-
-        compileStep = 5
-
-        // Stop if there was a syntax error.
-        if (hadError) return null
-
-        collector = TypeCollector(this, vm)
-        collector?.collect(statements, shortPath)
-
-        compileStep = 6
-
-        // Stop if there was a type collection error.
-        if (hadError) return null
-
-        includes.clear()
-
-        parser = Parser(tokens, this, true)
-        statements = parser.parse(shortPath).toMutableList()
-
-        compileStep = 7
 
         // Stop if there was a syntax error.
         if (hadError) return null
@@ -370,7 +304,7 @@ class Sunlite(val args: Array<String>) {
             checker.check(statements)
         }
 
-        compileStep = 8
+        compileStep = 4
 
         // Stop if there was a type error.
         if (hadError) return null
@@ -391,7 +325,7 @@ class Sunlite(val args: Array<String>) {
             shortPath
         )
 
-        compileStep = 9
+        compileStep = 5
 
         // Stop if there was a compilation error.
         if (hadError) return null

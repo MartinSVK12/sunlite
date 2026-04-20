@@ -432,7 +432,7 @@ abstract class Type {
                                             types.mapIndexed { i, it ->
                                                 Param(
                                                     Token.identifier(
-                                                        typeParams?.get(i) ?: "?"
+                                                        typeParams?.get(i) ?: "??"
                                                     ), it
                                                 )
                                             })

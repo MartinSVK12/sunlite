@@ -77,7 +77,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
             if (fr.pc < fr.closure.function.chunk.code.size) {
                 if (Sunlite.bytecodeDebug) {
                     val sb = StringBuilder()
-                    sb.append("STACK @ ${fr.closure.function.chunk.debugInfo.file}::${fr.closure.function.chunk.debugInfo.name}: ")
+                    sb.append("STACK @ ${fr.closure.function.chunk.debugInfo.file}::${fr.closure.function.name}${Type.fromValue(fr.closure.function, sunlite).getDescriptor()}: ")
                     for (value in fr.stack) {
                         sb.append("[ ")
                         sb.append(value)
@@ -87,7 +87,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                         sb.append("[ ]")
                     }
                     sb.append("\n")
-                    sb.append("LOCALS @ ${fr.closure.function.chunk.debugInfo.file}::${fr.closure.function.chunk.debugInfo.name}: ")
+                    sb.append("LOCALS @ ${fr.closure.function.chunk.debugInfo.file}::${fr.closure.function.name}${Type.fromValue(fr.closure.function, sunlite).getDescriptor()}: ")
                     for (value in fr.locals) {
                         sb.append("[ ")
                         sb.append(value)
@@ -667,7 +667,10 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
     }
 
     private fun reifyFunction(function: SLFunction, typeParams: List<Param>): SLFunction {
-        val reifiedParams = function.params.filter { it.type.getDescriptor().contains("G") }.map { param ->
+        val reifiedParams = function.params.map { param ->
+            if(!param.type.getDescriptor().contains("G")){
+                return@map param
+            }
             if (param.type is Type.Reference) {
                 val o = object {
                     val primitive = param.type.type
@@ -816,9 +819,16 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                     val instance =
                         SLClassInstanceObj(SLClassInstance(callee.value, mutableMapOf(), fields))
                     stack[stack.size - argCount - 1 - typeArgCount] = instance
-                    val typeArgs = listOf(*Array(typeArgCount) { i -> (frameStack.peek().pop() as SLType).value })
-                    typeArgs.forEachIndexed { i, it ->
-                        instance.value.typeParams[callee.value.typeParams.keys.toList()[i]] = it
+                    val typeArgs = listOf(*Array(typeArgCount) { _ -> (frameStack.peek().pop() as SLType).value })
+                    if(frameStack.peek().locals[0] != SLNil){
+                        val enclosingTypeParams = (frameStack.peek().locals[0] as SLClassInstanceObj).value.typeParams.values
+                        enclosingTypeParams.forEachIndexed { i, it ->
+                            instance.value.typeParams[callee.value.typeParams.keys.toList()[i]] = it
+                        }
+                    } else {
+                        typeArgs.forEachIndexed { i, it ->
+                            instance.value.typeParams[callee.value.typeParams.keys.toList()[i]] = it
+                        }
                     }
                     fields.values.filter {
                         if(it.type is Type.Parameter) {
