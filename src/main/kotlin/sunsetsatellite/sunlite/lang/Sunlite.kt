@@ -128,37 +128,49 @@ class Sunlite(val args: Array<String>) {
         var parser = Parser(tokens, this, true)
         var statements: MutableList<Stmt> = parser.parse(shortPath).toMutableList()
 
-        compileStep = 1
+        compileStep++
 
         // Stop if there was a syntax error.
-        if (hadError) return null
+        //if (hadError) return null
 
         collector?.collect(statements, shortPath)
 
-        compileStep = 2
+        compileStep++
 
         // Stop if there was a type collection error.
-        if (hadError) return null
+        //if (hadError) return null
 
         parser = Parser(tokens, this)
         statements = parser.parse(shortPath).toMutableList()
 
-        compileStep = 3
+        compileStep++
 
         // Stop if there was a syntax error.
-        if (hadError) return null
+        //if (hadError) return null
+
+        val allStatements: MutableList<Stmt> = mutableListOf()
+        //includes.values.sortedBy { it.first }.reversed().forEach { allStatements.addAll(it.second) }
+        allStatements.addAll(statements)
+
+        //collector = TypeCollector(this, nativesObj)
+        //collector?.collect(allStatements, shortPath)
+
+        //compileStep++
+
+        // Stop if there was a type collection error.
+        //if (hadError) return null
 
         if (!noTypeChecks) {
             val checker = TypeChecker(this, null)
-            checker.check(statements)
+            checker.check(allStatements)
         }
 
-        compileStep = 4
+        compileStep++
 
         // Stop if there was a type error.
-        if (hadError) return null
+        //if (hadError) return null
 
-        return ParsedData(tokens, statements, collector!!)
+        return ParsedData(tokens, allStatements, collector!!)
     }
 
     fun compile(statements: List<Stmt>): SLFunction {
@@ -254,14 +266,14 @@ class Sunlite(val args: Array<String>) {
         var parser = Parser(tokens, this, true)
         var statements: MutableList<Stmt> = parser.parse(shortPath).toMutableList()
 
-        compileStep = 1
+        compileStep++
 
         // Stop if there was a syntax error.
         if (hadError) return null
 
         collector?.collect(statements, shortPath)
 
-        compileStep = 2
+        compileStep++
 
         // Stop if there was a type collection error.
         if (hadError) return null
@@ -269,9 +281,21 @@ class Sunlite(val args: Array<String>) {
         parser = Parser(tokens, this)
         statements = parser.parse(shortPath).toMutableList()
 
-        compileStep = 3
+        compileStep++
 
         // Stop if there was a syntax error.
+        if (hadError) return null
+
+        val allStatements: MutableList<Stmt> = mutableListOf()
+        includes.values.sortedBy { it.first }.reversed().forEach { allStatements.addAll(it.second) }
+        allStatements.addAll(statements)
+
+        //collector = TypeCollector(this, vm)
+        //collector?.collect(allStatements, shortPath)
+
+       // compileStep++
+
+        // Stop if there was a type collection error.
         if (hadError) return null
 
         if (debug) {
@@ -304,16 +328,12 @@ class Sunlite(val args: Array<String>) {
             checker.check(statements)
         }
 
-        compileStep = 4
+        compileStep++
 
         // Stop if there was a type error.
         if (hadError) return null
 
         val compiler = Compiler(this, vm, null)
-
-        val allStatements: MutableList<Stmt> = mutableListOf()
-        includes.values.sortedBy { it.first }.reversed().forEach { allStatements.addAll(it.second) }
-        allStatements.addAll(statements)
 
         val program: SLFunction = compiler.compile(
             FunctionType.NONE,
@@ -325,7 +345,7 @@ class Sunlite(val args: Array<String>) {
             shortPath
         )
 
-        compileStep = 5
+        compileStep++
 
         // Stop if there was a compilation error.
         if (hadError) return null
@@ -426,7 +446,7 @@ class Sunlite(val args: Array<String>) {
         printErr(s)
 
         if (stacktrace) {
-            Exception("sunlite internal error:").printStackTrace()
+            throw CompilationException("sunlite compilation error:")
         }
 
         hadError = true
@@ -440,7 +460,7 @@ class Sunlite(val args: Array<String>) {
         printWarn(s)
 
         if (warnStacktrace) {
-            Exception("sunlite warn internal stack trace").printStackTrace()
+            CompilationException("sunlite compilation warning stack trace").printStackTrace()
         }
     }
 

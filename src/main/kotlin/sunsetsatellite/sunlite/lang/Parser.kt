@@ -156,6 +156,8 @@ class Parser(
             return null
         }
 
+        //val collector = TypeCollector(sunlite, sunlite.vm)
+        //collector.collect(statements, what.literal)
         sunlite.collector?.collect(statements, what.literal)
 
         // Stop if there was a type collection error.
@@ -244,6 +246,17 @@ class Parser(
         }
 
         consume(LEFT_BRACE, "Expected '{' before class body.")
+
+        sunlite.collector?.typeHierarchy?.let {
+            it[name.lexeme] = TypeCollector.TypePrototype(
+                name.lexeme,
+                superclass?.name?.lexeme ?: "<nil>",
+                superinterfaces.map { it.name.lexeme },
+                typeParameters.map { it.token.lexeme },
+                null,
+                true
+            )
+        }
 
         val methods: MutableList<Stmt.Function> = ArrayList()
         val fields: MutableList<Stmt.Var> = ArrayList()
@@ -1230,7 +1243,13 @@ class Parser(
 						}
 
 						if(sunlite.collector != null && expr is NamedExpr){
-							val typeParams = sunlite.collector!!.typeHierarchy[expr.getNameToken().lexeme]?.typeParameters
+							var typeParams = sunlite.collector!!.typeHierarchy[expr.getNameToken().lexeme]?.typeParameters
+                            if(typeParams == null){
+                                if(expr.getExprType() is Type.Reference){
+                                    typeParams = (expr.getExprType() as Type.Reference).typeParams.map { it.token.lexeme }
+                                }
+                            }
+                            //sunlite.collector!!.findProp(expr.getNameToken(), )
 							typeParameters.add(Param(Token.identifier(typeParams?.get(i) ?: "???"),getType(function = false, noColon = true)))
 						} else {
 							typeParameters.add(Param(Token.identifier("????"),getType(function = false, noColon = true)))

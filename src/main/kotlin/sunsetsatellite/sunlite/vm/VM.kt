@@ -667,7 +667,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
     }
 
     private fun reifyFunction(function: SLFunction, typeParams: List<Param>): SLFunction {
-        val reifiedParams = function.params.map { param ->
+        /*val reifiedParams = function.params.map { param ->
             if(!param.type.getDescriptor().contains("G")){
                 return@map param
             }
@@ -689,9 +689,10 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                 }
                 o.returnType = o.returnType.let { type ->
                     if (type is Type.Parameter) {
-                        typeParams.find { it.token.lexeme == type.name.lexeme }?.let {
+                        val found = typeParams.find { it.token.lexeme == type.name.lexeme }?.let {
                             return@let it.type
                         }
+                        return@let found ?: type
                     }
                     return@let type
                 }
@@ -730,9 +731,10 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                 }
                 o.returnType = o.returnType.let { type ->
                     if (type is Type.Parameter) {
-                        typeParams.find { it.token.lexeme == type.name.lexeme }?.let {
+                        val found = typeParams.find { it.token.lexeme == type.name.lexeme }?.let {
                             return@let it.type
                         }
+                        return@let found ?: type
                     }
                     return@let type
                 }
@@ -744,10 +746,21 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
             }
             return@let type
         }
-        val addedTypeParams = mutableListOf<Param>()
-        //addedTypeParams.addAll(typeParams)
+        val addedTypeParams = mutableSetOf<Param>()
         addedTypeParams.addAll(function.typeParams)
-        return SLFunction(function.name, reifiedReturnType, reifiedParams, addedTypeParams, function.chunk, function.arity, function.upvalueCount, function.localsCount, function.modifier)
+        //addedTypeParams.addAll(typeParams)
+        val function = SLFunction(
+            function.name,
+            reifiedReturnType,
+            reifiedParams,
+            addedTypeParams.toList(),
+            function.chunk,
+            function.arity,
+            function.upvalueCount,
+            function.localsCount,
+            function.modifier
+        )*/
+        return function
     }
 
     private fun defineField(fr: CallFrame, name: String) {
@@ -783,7 +796,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
         var method = clazz.methods[name]!!.value
 
         if(receiver is SLClassInstanceObj){
-            val typeParams = receiver.value.typeParams.map { Param(Token.identifier(it.key), it.value) }
+            val typeParams = receiver.value.typeParams.map { Param(Token.identifier(it.key), it.value) }.toMutableList()
             method = SLClosure(reifyFunction(method.function, typeParams), method.upvalues)
         }
 
@@ -820,15 +833,38 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                         SLClassInstanceObj(SLClassInstance(callee.value, mutableMapOf(), fields))
                     stack[stack.size - argCount - 1 - typeArgCount] = instance
                     val typeArgs = listOf(*Array(typeArgCount) { _ -> (frameStack.peek().pop() as SLType).value })
-                    if(frameStack.peek().locals[0] != SLNil){
-                        val enclosingTypeParams = (frameStack.peek().locals[0] as SLClassInstanceObj).value.typeParams.values
-                        enclosingTypeParams.forEachIndexed { i, it ->
-                            instance.value.typeParams[callee.value.typeParams.keys.toList()[i]] = it
+                    /*if(frameStack.peek().locals[0] != SLNil){
+                        val functionTypeParams = frameStack.peek().closure.function.typeParams
+                        val classTypeParams = (frameStack.peek().locals[0] as SLClassInstanceObj).value.typeParams
+                        var i = 0
+                        instance.value.clazz.typeParams.forEach { (name, type) ->
+                            typeArgs.getOrNull(i)?.let {
+                                var found = functionTypeParams.find { f -> f.token.lexeme == it.getName() }?.type
+                                if(found == null) {
+                                    found = classTypeParams[name]
+                                }
+                                instance.value.typeParams[name] = found ?: type
+                            }
+                            i++
                         }
+                        //val enclosingTypeParams = frameStack.peek().closure.function.typeParams.map { it.token.lexeme to it.type }.toMap().toMutableMap()
+                        //enclosingTypeParams.putAll((frameStack.peek().locals[0] as SLClassInstanceObj).value.typeParams)
+                        /*typeArgs.firstOrNull { enclosingTypeParams.contains(it.getName()) }?.let {
+                            instance.value.typeParams[it.getName()] = enclosingTypeParams[it.getName()]!!
+                        }*/
+                        /*enclosingTypeParams.firstNotNullOfOrNull { typeArgs.first { arg -> it.key == arg.getName() } }?.let {
+                            instance.value.typeParams[it.getName()] = it
+                        }*/
+                        /*enclosingTypeParams.forEachIndexed { i, it ->
+                            instance.value.typeParams[callee.value.typeParams.keys.toList()[i]] = it
+                        }*/
                     } else {
                         typeArgs.forEachIndexed { i, it ->
                             instance.value.typeParams[callee.value.typeParams.keys.toList()[i]] = it
                         }
+                    }*/
+                    typeArgs.forEachIndexed { i, it ->
+                        instance.value.typeParams[callee.value.typeParams.keys.toList()[i]] = it
                     }
                     fields.values.filter {
                         if(it.type is Type.Parameter) {
@@ -916,7 +952,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                             }
                             return callNative(globals[methodName] as SLNativeFuncObj, argCount)
                         }
-                        val success = call(SLClosureObj(callee.value.method), argCount, typeArgCount)
+                        val success = call(SLClosureObj(callee.value.method), argCount, typeArgCount, callee.value.receiver)
                         if (!success) return false
                         frameStack.peek().locals.add(0, callee.value.receiver)
                         return true
@@ -958,7 +994,8 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
         return true
     }
 
-    fun call(callee: SLClosureObj, argCount: Int, typeArgCount: Int = 0): Boolean {
+    fun call(callee: SLClosureObj, argCount: Int, typeArgCount: Int = 0, receiverObj: AnySLValue? = null): Boolean {
+        val receiver = (receiverObj as SLClassInstanceObj?)?.value
         if (callee.value.function.modifier == FunctionModifier.ABSTRACT) {
             runtimeError("Can't call abstract method '${callee.value.function.name}'.")
             return false
@@ -979,13 +1016,31 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
         for (i in 0 until argCount) {
             locals.add(frameStack.peek().peek(typeArgCount + i))
         }
+        var functionTypeArgs = mutableListOf<SLType>()
         for (i in 0 until typeArgCount) {
-            frameStack.peek().pop()
+            functionTypeArgs.add(frameStack.peek().pop() as SLType)
         }
+        var frameFunction = callee.value
+        /*if(receiver != null){
+            if(functionTypeArgs.size >= receiver.typeParams.size){
+                functionTypeArgs = functionTypeArgs.subList(receiver.typeParams.size, functionTypeArgs.size)
+                val list = callee.value.function.typeParams.mapIndexed { index, param ->
+                    Param(
+                        param.token,
+                        functionTypeArgs[index].value
+                    )
+                }.toList()
+                val fullyReified = reifyFunction(callee.value.function, list)
+                frameFunction = SLClosure(fullyReified, callee.value.upvalues)
+
+	            frameStack.peek().stack[frameStack.peek().stack.size - argCount - 1] =
+		            SLBoundMethodObj(SLBoundMethod(frameFunction, receiverObj))
+            }
+        }*/
         //locals.addAll(Array(argCount) { i -> frameStack.peek().peek(i - typeArgCount) })
         locals.reverse()
         if (callee.value.function.modifier == FunctionModifier.STATIC) locals.add(0, SLNil)
-        val frame = CallFrame(callee.value, locals)
+        val frame = CallFrame(frameFunction, locals)
         frameStack.push(frame)
         return true
     }

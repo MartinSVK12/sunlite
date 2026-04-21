@@ -221,7 +221,7 @@ abstract class Type {
             if (this === other) return true
             if (other !is Parameter) return false
 
-            if (name.lexeme != other.name.lexeme) return false
+            //if (name.lexeme != other.name.lexeme) return false
 
             return true
         }
@@ -245,7 +245,7 @@ abstract class Type {
         var currentInterpreter: Sunlite? = null
 
         fun ofClass(name: String, params: List<Param> = listOf()): Reference {
-            return Reference(PrimitiveType.CLASS, name, ofObject(name), params)
+            return Reference(PrimitiveType.CLASS, name, ofObject(name), listOf(), params)
         }
 
         fun ofArray(elementType: Type): Reference {

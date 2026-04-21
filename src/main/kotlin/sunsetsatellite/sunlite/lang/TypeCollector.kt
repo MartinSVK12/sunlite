@@ -68,7 +68,8 @@ class TypeCollector(val sunlite: Sunlite, val natives: NativesContainer) : Stmt.
         val superclass: String,
         val superinterfaces: List<String>,
         val typeParameters: List<String>,
-        val scope: Scope
+        val scope: Scope?,
+        val incomplete: Boolean = false
     )
 
     val typeHierarchy: MutableMap<String, TypePrototype> = mutableMapOf()
@@ -248,13 +249,13 @@ class TypeCollector(val sunlite: Sunlite, val natives: NativesContainer) : Stmt.
     }
 
     override fun visitClassStmt(stmt: Stmt.Class) {
-        val classParams = stmt.methods.find { it.name.lexeme == "init" }?.params ?: listOf()
+        val classParams = stmt.typeParameters
         val v = addVariable(stmt.name, Type.ofClass(stmt.name.lexeme, classParams))
         addScope(stmt.name, v)
         currentClass = stmt
         val superclass = stmt.superclass?.name?.lexeme ?: "<nil>"
         val superinterfaces = stmt.superinterfaces.map { it.name.lexeme }.toMutableList()
-        if (typeHierarchy.containsKey(stmt.name.lexeme)) sunlite.error(
+        if (typeHierarchy.containsKey(stmt.name.lexeme) && !typeHierarchy[stmt.name.lexeme]?.incomplete!!) sunlite.error(
             stmt.name,
             "Class '${stmt.name.lexeme}' already defined."
         )

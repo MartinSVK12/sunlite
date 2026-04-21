@@ -94,6 +94,12 @@ class<T> List {
         this.forEach(func(o: Generic<T>){ if(callback(o)) { list.add(o as Generic<T>); }});
         return list;
     }
+    
+    func<U> map(callback: Function<Generic<T>, Generic<U>>): List<Generic<U>> {
+        val list: List<Generic<U>> = List(<Generic<U>>);
+        this.forEach(func(o: Generic<T>){ list.add(callback(o)); });
+        return list;
+    }
 
     func inc(arr: Array<Any|Nil>) {
         resize(arr,sizeOf(arr)+1);

@@ -32,6 +32,7 @@ class TypeChecker(val sunlite: Sunlite, val vm: VM?) : Expr.Visitor<Unit>, Stmt.
             //sunlite.printInfo("Checking if type '$expected' matches '$actual' at '${token?.lexeme ?: "<runtime>"}'")
         }
         val valid = Type.contains(actual, expected, sunlite)
+        if(expected is Type.Parameter && actual != Type.UNKNOWN && runtime) return
         if (!valid) {
             if (runtime && vm != null) {
                 vm.throwException(0, SLString("TypeError: Expected '$expected' but got '$actual'."))
@@ -107,9 +108,10 @@ class TypeChecker(val sunlite: Sunlite, val vm: VM?) : Expr.Visitor<Unit>, Stmt.
                         }
                         o.returnType = o.returnType.let { type ->
                             if(type is Type.Parameter){
-                                typeArgs.find { it.token.lexeme == type.name.lexeme }?.let {
+                                val reifiedType = typeArgs.find { it.token.lexeme == type.name.lexeme }?.let {
                                     return@let it.type
                                 }
+                                return@let reifiedType ?: type
                             }
                             return@let type
                         }
