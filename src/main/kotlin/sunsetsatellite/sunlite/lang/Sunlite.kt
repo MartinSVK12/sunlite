@@ -128,17 +128,24 @@ class Sunlite(val args: Array<String>) {
         var parser = Parser(tokens, this, true)
         var statements: MutableList<Stmt> = parser.parse(shortPath).toMutableList()
 
-        compileStep++
+        //compileStep++
 
         // Stop if there was a syntax error.
         //if (hadError) return null
 
-        collector?.collect(statements, shortPath)
+        collector?.collect(statements, shortPath, compileStep)
 
         compileStep++
 
         // Stop if there was a type collection error.
         //if (hadError) return null
+
+        parser = Parser(tokens, this)
+        statements = parser.parse(shortPath).toMutableList()
+
+        collector?.collect(statements, shortPath, compileStep)
+
+        compileStep++
 
         parser = Parser(tokens, this)
         statements = parser.parse(shortPath).toMutableList()
@@ -151,11 +158,6 @@ class Sunlite(val args: Array<String>) {
         val allStatements: MutableList<Stmt> = mutableListOf()
         //includes.values.sortedBy { it.first }.reversed().forEach { allStatements.addAll(it.second) }
         allStatements.addAll(statements)
-
-        //collector = TypeCollector(this, nativesObj)
-        //collector?.collect(allStatements, shortPath)
-
-        //compileStep++
 
         // Stop if there was a type collection error.
         //if (hadError) return null
@@ -266,12 +268,12 @@ class Sunlite(val args: Array<String>) {
         var parser = Parser(tokens, this, true)
         var statements: MutableList<Stmt> = parser.parse(shortPath).toMutableList()
 
-        compileStep++
+        //compileStep++
 
         // Stop if there was a syntax error.
         if (hadError) return null
 
-        collector?.collect(statements, shortPath)
+        collector?.collect(statements, shortPath, compileStep)
 
         compileStep++
 
@@ -281,9 +283,21 @@ class Sunlite(val args: Array<String>) {
         parser = Parser(tokens, this)
         statements = parser.parse(shortPath).toMutableList()
 
-        compileStep++
+        //compileStep++
 
         // Stop if there was a syntax error.
+        if (hadError) return null
+
+        collector?.collect(statements, shortPath, compileStep)
+
+        compileStep++
+
+        parser = Parser(tokens, this)
+        statements = parser.parse(shortPath).toMutableList()
+
+        compileStep++
+
+        // Stop if there was a type collection error.
         if (hadError) return null
 
         val allStatements: MutableList<Stmt> = mutableListOf()

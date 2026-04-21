@@ -97,7 +97,7 @@ class<T> List {
     
     func<U> map(callback: Function<Generic<T>, Generic<U>>): List<Generic<U>> {
         val list: List<Generic<U>> = List(<Generic<U>>);
-        this.forEach(func(o: Generic<T>){ list.add(callback(o)); });
+       this.forEach(func(o: Generic<T>){ list.add(callback(o)); });
         return list;
     }
 

@@ -230,8 +230,16 @@ abstract class Expr : Element {
                         val rawType = type.returnType
                         return Type.ofGenericObject(rawType.getName(), typeArgs)
                     }
+                } else {
+                    val reified = Type.reify(type, typeArgs) as Type.Reference
+                    val reifiedReturnType = reified.returnType
+                    return reifiedReturnType
                 }
-                return type.returnType
+                /*if(type.type == PrimitiveType.FUNCTION){
+                    if (!typeArgs.isEmpty()) {
+                        return Type.reify(type, typeArgs)
+                    }
+                }*/
             }
             return Type.UNKNOWN
         }

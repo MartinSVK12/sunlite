@@ -158,7 +158,7 @@ class Parser(
 
         //val collector = TypeCollector(sunlite, sunlite.vm)
         //collector.collect(statements, what.literal)
-        sunlite.collector?.collect(statements, what.literal)
+        sunlite.collector?.collect(statements, what.literal, sunlite.compileStep)
 
         // Stop if there was a type collection error.
         if (sunlite.hadError) {

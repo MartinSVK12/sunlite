@@ -1061,7 +1061,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
             return null
         }
 
-        sunlite.collector!!.collect(statements, path)
+        sunlite.collector!!.collect(statements, path, sunlite.compileStep)
         if (sunlite.hadError) {
             sunlite.hadError = false
             return null

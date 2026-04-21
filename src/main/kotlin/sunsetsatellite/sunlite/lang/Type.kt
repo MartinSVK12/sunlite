@@ -518,6 +518,33 @@ abstract class Type {
             }
         }
 
+        fun reify(type: Type, typeArgs: List<Param>): Type {
+
+            if(type is Reference){
+                val o = object  {
+                    val primitive = type.type
+                    var returnType = type.returnType
+                    val ref = type.ref
+                    var typeParams = type.typeParams
+                    var params = type.params
+                }
+
+                o.returnType = reify(o.returnType, typeArgs)
+                o.params = o.params.map { Param(it.token, reify(it.type, typeArgs)) }
+                o.typeParams = o.typeParams.map { Param(it.token, reify(it.type, typeArgs)) }
+
+                return Reference(o.primitive, o.ref, o.returnType, o.params, o.typeParams)
+            }
+
+            if(type is Parameter){
+                typeArgs.firstOrNull { it.token.lexeme == type.name.lexeme }?.let {
+                    return it.type
+                }
+            }
+
+            return type
+        }
+
         val UNKNOWN = Singular(PrimitiveType.UNKNOWN)
         val NIL = Singular(PrimitiveType.NIL)
         val ANY = Singular(PrimitiveType.ANY)

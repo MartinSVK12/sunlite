@@ -7,13 +7,14 @@ class TypeCollector(val sunlite: Sunlite, val natives: NativesContainer) : Stmt.
 
     var currentClass: Stmt.Class? = null
     var currentScopeCandidate: Scope? = null
+    var currentId: Int = -1
 
-    abstract class ElementPrototype {
+    abstract class ElementPrototype(val id: Int) {
         abstract fun getElementType(): Type
         abstract fun isConstant(): Boolean
     }
 
-    inner class VariablePrototype(val type: Type, val constant: Boolean) : ElementPrototype() {
+    inner class VariablePrototype(val type: Type, val constant: Boolean, id: Int) : ElementPrototype(id) {
         override fun toString(): String {
             return ": $type"
         }
@@ -32,8 +33,9 @@ class TypeCollector(val sunlite: Sunlite, val natives: NativesContainer) : Stmt.
         val modifier: FunctionModifier,
         val params: List<Param>,
         val returnType: Type,
-        val typeParams: List<Param> = listOf()
-    ) : ElementPrototype() {
+        val typeParams: List<Param> = listOf(),
+        id: Int
+    ) : ElementPrototype(id) {
         override fun toString(): String {
             return "${name.lexeme}(${params.map { "${it.token.lexeme}: ${it.type}" }.joinToString()}): $returnType"
         }
@@ -90,11 +92,15 @@ class TypeCollector(val sunlite: Sunlite, val natives: NativesContainer) : Stmt.
     }
 
     fun addVariable(name: Token, type: Type, constant: Boolean = false): VariablePrototype {
-        if (currentScope?.contents?.mapKeys { it.key.lexeme }?.containsKey(name.lexeme) == true) sunlite.error(
-            name,
-            "Variable '${name.lexeme}' already declared in this scope."
-        )
-        val v = VariablePrototype(type, constant)
+        if (currentScope?.contents?.mapKeys { it.key.lexeme }?.containsKey(name.lexeme) == true) {
+            if(currentScope?.contents?.get(name)?.id == currentId){
+                sunlite.error(
+                    name,
+                    "Variable '${name.lexeme}' already declared in this scope."
+                )
+            }
+        }
+        val v = VariablePrototype(type, constant, currentId)
         currentScope?.contents?.put(name, v)
         return v
     }
@@ -110,11 +116,15 @@ class TypeCollector(val sunlite: Sunlite, val natives: NativesContainer) : Stmt.
             name,
             "Cannot overwrite global function '${name.lexeme}'."
         )
-        if (currentScope?.contents?.mapKeys { it.key.lexeme }?.containsKey(name.lexeme) == true) sunlite.error(
-            name,
-            "Function '${name.lexeme}' already declared in this scope."
-        )
-        currentScope?.contents?.put(name, FunctionPrototype(name, modifier, params, returnType, typeParams))
+        if (currentScope?.contents?.mapKeys { it.key.lexeme }?.containsKey(name.lexeme) == true) {
+            if(currentScope?.contents?.get(name)?.id == currentId){
+                sunlite.error(
+                    name,
+                    "Function '${name.lexeme}' already declared in this scope."
+                )
+            }
+        }
+        currentScope?.contents?.put(name, FunctionPrototype(name, modifier, params, returnType, typeParams, currentId))
     }
 
     fun addScope(name: Token, representing: ElementPrototype? = null) {
@@ -133,8 +143,9 @@ class TypeCollector(val sunlite: Sunlite, val natives: NativesContainer) : Stmt.
         currentScope = currentScope?.outer
     }
 
-    fun collect(statements: List<Stmt>, path: String? = null) {
+    fun collect(statements: List<Stmt>, path: String? = null, id: Int) {
         this.path = path
+        this.currentId = id
         addScope(Token.identifier(path.toString(), -1, path))
         statements.forEach { it.accept(this) }
         removeScope()
