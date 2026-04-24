@@ -58,7 +58,8 @@ class TypeCollector(val sunlite: Sunlite, val natives: NativesContainer) : Stmt.
         val depth: Int = -1,
         var outer: Scope? = null,
         var inner: MutableList<Scope> = mutableListOf(),
-        var representing: ElementPrototype? = null
+        var representing: ElementPrototype? = null,
+        val id: Int
     ) {
         override fun toString(): String {
             return "scope '${name.lexeme}'"
@@ -75,11 +76,17 @@ class TypeCollector(val sunlite: Sunlite, val natives: NativesContainer) : Stmt.
     )
 
     val typeHierarchy: MutableMap<String, TypePrototype> = mutableMapOf()
-    val typeScopes: MutableList<Scope> = mutableListOf()
+    var typeScopes: MutableList<Scope> = mutableListOf()
     var path: String? = null
-    var currentScope: Scope? = Scope(Token.identifier("<global>", -1, "<global>"), mutableMapOf())
+    var currentScope: Scope? = Scope(Token.identifier("<global>", -1, "<global>"), mutableMapOf(), id = currentId)
 
     init {
+        reset()
+    }
+
+    fun reset() {
+        typeScopes.clear()
+        currentScope = Scope(Token.identifier("<global>", -1, "<global>"), mutableMapOf(), id = currentId)
         typeScopes.add(currentScope!!)
         natives.getNatives().filter { it.value is SLNativeFuncObj }.forEach {
             addFunction(
@@ -129,10 +136,12 @@ class TypeCollector(val sunlite: Sunlite, val natives: NativesContainer) : Stmt.
 
     fun addScope(name: Token, representing: ElementPrototype? = null) {
         if (currentScope == null) {
-            currentScope = Scope(name, mutableMapOf(), representing = representing)
+            currentScope = Scope(name, mutableMapOf(), representing = representing, id = currentId)
+            typeScopes = typeScopes.filter { it.name.lexeme != currentScope!!.name.lexeme }.toMutableList()
             typeScopes.add(currentScope!!)
         } else {
-            val scope = Scope(name, mutableMapOf(), currentScope!!.depth + 1, representing = representing)
+            val scope = Scope(name, mutableMapOf(), currentScope!!.depth + 1, representing = representing, id = currentId)
+            currentScope!!.inner = currentScope!!.inner.filter { it.name.lexeme != name.lexeme }.toMutableList()
             currentScope!!.inner.add(scope)
             scope.outer = currentScope
             currentScope = scope
