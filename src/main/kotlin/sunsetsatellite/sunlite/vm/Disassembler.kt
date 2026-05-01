@@ -75,6 +75,7 @@ object Disassembler {
             Opcodes.TYPE_PARAM -> return constantInstruction(sb, opcode.name, chunk, offset)
             Opcodes.CAST -> return constantInstruction(sb, opcode.name, chunk, offset)
             Opcodes.SWAP -> return simpleInstruction(sb, opcode.name, offset)
+            Opcodes.IMPORT -> return constantInstruction(sb, opcode.name, chunk, offset)
         }
     }
 

@@ -187,6 +187,20 @@ abstract class Stmt : Element {
         }
     }
 
+    data class Import(val keyword: Token, val what: Token, val location: Token, val alias: Token? = null) : Stmt() {
+        override fun <R> accept(visitor: Visitor<R>): R {
+            return visitor.visitImportStmt(this)
+        }
+
+        override fun getFile(): String? {
+            return keyword.file
+        }
+
+        override fun getLine(): Int {
+            return keyword.line
+        }
+    }
+
     data class Package(val keyword: Token, val what: Token) : Stmt() {
         override fun <R> accept(visitor: Visitor<R>): R {
             return visitor.visitPackageStmt(this)
@@ -279,7 +293,7 @@ abstract class Stmt : Element {
 
     }
 
-    data class Throw(val expr: Expr) : Stmt() {
+    data class Throw(val keyword: Token, val expr: Expr) : Stmt() {
         override fun <R> accept(visitor: Visitor<R>): R {
             return visitor.visitThrowStmt(this)
         }
@@ -326,6 +340,7 @@ abstract class Stmt : Element {
         fun visitClassStmt(stmt: Class): R
         fun visitInterfaceStmt(stmt: Interface): R
         fun visitIncludeStmt(stmt: Include): R
+        fun visitImportStmt(stmt: Import): R
         fun visitPackageStmt(stmt: Package): R
         fun visitTryCatchStmt(stmt: TryCatch): R
         fun visitThrowStmt(stmt: Throw): R

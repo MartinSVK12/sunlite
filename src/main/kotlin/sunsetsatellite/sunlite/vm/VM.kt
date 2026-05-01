@@ -3,6 +3,7 @@ package sunsetsatellite.sunlite.vm
 import sunsetsatellite.sunlite.lang.*
 import sunsetsatellite.sunlite.lang.Scanner
 import sunsetsatellite.sunlite.lang.Sunlite.Companion.stacktrace
+import java.io.IOException
 import java.util.*
 import kotlin.collections.filter
 import kotlin.io.path.Path
@@ -22,6 +23,8 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
 
     val typeChecker = TypeChecker(sunlite, this)
 
+    val imports: MutableMap<String, String> = mutableMapOf()
+    val importedClasses: MutableMap<String, SLFunction> = mutableMapOf()
     val globals: MutableMap<String, AnySLValue> = mutableMapOf()
     val primitiveWrappers: MutableMap<Class<out AnySLValue>, String> = mutableMapOf()
 
@@ -111,6 +114,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                         val value: AnySLValue = fr.pop()
                         val type = Type.fromValue(value.value, sunlite)
                         val retType = frameStack.peek().closure.function.returnType
+                        val modifier = frameStack.peek().closure.function.modifier
                         if(!frameStack.peek().closure.function.name.contains("init")){
                             typeChecker.checkType(retType, type, true)
                         }
@@ -121,10 +125,12 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                         val frame = frameStack.pop()
                         fr = frameStack.peek()
                         currentFrame = fr
-                        for (i in 0 until (frame.closure.function.arity + 1)) {
-                            fr.pop()
+                        if(modifier != FunctionModifier.CHUNK){
+                            for (i in 0 until (frame.closure.function.arity + 1)) {
+                                fr.pop()
+                            }
+                            fr.push(value)
                         }
-                        fr.push(value)
                     }
 
                     Opcodes.CONSTANT -> fr.push(readConstant(fr))
@@ -237,7 +243,11 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                     Opcodes.GET_GLOBAL -> {
                         val constant = readConstant(fr) as SLString
                         if (!globals.containsKey(constant.value)) {
-                            runtimeError("Undefined variable '${constant.value}'.")
+                            if(!findClass(constant.value)){
+                                runtimeError("Undefined variable '${constant.value}'.")
+                                return
+                            }
+                            fr.pc -= 3
                             return
                         }
                         fr.push(globals[constant.value]!!)
@@ -544,7 +554,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                     }
 
                     Opcodes.THROW -> {
-                        throwException(frameStack.size - 1, fr.pop())
+                        throwException(frameStack.size - 1, fr.pop() as SLClassInstanceObj)
                         fr = frameStack.peek()
                         currentFrame = fr
                     }
@@ -573,6 +583,12 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                         val v2 = fr.pop()
                         fr.push(v1)
                         fr.push(v2)
+                    }
+
+                    Opcodes.IMPORT -> {
+                        val name = (readConstant(fr) as SLString).value
+                        val location = (fr.peek() as SLString).value
+                        imports[name] = location
                     }
                 }
             } else {
@@ -1045,16 +1061,59 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
         return true
     }
 
-    fun load(code: String): SLClosureObj? {
+    fun findClass(name: String): Boolean {
+        if(Sunlite.debug){
+            sunlite.printInfo("Finding class: '$name'.")
+        }
+        importedClasses[name]?.let {
+            if(Sunlite.debug){
+                sunlite.printInfo("Loading class from cache: '$name'.")
+            }
+            call(SLClosureObj(SLClosure(it)),0)
+            currentFrame = frameStack.peek()
+            return true
+        }
+        imports[name]?.let {
+            if(Sunlite.debug){
+                sunlite.printInfo("Loading class from file: '$name'.")
+            }
+	        val chunk = loadFile(it) ?: return false
+	        call(chunk,0)
+            currentFrame = frameStack.peek()
+            return true
+        }
+        return false
+    }
+
+    fun loadFile(file: String): SLClosureObj? {
+        var data = Sunlite::class.java.getResourceAsStream(file)?.bufferedReader()?.use { it.readText() }
+
+        if(data == null){
+            sunlite.path.forEach {
+                try {
+                    data = sunlite.readFunction.apply(file)
+                } catch (_: IOException) {
+
+                }
+            }
+        }
+
+        if(data == null){
+            return null
+        }
+
+        return load(data, file)
+    }
+
+    fun load(code: String, path: String = "<loaded chunk>"): SLClosureObj? {
         if (sunlite.collector == null) return null
-        val path = "<loaded chunk>"
         val scanner = Scanner(code, sunlite)
         val tokens = scanner.scanTokens(path)
         if (sunlite.hadError) {
             sunlite.hadError = false
             return null
         }
-        var parser = Parser(tokens, sunlite)
+        var parser = Parser(tokens, sunlite, true)
         var statements = parser.parse(path)
         if (sunlite.hadError) {
             sunlite.hadError = false
@@ -1083,7 +1142,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
 
         val compiler = Compiler(sunlite, this, null)
         val program =
-            compiler.compile(FunctionType.NONE, FunctionModifier.NORMAL, Type.NIL, listOf(), listOf(), statements, path)
+            compiler.compile(FunctionType.CHUNK, FunctionModifier.CHUNK, Type.NIL, listOf(), listOf(), statements, path)
         if (sunlite.hadError) {
             sunlite.hadError = false
             return null
@@ -1108,9 +1167,49 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
         return ((upperByte.toInt() and 0xFF) shl 8 or (lowerByte.toInt() and 0xFF))
     }
 
-    fun throwException(index: Int, e: AnySLValue) {
+    fun internalLoadClass(name: String): SLClassObj {
+        try {
+            val subVM = VM(sunlite, arrayOf())
+            subVM.imports.putAll(imports)
+            subVM.importedClasses.putAll(importedClasses)
+            subVM.globals.putAll(globals)
+            subVM.findClass(name)
+            subVM.run()
+            return subVM.globals[name] as SLClassObj
+        } catch (e: Exception){
+            throw Error("InternalError: $e",e)
+        }
+    }
+
+    fun makeExceptionObject(message: String): SLClassInstanceObj {
+        globals["Exception"] = internalLoadClass("Exception")
+        val clazz = globals["Exception"] as SLClassObj
+        val fields: MutableMap<String, SLField> =
+            clazz.value.fieldDefaults.mapValues { it.value.copy() }.toMutableMap()
+        fields["message"]?.value = SLString(message)
+        val trace = getCurrentStacktrace(false)
+
+        fields["stacktrace"]?.value = SLArrayObj(SLArray(trace.size, sunlite).overwrite(trace as Array<AnySLValue>))
+        return SLClassInstanceObj(SLClassInstance(clazz.value, mutableMapOf(), fields))
+    }
+
+    fun getCurrentStacktrace(removeFirst: Boolean): Array<SLString> {
+        val trace = mutableListOf<String>().apply {
+            for ((index, frame) in frameStack.withIndex()) {
+                if(index == frameStack.size-1 && removeFirst) continue
+                try {
+                    add(frame.toString())
+                } catch (e: Exception) {
+                    add("<error>")
+                }
+            }
+        }.map { SLString(it) }.toTypedArray()
+        return trace
+    }
+
+    fun throwException(index: Int, e: SLClassInstanceObj) {
         if (index < 0) {
-            throw UnhandledException(e.toString())
+            throw UnhandledException(e)
         }
         val fr = frameStack[index]
         var closest = Integer.MAX_VALUE
@@ -1148,12 +1247,32 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
         }
     }
 
-    fun printStacktrace(e: String) {
-        val fr = frameStack.lastOrNull()
-
-        sunlite.printErr(e)
-
+    fun getStacktrace(e: SLClassInstanceObj): String {
+        val message = e.value.fields["message"]?.value.toString()
+        val trace = (e.value.fields["stacktrace"]?.value?.value as SLArray?)?.internal()
+        val cause = e.value.fields["cause"]?.value
         val sb = StringBuilder()
+        sb.append(e.value.clazz.name).append(": ").append(message).append("\n")
+        trace?.forEach {
+            sb
+                .append("\tat ")
+                .append(it.value)
+                .append("\n")
+        }
+        if(cause is SLClassInstanceObj){
+	        cause.let {
+		        sb.append("Caused by: ")
+		        sb.append(getStacktrace(it))
+	        }
+        }
+
+        return sb.toString()
+    }
+
+    fun getStacktrace(e: String): String {
+        val fr = frameStack.lastOrNull()
+        val sb = StringBuilder()
+        sb.append(e).append("\n")
         for (frame in frameStack) {
             try {
                 sb.append("\tat ")
@@ -1163,9 +1282,9 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                 sb.append("<error>")
             }
         }
-        sb.append("\n")
 
         if (Sunlite.debug) {
+            sb.append("\n")
             try {
                 if (fr != null) {
                     sb.append("stack @ ${fr.closure.function.chunk.debugInfo.file}::${fr.closure.function.chunk.debugInfo.name}: ")
@@ -1198,8 +1317,15 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                 sb.append("\n<error in disassembly>")
             }
         }
+        return sb.toString()
+    }
 
-        sunlite.printErr(sb.toString())
+    fun printStacktrace(e: String) {
+        sunlite.printErr(getStacktrace(e))
+    }
+
+    fun printStacktrace(e: SLClassInstanceObj) {
+        sunlite.printErr(getStacktrace(e))
     }
 
     fun runtimeError(message: String) {
@@ -1209,6 +1335,6 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
 
         sunlite.hadRuntimeError = true
 
-        throwException(frameStack.size - 1, SLString(message))
+        throwException(frameStack.size - 1, makeExceptionObject(message))
     }
 }

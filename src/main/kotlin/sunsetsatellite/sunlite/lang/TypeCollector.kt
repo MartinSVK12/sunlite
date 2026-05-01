@@ -72,7 +72,8 @@ class TypeCollector(val sunlite: Sunlite, val natives: NativesContainer) : Stmt.
         val superinterfaces: List<String>,
         val typeParameters: List<String>,
         val scope: Scope?,
-        val incomplete: Boolean = false
+        val incomplete: Boolean = false,
+        val id: Int
     )
 
     val typeHierarchy: MutableMap<String, TypePrototype> = mutableMapOf()
@@ -275,17 +276,21 @@ class TypeCollector(val sunlite: Sunlite, val natives: NativesContainer) : Stmt.
         currentClass = stmt
         val superclass = stmt.superclass?.name?.lexeme ?: "<nil>"
         val superinterfaces = stmt.superinterfaces.map { it.name.lexeme }.toMutableList()
-        if (typeHierarchy.containsKey(stmt.name.lexeme) && !typeHierarchy[stmt.name.lexeme]?.incomplete!!) sunlite.error(
-            stmt.name,
-            "Class '${stmt.name.lexeme}' already defined."
-        )
+        if (typeHierarchy.containsKey(stmt.name.lexeme) && !typeHierarchy[stmt.name.lexeme]?.incomplete!! && typeHierarchy[stmt.name.lexeme]?.id == currentId) {
+            sunlite.error(
+                stmt.name,
+                "Class '${stmt.name.lexeme}' already defined."
+            )
+        }
         typeHierarchy[stmt.name.lexeme] =
             TypePrototype(
                 stmt.name.lexeme,
                 superclass,
                 superinterfaces,
                 stmt.typeParameters.map { it.token.lexeme },
-                currentScope!!
+                currentScope!!,
+                false,
+                currentId
             )//Triple(superclass, superinterfaces, stmt.typeParameters.map { it.token.lexeme })
         stmt.superclass?.let {
             addVariable(Token.identifier("<superclass>", it.getLine(), it.getFile()), Type.ofClass(it.name.lexeme))
@@ -314,19 +319,23 @@ class TypeCollector(val sunlite: Sunlite, val natives: NativesContainer) : Stmt.
     override fun visitInterfaceStmt(stmt: Stmt.Interface) {
         addVariable(stmt.name, Type.ofClass(stmt.name.lexeme))
         val superinterfaces = stmt.superinterfaces.map { it.name.lexeme }.toMutableList()
-        if (typeHierarchy.containsKey(stmt.name.lexeme)) sunlite.error(
-            stmt.name,
-            "Class '${stmt.name.lexeme}' already defined."
-        )
+        if (typeHierarchy.containsKey(stmt.name.lexeme) && !typeHierarchy[stmt.name.lexeme]?.incomplete!! && typeHierarchy[stmt.name.lexeme]?.id == currentId) {
+            sunlite.error(
+                stmt.name,
+                "Interface '${stmt.name.lexeme}' already defined."
+            )
+        }
+        addScope(stmt.name)
         typeHierarchy[stmt.name.lexeme] =
             TypePrototype(
                 stmt.name.lexeme,
                 "<nil>",
                 superinterfaces,
                 stmt.typeParameters.map { it.token.lexeme },
-                currentScope!!
+                currentScope!!,
+                false,
+                currentId
             )//Triple("<nil>",superinterfaces,stmt.typeParameters.map { it.token.lexeme })
-        addScope(stmt.name)
         stmt.methods.forEach { it.accept(this) }
         removeScope()
     }
@@ -335,13 +344,22 @@ class TypeCollector(val sunlite: Sunlite, val natives: NativesContainer) : Stmt.
         // nothing to collect
     }
 
+    override fun visitImportStmt(stmt: Stmt.Import) {
+        // nothing to collect
+    }
+
     override fun visitPackageStmt(stmt: Stmt.Package) {
         // nothing to collect
     }
 
     override fun visitTryCatchStmt(stmt: Stmt.TryCatch) {
+        addScope(Token.identifier("<try ${stmt.tryToken.hashCode()}>", stmt.catchToken))
         stmt.tryBody.accept(this)
+        removeScope()
+        addScope(Token.identifier("<catch ${stmt.catchToken.hashCode()}>", stmt.catchToken))
+        addVariable(stmt.catchVariable.token, stmt.catchVariable.type, true)
         stmt.catchBody.accept(this)
+        removeScope()
     }
 
     override fun visitThrowStmt(stmt: Stmt.Throw) {

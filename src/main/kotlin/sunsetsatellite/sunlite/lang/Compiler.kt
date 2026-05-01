@@ -70,7 +70,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?) : Exp
             emitByte(Opcodes.RETURN, statements.lastOrNull())
         }
 
-        if (Sunlite.debug) {
+        if (Sunlite.showDisassembly) {
             sunlite.printInfo(Disassembler.disassembleChunk(chunk.toImmutable()))
         }
 
@@ -914,10 +914,20 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?) : Exp
             classInfo.hasSuperclass = true
         }
 
-        stmt.superinterfaces.forEach {
-            compile(Expr.Variable(it.name))
+        stmt.superinterfaces.forEach { intf ->
+
+            //sunlite.error(stmt.name, "Class does not implement abstract method '${methodName}' from interface '${type.name}'.")
+            sunlite.collector?.typeHierarchy[intf.name.lexeme]?.let { type ->
+                type.scope?.contents?.keys?.forEach { methodName ->
+	                if (!stmt.methods.any { it.name.lexeme == methodName.lexeme }) {
+                        sunlite.error(stmt.name, "Class does not implement abstract method '${methodName.lexeme}' from interface '${type.name}'.")
+	                }
+                }
+            }
+
+            compile(Expr.Variable(intf.name))
             compile(Expr.Variable(className))
-            emitByte(Opcodes.INHERIT, it)
+            emitByte(Opcodes.INHERIT, intf)
         }
 
         compile(Expr.Variable(className))
@@ -1003,6 +1013,13 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?) : Exp
 
     override fun visitIncludeStmt(stmt: Stmt.Include) {
 
+    }
+
+    override fun visitImportStmt(stmt: Stmt.Import) {
+        val name = addIdentifier(stmt.what.lexeme, stmt)
+        emitConstant(SLString(stmt.location.literal as String), stmt)
+        emitByte(Opcodes.IMPORT, stmt)
+        emitShort(name, stmt)
     }
 
     override fun visitPackageStmt(stmt: Stmt.Package) {

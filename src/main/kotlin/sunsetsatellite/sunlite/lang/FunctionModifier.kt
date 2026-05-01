@@ -7,7 +7,8 @@ enum class FunctionModifier(val s: String) {
     ABSTRACT("abstract "),
     NATIVE("native "),
     STATIC_NATIVE("static native "),
-    OPERATOR("operator ");
+    OPERATOR("operator "),
+    CHUNK("");
 
 
     companion object {

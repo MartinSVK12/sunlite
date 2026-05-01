@@ -1,10 +1,9 @@
 package sunsetsatellite.sunlite.lang
 
 enum class FunctionType {
-    NONE,
+    CHUNK,
     FUNCTION,
     INITIALIZER,
     LAMBDA,
     METHOD,
-    CATCH
 }

@@ -71,6 +71,10 @@ class SymbolFinder(val name: String?, val line: Int, val column: Int) : Expr.Vis
         // nothing to collect
     }
 
+    override fun visitImportStmt(stmt: Stmt.Import) {
+        // nothing to collect
+    }
+
     override fun visitPackageStmt(stmt: Stmt.Package) {
         // nothing to collect
     }

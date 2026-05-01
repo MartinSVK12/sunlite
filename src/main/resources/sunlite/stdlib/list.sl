@@ -53,6 +53,11 @@ class<T> List {
         }
         return false;
     }
+
+    func clear() {
+        _l = 0;
+        resize(arr,1);
+    }
     
     func get(i: Int): Generic<T> {
         return _a[i];

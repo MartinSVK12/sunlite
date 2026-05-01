@@ -1,3 +1,3 @@
 package sunsetsatellite.sunlite.vm
 
-class UnhandledException(message: String) : Exception(message)
+class UnhandledException(val e: SLClassInstanceObj) : Exception(e.value.fields["message"]?.value.toString())

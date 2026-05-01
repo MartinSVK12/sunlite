@@ -3,7 +3,7 @@ package sunsetsatellite.sunlite.lang
 import sunsetsatellite.sunlite.lang.TokenType.*
 
 
-class Scanner(private val source: String, val sunlite: Sunlite) {
+class Scanner(private var source: String, val sunlite: Sunlite) {
     private val tokens: ArrayList<Token> = ArrayList()
     private var start = 0
     private var current = 0
@@ -43,7 +43,7 @@ class Scanner(private val source: String, val sunlite: Sunlite) {
             keywords["interface"] = INTERFACE
             keywords["is"] = IS
             keywords["isnt"] = IS_NOT
-            keywords["import"] = IMPORT
+            keywords["include"] = INCLUDE
             //keywords["dynamic"] = DYNAMIC
             keywords["Any"] = TYPE_ANY
             keywords["String"] = TYPE_STRING
@@ -73,7 +73,8 @@ class Scanner(private val source: String, val sunlite: Sunlite) {
             keywords["override"] = OVERRIDE
             keywords["match"] = MATCH
             keywords["package"] = PACKAGE
-            keywords["include"] = INCLUDE
+            keywords["import"] = IMPORT
+            keywords["from"] = FROM
         }
     }
 

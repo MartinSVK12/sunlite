@@ -11,10 +11,12 @@ class Parser(
     val sunlite: Sunlite,
     val allowIncluding: Boolean = false,
     val including: Boolean = false,
-    val includingDepth: Int = 0
+    val includingDepth: Int = 0,
+    val importing: String = ""
 ) {
     private var current = 0
 
+    var currentPackage: String = "default"
     var currentFile: String? = null
     var currentClass: Token? = null
     var currentFunction: Token? = null
@@ -23,17 +25,52 @@ class Parser(
 
     val annotations: MutableList<Stmt.Annotation> = mutableListOf()
 
+    companion object {
+        val autoImported: MutableMap<String, String> = mutableMapOf()
+        init {
+            autoImported["Object"] = "/sunlite/stdlib/object.sl"
+            autoImported["Exception"] = "/sunlite/stdlib/exception.sl"
+        }
+    }
+
     private class ParseError : RuntimeException()
 
     fun parse(path: String?): List<Stmt> {
         currentFile = path
         val statements: MutableList<Stmt> = ArrayList()
 
+        if(!isAtEnd()){
+            pckg()?.let { statements.add(it) }
+        }
+
+        if(autoImported.values.none { it == path }){
+            autoImported.forEach { (name, path) ->
+                doImport(
+	                location = Token(STRING, "\"$path\"", path, -1, currentFile, Token.Position(-1,-1)),
+	                what = Token.identifier(name, -1, currentFile),
+	                keyword = Token.unknown(),
+	                alias = null
+                )
+            }
+        }
+
         while (!isAtEnd()) {
             annotation()?.let { statements.add(it) }
         }
 
         return statements
+    }
+
+    private fun pckg(): Stmt? {
+        try {
+            return when {
+                match(PACKAGE) -> packageDeclaration()
+                else -> annotation()
+            }
+        } catch (error: ParseError) {
+            synchronize()
+            return null
+        }
     }
 
     private fun annotation(): Stmt? {
@@ -48,23 +85,24 @@ class Parser(
         }
     }
 
+    private fun allowedToParse(): Boolean = importing.isEmpty() || importing.isNotEmpty() && importing == currentClass?.lexeme
+
     private fun declaration(): Stmt? {
         return when {
-            match(VAR) -> varDeclaration()
-            match(VAL) -> varDeclaration(FieldModifier.CONST)
-            match(FUN) -> function(FunctionType.FUNCTION, null)
-            //match(DYNAMIC) -> classDeclaration(ClassModifier.DYNAMIC)
+            match(VAR) -> if(allowedToParse()) varDeclaration() else null
+            match(VAL) -> if(allowedToParse()) varDeclaration(FieldModifier.CONST) else null
+            match(FUN) -> if(allowedToParse()) function(FunctionType.FUNCTION, null) else null
             match(CLASS) -> classDeclaration(ClassModifier.NORMAL)
             match(INTERFACE) -> interfaceDeclaration()
             match(INCLUDE) -> includeStatement()
-            else -> /*if(!importing)*/ statement() //else null
+            match(IMPORT) -> importStatement()
+            else -> if(allowedToParse()) statement() else null
         }
     }
 
     private fun statement(): Stmt {
         return when {
             match(THROW) -> throwStatement()
-            //match(PRINT) -> printStatement()
             match(LEFT_BRACE) -> Stmt.Block(block(), previous().line, previous().file)
             match(IF) -> ifStatement()
             match(WHILE) -> whileStatement()
@@ -79,24 +117,125 @@ class Parser(
         }
     }
 
-    private fun tryCatchStatement(): Stmt {
-        val tryToken = previous()
-        consume(LEFT_BRACE, "Expected '{' before try block.")
-        val tryBlock = block()
-        consume(CATCH, "Expected 'catch' after try block.")
-        val catchToken = previous()
-        consume(LEFT_PAREN, "Expected '(' after 'catch'.")
-        val catchVariable = Param(consume(IDENTIFIER, "Expected catch variable name."), getType())
-        consume(RIGHT_PAREN, "Expected ')' after catch variable.")
-        consume(LEFT_BRACE, "Expected '{' before catch block.")
-        val catchBlock = block()
-        return Stmt.TryCatch(
-            tryToken,
-            catchToken,
-            Stmt.Block(tryBlock, previous().line, previous().file),
-            catchVariable,
-            Stmt.Block(catchBlock, previous().line, previous().file)
-        )
+    private fun packageDeclaration(): Stmt {
+        val keyword = previous()
+        var what: Token
+        what = consume(STRING, "Expected package name.")
+        consume(SEMICOLON, "Expected ';' after package statement.")
+        currentPackage = what.literal as String
+        return Stmt.Package(keyword, what)
+    }
+
+    private fun importStatement(): Stmt? {
+        val keyword = previous()
+        val what = consume(IDENTIFIER, "Expected class name.")
+        consume(FROM, "Expected 'from' after class name of import statement.")
+        val location: Token = consume(STRING, "Expected import location string.")
+        var alias: Token? = null
+        if(match(AS)){
+            alias = consume(IDENTIFIER, "Expected alias name.")
+        }
+        consume(SEMICOLON, "Expected ';' after import statement.")
+        return doImport(location, what, keyword, alias)
+    }
+
+    private fun doImport(
+        location: Token,
+        what: Token,
+        keyword: Token,
+        alias: Token?
+    ): Stmt.Import? {
+        val id = (location.literal as String) + "::" + what.lexeme
+        if (sunlite.imports.contains(id)) {
+            if (sunlite.imports[id]?.second == null) {
+                sunlite.error(keyword, "ImportError: Circular import detected.")
+                return null
+            }
+            return Stmt.Import(keyword, what, location, alias)
+        }
+
+        sunlite.imports[id] = includingDepth to null
+
+        if (sunlite.collector == null || !allowIncluding) {
+            return Stmt.Import(keyword, what, location, alias)
+        }
+
+        var data: String? = null
+        val invalidPaths: MutableList<String> = mutableListOf()
+
+        data = Sunlite::class.java.getResourceAsStream(location.literal)?.bufferedReader()?.use { it.readText() }
+
+        if (data == null) {
+            sunlite.path.forEach {
+                try {
+                    data = sunlite.readFunction.apply(it + location.literal)
+                } catch (_: IOException) {
+                    invalidPaths.add(it)
+                }
+            }
+        }
+
+        if (data == null) {
+            sunlite.error(keyword, "ImportError: Couldn't find '${location.literal}' on the load path list.")
+            return null
+        }
+
+        val scanner = Scanner(data, sunlite)
+        val tokens: List<Token> = scanner.scanTokens(location.literal)
+
+        var parser = Parser(tokens, sunlite, true, true, includingDepth + 1, what.lexeme)
+        var statements = parser.parse(location.literal)
+
+        // Stop if there was a syntax error.
+        if (sunlite.hadError) {
+            sunlite.error(keyword, "ImportError: SyntaxError in file being imported.")
+            return null
+        }
+
+        sunlite.collector?.collect(statements, location.literal, sunlite.compileStep)
+
+        // Stop if there was a type collection error.
+        if (sunlite.hadError) {
+            sunlite.error(keyword, "ImportError: TypeError in file being imported.")
+            return null
+        }
+
+        parser = Parser(tokens, sunlite, false, true, includingDepth + 1, what.lexeme)
+        statements = parser.parse(location.literal)
+
+        // Stop if there was a syntax error.
+        if (sunlite.hadError) {
+            sunlite.error(keyword, "ImportError: SyntaxError in file being imported.")
+            return null
+        }
+
+        val checker = TypeChecker(sunlite, null)
+        checker.check(statements)
+
+        // Stop if there was a type error.
+        if (sunlite.hadError) {
+            sunlite.error(keyword, "ImportError: TypeError in file being imported.")
+            return null
+        }
+
+        sunlite.imports[id] = includingDepth to statements
+
+        if (Sunlite.showAST) {
+            sunlite.printInfo("AST: ")
+            sunlite.printInfo("-----")
+            statements.forEach {
+                sunlite.printInfo(AstPrinter.print(it))
+            }
+            sunlite.printInfo("-----")
+            sunlite.printInfo()
+        }
+
+        if (Sunlite.debug) {
+            sunlite.printInfo("Parsed and imported ${what.lexeme} from ${location.literal}!")
+            sunlite.printInfo()
+        }
+
+        return Stmt.Import(keyword, what, location, alias)
     }
 
     private fun includeStatement(): Stmt? {
@@ -104,16 +243,13 @@ class Parser(
         var builtin: Boolean = false
         var what: Token
         if(match(LESS)){
-            what = consume(STRING, "Expected builtin import location string.")
-            consume(GREATER, "Expected '>' after import statement.")
+            what = consume(STRING, "Expected builtin include location string.")
+            consume(GREATER, "Expected '>' after include statement.")
             builtin = true
         } else {
-            what = consume(STRING, "Expected import location string.")
+            what = consume(STRING, "Expected include location string.")
         }
-        consume(SEMICOLON, "Expected ';' after import statement.")
-
-        /*sunlite.error(keyword, "Importing not yet supported!")
-        return null*/
+        consume(SEMICOLON, "Expected ';' after include statement.")
 
         if (sunlite.includes.contains(what.literal as String)) {
             return null
@@ -156,8 +292,6 @@ class Parser(
             return null
         }
 
-        //val collector = TypeCollector(sunlite, sunlite.vm)
-        //collector.collect(statements, what.literal)
         sunlite.collector?.collect(statements, what.literal, sunlite.compileStep)
 
         // Stop if there was a type collection error.
@@ -166,7 +300,7 @@ class Parser(
             return null
         }
 
-        parser = Parser(tokens, sunlite, true, true, includingDepth + 1)
+        parser = Parser(tokens, sunlite, false, true, includingDepth + 1)
         statements = parser.parse(what.literal)
 
         // Stop if there was a syntax error.
@@ -186,7 +320,7 @@ class Parser(
 
         sunlite.includes[what.literal] = includingDepth to statements
 
-        if (Sunlite.debug) {
+        if (Sunlite.showAST) {
             sunlite.printInfo("AST: ")
             sunlite.printInfo("-----")
             statements.forEach {
@@ -197,15 +331,14 @@ class Parser(
         }
 
         if (Sunlite.debug) {
-            sunlite.printInfo("Parsed and imported '${what.literal}'!")
+            sunlite.printInfo("Parsed and included '${what.literal}'!")
             sunlite.printInfo()
         }
-
 
         return Stmt.Include(keyword, what)
     }
 
-    private fun classDeclaration(modifier: ClassModifier): Stmt {
+    private fun classDeclaration(modifier: ClassModifier): Stmt? {
         //if(modifier == ClassModifier.DYNAMIC) consume(CLASS, "Expected 'class' after class modifier.")
 
         val typeParameters: MutableList<Param> = ArrayList()
@@ -231,6 +364,9 @@ class Parser(
             consume(IDENTIFIER, "Expected superclass name.")
             superclass = Variable(previous())
         }
+        if(superclass == null && name.lexeme != "Object"){
+            superclass = Variable(Token.identifier("Object", previous()))
+        }
 
         val superinterfaces: MutableList<Variable> = mutableListOf()
         if (match(IMPLEMENTS)) {
@@ -247,16 +383,21 @@ class Parser(
 
         consume(LEFT_BRACE, "Expected '{' before class body.")
 
-        sunlite.collector?.typeHierarchy?.let {
-            it[name.lexeme] = TypeCollector.TypePrototype(
-                name.lexeme,
-                superclass?.name?.lexeme ?: "<nil>",
-                superinterfaces.map { it.name.lexeme },
-                typeParameters.map { it.token.lexeme },
-                null,
-                true
-            )
+        if(importing.isEmpty() || (importing.isNotEmpty() && name.lexeme == importing)){
+            val types = sunlite.collector?.typeHierarchy
+            if(types?.containsKey(name.lexeme) == false || (types?.containsKey(name.lexeme) == true && types[name.lexeme]?.incomplete == true)){
+	            types[name.lexeme] = TypeCollector.TypePrototype(
+                    name.lexeme,
+                    superclass?.name?.lexeme ?: "<nil>",
+                    superinterfaces.map { it.name.lexeme },
+                    typeParameters.map { it.token.lexeme },
+                    null,
+                    true,
+                    sunlite.compileStep
+                )
+            }
         }
+
 
         val methods: MutableList<Stmt.Function> = ArrayList()
         val fields: MutableList<Stmt.Var> = ArrayList()
@@ -344,10 +485,12 @@ class Parser(
 
         currentClass = null
 
+        if(importing.isNotEmpty() && name.lexeme != importing) return null
+
         return Stmt.Class(name, methods, fields, superclass, superinterfaces, modifier, typeParameters)
     }
 
-    private fun interfaceDeclaration(): Stmt {
+    private fun interfaceDeclaration(): Stmt? {
 
         val typeParameters: MutableList<Param> = ArrayList()
         if (match(LESS)) {
@@ -363,7 +506,7 @@ class Parser(
 //			consume(GREATER, "Expected '>' after type parameter declaration.")
         }
 
-        val name = consume(IDENTIFIER, "Expected class name.")
+        val name = consume(IDENTIFIER, "Expected interface name.")
 
         val superinterfaces: MutableList<Variable> = mutableListOf()
         if (match(IMPLEMENTS)) {
@@ -378,14 +521,31 @@ class Parser(
             } while (match(COMMA))
         }
 
-        consume(LEFT_BRACE, "Expected '{' before class body.")
+        consume(LEFT_BRACE, "Expected '{' before interface body.")
+
+        if(importing.isEmpty() || (importing.isNotEmpty() && name.lexeme == importing)){
+            val types = sunlite.collector?.typeHierarchy
+            if(types?.containsKey(name.lexeme) == false || (types?.containsKey(name.lexeme) == true && types[name.lexeme]?.incomplete == true)){
+                types[name.lexeme] = TypeCollector.TypePrototype(
+                    name.lexeme,
+                    "<nil>",
+                    superinterfaces.map { it.name.lexeme },
+                    typeParameters.map { it.token.lexeme },
+                    null,
+                    true,
+                    sunlite.compileStep
+                )
+            }
+        }
 
         val methods: MutableList<Stmt.Function> = ArrayList()
         while (!checkToken(RIGHT_BRACE) && !isAtEnd()) {
             methods.add(abstractMethod())
         }
 
-        consume(RIGHT_BRACE, "Expected '}' after class body.")
+        consume(RIGHT_BRACE, "Expected '}' after interface body.")
+
+        if(importing.isNotEmpty() && name.lexeme != importing) return null
 
         return Stmt.Interface(name, methods, superinterfaces, typeParameters)
     }
@@ -500,6 +660,30 @@ class Parser(
         )
     }
 
+    private fun tryCatchStatement(): Stmt {
+        val tryToken = previous()
+        consume(LEFT_BRACE, "Expected '{' before try block.")
+        val tryBlock = block()
+        consume(CATCH, "Expected 'catch' after try block.")
+        val catchToken = previous()
+        consume(LEFT_PAREN, "Expected '(' after 'catch'.")
+        var type = getType()
+        if(type == Type.ANY){
+            type = Type.ofObject("Exception")
+        }
+        val catchVariable = Param(consume(IDENTIFIER, "Expected catch variable name."), type)
+        consume(RIGHT_PAREN, "Expected ')' after catch variable.")
+        consume(LEFT_BRACE, "Expected '{' before catch block.")
+        val catchBlock = block()
+        return Stmt.TryCatch(
+            tryToken,
+            catchToken,
+            Stmt.Block(tryBlock, previous().line, previous().file),
+            catchVariable,
+            Stmt.Block(catchBlock, previous().line, previous().file)
+        )
+    }
+
     private fun returnStatement(): Stmt {
         val keyword = previous()
         var value: Expr? = null
@@ -536,9 +720,10 @@ class Parser(
     }
 
     private fun throwStatement(): Stmt {
+        val keyword = previous()
         val value = expression()
         consume(SEMICOLON, "Expected ';' after expression.")
-        return Stmt.Throw(value)
+        return Stmt.Throw(keyword, value)
     }
 
     private fun whileStatement(): Stmt {

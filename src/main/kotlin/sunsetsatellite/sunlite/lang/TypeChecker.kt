@@ -35,7 +35,7 @@ class TypeChecker(val sunlite: Sunlite, val vm: VM?) : Expr.Visitor<Unit>, Stmt.
         if(expected is Type.Parameter && actual != Type.UNKNOWN && runtime) return
         if (!valid) {
             if (runtime && vm != null) {
-                vm.throwException(0, SLString("TypeError: Expected '$expected' but got '$actual'."))
+                vm.throwException(0, vm.makeExceptionObject("TypeError: Expected '$expected' but got '$actual'."))
             } else {
                 sunlite.error(token!!, "Expected '$expected' but got '$actual'.")
             }
@@ -282,6 +282,10 @@ class TypeChecker(val sunlite: Sunlite, val vm: VM?) : Expr.Visitor<Unit>, Stmt.
 
     }
 
+    override fun visitImportStmt(stmt: Stmt.Import) {
+
+    }
+
     override fun visitPackageStmt(stmt: Stmt.Package) {
 
     }
@@ -292,7 +296,7 @@ class TypeChecker(val sunlite: Sunlite, val vm: VM?) : Expr.Visitor<Unit>, Stmt.
     }
 
     override fun visitThrowStmt(stmt: Stmt.Throw) {
-
+        checkType(Type.ofObject("Exception"), stmt.expr.getExprType(), token = stmt.keyword)
     }
 
     override fun visitAnnotationStmt(stmt: Stmt.Annotation) {

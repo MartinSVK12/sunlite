@@ -24,6 +24,7 @@ class Sunlite(val args: Array<String>) {
 
     val path: MutableList<String> = mutableListOf()
     val includes: MutableMap<String, Pair<Int, List<Stmt>>> = mutableMapOf()
+    val imports: MutableMap<String, Pair<Int, List<Stmt>?>> = mutableMapOf()
 
     val logEntryReceivers: MutableList<LogEntryReceiver> = mutableListOf()
     val dataReceiver: MutableList<CompilerDataReceiver> = mutableListOf()
@@ -77,6 +78,10 @@ class Sunlite(val args: Array<String>) {
                         "tick" -> tickMode = true
                         "noTypes" -> noTypeChecks = true
                         "compile" -> compileOnly = true
+                        "asm" -> showDisassembly = true
+                        "ast" -> showAST = true
+                        "types" -> showTypeCollection = true
+                        "tokens" -> showTokens = true
                     }
                 }
                 path.addAll(args[1].split(";"))
@@ -94,6 +99,10 @@ class Sunlite(val args: Array<String>) {
                         "tick" -> tickMode = true
                         "noTypes" -> noTypeChecks = true
                         "compile" -> compileOnly = true
+                        "asm" -> showDisassembly = true
+                        "ast" -> showAST = true
+                        "types" -> showTypeCollection = true
+                        "tokens" -> showTokens = true
                     }
                 }
                 path.addAll(args[1].split(";"))
@@ -107,7 +116,7 @@ class Sunlite(val args: Array<String>) {
         return null
     }
 
-    fun parse(code: String? = null): ParsedData? {
+    fun parse(code: String? = null): ParsedData {
         instance = this
         compileStep = 0
         val filePath = args[0]
@@ -156,7 +165,7 @@ class Sunlite(val args: Array<String>) {
         //if (hadError) return null
 
         val allStatements: MutableList<Stmt> = mutableListOf()
-        //includes.values.sortedBy { it.first }.reversed().forEach { allStatements.addAll(it.second) }
+        includes.values.sortedBy { it.first }.reversed().forEach { allStatements.addAll(it.second) }
         allStatements.addAll(statements)
 
         // Stop if there was a type collection error.
@@ -233,10 +242,10 @@ class Sunlite(val args: Array<String>) {
     }
 
     private fun runString(source: String, path: String?): VM? {
-        return compile(source, path)
+        return runOrCompile(source, path)
     }
 
-    private fun compile(source: String, path: String?): VM? {
+    private fun runOrCompile(source: String, path: String?): VM? {
         if(debug){
             printInfo("Load path: ")
             printInfo("-----")
@@ -252,7 +261,7 @@ class Sunlite(val args: Array<String>) {
         val scanner = Scanner(source, this)
         val tokens: List<Token> = scanner.scanTokens(shortPath)
 
-        if (debug) {
+        if (showTokens) {
             printInfo("Tokens: ")
             printInfo("-----")
             tokens.forEach { printInfo("${it.lexeme} ${it.type}") }
@@ -312,7 +321,7 @@ class Sunlite(val args: Array<String>) {
         // Stop if there was a type collection error.
         if (hadError) return null
 
-        if (debug) {
+        if (showAST) {
             printInfo("AST: ")
             printInfo("-----")
             statements.forEach {
@@ -322,7 +331,7 @@ class Sunlite(val args: Array<String>) {
             printInfo()
         }
 
-        if (debug) {
+        if (showTypeCollection) {
             printInfo("Type Collection: ")
             printInfo("--------")
             collector?.typeScopes?.forEach { printTypeScopes(it, 0) }
@@ -349,9 +358,22 @@ class Sunlite(val args: Array<String>) {
 
         val compiler = Compiler(this, vm, null)
 
+        imports.forEach {
+            vm.importedClasses[it.key.split("::")[1]] =
+                Compiler(this, vm, null).compile(
+                    FunctionType.CHUNK,
+                    FunctionModifier.CHUNK,
+                    Type.NIL,
+                    listOf(),
+                    listOf(),
+                    it.value.second!!,
+                    it.key.split("::").first()
+                )
+        }
+
         val program: SLFunction = compiler.compile(
-            FunctionType.NONE,
-            FunctionModifier.NORMAL,
+            FunctionType.CHUNK,
+            FunctionModifier.CHUNK,
             Type.NIL,
             listOf(),
             listOf(),
@@ -363,6 +385,15 @@ class Sunlite(val args: Array<String>) {
 
         // Stop if there was a compilation error.
         if (hadError) return null
+
+        if(debug){
+            printInfo("Imported Classes Cache: ")
+            printInfo("--------")
+            vm.importedClasses.keys.forEach {
+                printInfo(it)
+            }
+            printInfo("--------")
+        }
 
         if(compileOnly){
             if(path != null) {
@@ -399,7 +430,7 @@ class Sunlite(val args: Array<String>) {
                 if (stacktrace) {
                     e.printStackTrace()
                 }
-                vm.printStacktrace(e.message ?: "null")
+                vm.printStacktrace(e.e)
             } catch (e: Exception) {
                 if (stacktrace) {
                     e.printStackTrace()
@@ -460,7 +491,7 @@ class Sunlite(val args: Array<String>) {
         printErr(s)
 
         if (stacktrace) {
-            throw CompilationException("sunlite compilation error:")
+            CompilationException("sunlite compilation error:").printStackTrace()
         }
 
         hadError = true
@@ -538,6 +569,18 @@ class Sunlite(val args: Array<String>) {
 
         @JvmStatic
         var debug: Boolean = false
+
+        @JvmStatic
+        var showTypeCollection: Boolean = false
+
+        @JvmStatic
+        var showAST: Boolean = false
+
+        @JvmStatic
+        var showTokens: Boolean = false
+
+        @JvmStatic
+        var showDisassembly: Boolean = false
 
         @JvmStatic
         var bytecodeDebug: Boolean = false
