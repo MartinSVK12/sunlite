@@ -142,6 +142,10 @@ class TypeCollector(val sunlite: Sunlite, val natives: NativesContainer) : Stmt.
             typeScopes = typeScopes.filter { it.name.lexeme != currentScope!!.name.lexeme }.toMutableList()
             typeScopes.add(currentScope!!)
         } else {
+            if(currentScope!!.inner.firstOrNull { it.name.lexeme == name.lexeme } != null){
+                currentScope = currentScope!!.inner.first { it.name.lexeme == name.lexeme }
+                return
+            }
             val scope = Scope(name, mutableMapOf(), currentScope!!.depth + 1, representing = representing, id = currentId)
             currentScope!!.inner = currentScope!!.inner.filter { it.name.lexeme != name.lexeme }.toMutableList()
             currentScope!!.inner.add(scope)
@@ -202,13 +206,13 @@ class TypeCollector(val sunlite: Sunlite, val natives: NativesContainer) : Stmt.
         return scope?.contents?.mapKeys { it.key.lexeme }[name.lexeme]
     }
 
-    fun findProp(name: Token, enclosing: Token? = null, offset: Int = 0): Pair<Scope?,ElementPrototype?>? {
+    fun findProp(name: Token, enclosing: Token? = null, offset: Int = 0, beginningScope: Scope? = null): Pair<Scope?,ElementPrototype?>? {
         currentScopeCandidate = null
         val globalScope = typeScopes[0]
         if (globalScope.contents.keys.map { it.lexeme }.contains(name.lexeme)) {
             return globalScope to globalScope.contents.mapKeys { it.key.lexeme }[name.lexeme]
         }
-        val scope = getValidScope(typeScopes.firstOrNull(), name, enclosing, offset)
+        val scope = getValidScope(beginningScope ?: typeScopes.firstOrNull(), name, enclosing, offset)
         if (scope == null && currentScopeCandidate == null) return null
         if (currentScopeCandidate != null) return currentScopeCandidate to currentScopeCandidate!!.contents.mapKeys { it.key.lexeme }[name.lexeme]
         return scope to scope?.contents?.mapKeys { it.key.lexeme }[name.lexeme]

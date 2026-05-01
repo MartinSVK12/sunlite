@@ -15,6 +15,8 @@ import java.util.zip.GZIPInputStream
 import kotlin.io.path.Path
 import kotlin.io.path.extension
 import kotlin.system.exitProcess
+import kotlin.text.replace
+import kotlin.text.split
 
 class Sunlite(val args: Array<String>) {
 
@@ -52,6 +54,10 @@ class Sunlite(val args: Array<String>) {
         tickMode = false
         noTypeChecks = false
         compileOnly = false
+        showDisassembly = false
+        showAST = false
+        showTypeCollection = false
+        showTokens = false
         when {
             args.size > 4 -> {
                 println("Usage: sunlite [script] (path) (options) (args)")
@@ -119,6 +125,7 @@ class Sunlite(val args: Array<String>) {
     fun parse(code: String? = null): ParsedData {
         instance = this
         compileStep = 0
+
         val filePath = args[0]
         path.addAll(args[1].split(";"))
 
@@ -137,6 +144,19 @@ class Sunlite(val args: Array<String>) {
         var parser = Parser(tokens, this, true)
         var statements: MutableList<Stmt> = parser.parse(shortPath).toMutableList()
 
+        // Stop if there was a syntax error.
+        //if (hadError) return null
+
+        collector?.collect(statements, shortPath, compileStep)
+
+        compileStep++
+
+        // Stop if there was a type collection error.
+        //if (hadError) return null
+
+        parser = Parser(tokens, this, true)
+        statements = parser.parse(shortPath).toMutableList()
+
         //compileStep++
 
         // Stop if there was a syntax error.
@@ -146,39 +166,47 @@ class Sunlite(val args: Array<String>) {
 
         compileStep++
 
+        parser = Parser(tokens, this, true)
+        statements = parser.parse(shortPath).toMutableList()
+
+        compileStep++
+
         // Stop if there was a type collection error.
-        //if (hadError) return null
-
-        parser = Parser(tokens, this)
-        statements = parser.parse(shortPath).toMutableList()
-
-        collector?.collect(statements, shortPath, compileStep)
-
-        compileStep++
-
-        parser = Parser(tokens, this)
-        statements = parser.parse(shortPath).toMutableList()
-
-        compileStep++
-
-        // Stop if there was a syntax error.
         //if (hadError) return null
 
         val allStatements: MutableList<Stmt> = mutableListOf()
         includes.values.sortedBy { it.first }.reversed().forEach { allStatements.addAll(it.second) }
         allStatements.addAll(statements)
 
+
         // Stop if there was a type collection error.
         //if (hadError) return null
 
         if (!noTypeChecks) {
             val checker = TypeChecker(this, null)
-            checker.check(allStatements)
+            checker.check(statements)
         }
 
         compileStep++
 
         // Stop if there was a type error.
+        //if (hadError) return null
+
+        val compiler = Compiler(this, null, null)
+
+        val program: SLFunction = compiler.compile(
+            FunctionType.CHUNK,
+            arrayOf(FunctionModifier.CHUNK),
+            Type.NIL,
+            listOf(),
+            listOf(),
+            allStatements,
+            shortPath
+        )
+
+        compileStep++
+
+        // Stop if there was a compilation error.
         //if (hadError) return null
 
         return ParsedData(tokens, allStatements, collector!!)
@@ -285,11 +313,12 @@ class Sunlite(val args: Array<String>) {
         collector?.collect(statements, shortPath, compileStep)
 
         compileStep++
+        imports.clear()
 
         // Stop if there was a type collection error.
         if (hadError) return null
 
-        parser = Parser(tokens, this)
+        parser = Parser(tokens, this, true)
         statements = parser.parse(shortPath).toMutableList()
 
         //compileStep++
@@ -300,8 +329,9 @@ class Sunlite(val args: Array<String>) {
         collector?.collect(statements, shortPath, compileStep)
 
         compileStep++
+        imports.clear()
 
-        parser = Parser(tokens, this)
+        parser = Parser(tokens, this, true)
         statements = parser.parse(shortPath).toMutableList()
 
         compileStep++
@@ -322,7 +352,7 @@ class Sunlite(val args: Array<String>) {
         if (hadError) return null
 
         if (showAST) {
-            printInfo("AST: ")
+            printInfo("AST: ${path}")
             printInfo("-----")
             statements.forEach {
                 printInfo(AstPrinter.print(it))
@@ -371,6 +401,15 @@ class Sunlite(val args: Array<String>) {
                 )
         }
 
+        if(debug){
+            printInfo("Imported Classes Cache: ")
+            printInfo("--------")
+            vm.importedClasses.keys.forEach {
+                printInfo(it)
+            }
+            printInfo("--------")
+        }
+
         val program: SLFunction = compiler.compile(
             FunctionType.CHUNK,
             arrayOf(FunctionModifier.CHUNK),
@@ -385,15 +424,6 @@ class Sunlite(val args: Array<String>) {
 
         // Stop if there was a compilation error.
         if (hadError) return null
-
-        if(debug){
-            printInfo("Imported Classes Cache: ")
-            printInfo("--------")
-            vm.importedClasses.keys.forEach {
-                printInfo(it)
-            }
-            printInfo("--------")
-        }
 
         if(compileOnly){
             if(path != null) {

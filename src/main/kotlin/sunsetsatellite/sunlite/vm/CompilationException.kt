@@ -1,3 +1,5 @@
 package sunsetsatellite.sunlite.vm
 
-class CompilationException(message: String) : Exception(message)
+import sunsetsatellite.sunlite.lang.Token
+
+class CompilationException(override val message: String, val token: Token? = null) : Exception(message)

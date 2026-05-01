@@ -5,7 +5,7 @@ import sunsetsatellite.sunlite.lang.TokenType.*
 import sunsetsatellite.sunlite.vm.*
 
 
-class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?) : Expr.Visitor<Unit>, Stmt.Visitor<Unit> {
+class Compiler(val sunlite: Sunlite, val vm: VM?, val enclosing: Compiler?) : Expr.Visitor<Unit>, Stmt.Visitor<Unit> {
 
     class Local(val name: Token, var depth: Int, var isCaptured: Boolean = false)
 
@@ -52,9 +52,19 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?) : Exp
             localsCount++
         }
 
-        for (statement in statements) {
-            compile(statement)
+        try {
+            for (statement in statements) {
+                compile(statement)
+            }
+        } catch (e: CompilationException){
+            if(e.token != null){
+                sunlite.error(e.token, e.message)
+            } else {
+                sunlite.error(-1, e.message, currentFile)
+            }
+
         }
+
         if (name == "") {
             topLevel = true
         } else {
@@ -110,7 +120,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?) : Exp
 
     private fun recordOriginalFile(expr: Element) {
         chunk.debugInfo.lineData[expr.getLine()] = expr.getFile()
-        vm.globalProgramData.getOrPut(expr.getFile()!!) { mutableListOf() }.add(expr.getLine())
+        vm?.globalProgramData?.getOrPut(expr.getFile()!!) { mutableListOf() }?.add(expr.getLine())
     }
 
     private fun emitBytes(byte: Int, byte2: Int, expr: Element) {
@@ -889,8 +899,8 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?) : Exp
         }
     }
 
-    fun getInheritedMethods(name: String, methods: MutableList<Pair<String,Token>> = mutableListOf()): List<Pair<String,Token>> {
-        val classPrototype = sunlite.collector!!.typeHierarchy[name]!!
+    fun getInheritedMethods(name: String, methods: MutableList<Pair<String,Token>> = mutableListOf(), token: Token? = null): List<Pair<String,Token>> {
+        val classPrototype = sunlite.collector!!.typeHierarchy[name] ?: throw CompilationException("Class '$name' not found.", token)
         if(classPrototype.superclass != "<nil>"){
             sunlite.collector?.typeHierarchy[classPrototype.superclass]?.let { type ->
                 val list = type.scope?.contents?.filter { it.value is TypeCollector.FunctionPrototype }?.filter {
@@ -901,12 +911,12 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?) : Exp
                 }?.map { classPrototype.superclass to it.key }?.toMutableList() ?: mutableListOf()
                 methods.addAll(list)
             }
-            getInheritedMethods(classPrototype.superclass, methods)
+            getInheritedMethods(classPrototype.superclass, methods, token)
         }
         return methods
     }
-    fun getInheritedMethodsFromInterfaces(name: String, methods: MutableList<Pair<String,Token>> = mutableListOf()): List<Pair<String,Token>> {
-        val classPrototype = sunlite.collector!!.typeHierarchy[name]!!
+    fun getInheritedMethodsFromInterfaces(name: String, methods: MutableList<Pair<String,Token>> = mutableListOf(), token: Token? = null): List<Pair<String,Token>> {
+        val classPrototype = sunlite.collector!!.typeHierarchy[name] ?: throw CompilationException("Class '$name' not found.", token)
         classPrototype.superinterfaces.forEach { intf ->
             sunlite.collector?.typeHierarchy[intf]?.let { type ->
                 val list = type.scope?.contents?.filter { it.value is TypeCollector.FunctionPrototype }?.filter {
@@ -917,14 +927,14 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?) : Exp
                 }?.map { intf to it.key }?.toMutableList() ?: mutableListOf()
                 methods.addAll(list)
             }
-            getInheritedMethodsFromInterfaces(intf, methods)
+            getInheritedMethodsFromInterfaces(intf, methods, token)
         }
         return methods
     }
 
 
     fun checkClassMethodInheritance(name: String, classToken: Token) {
-        val classPrototype = sunlite.collector!!.typeHierarchy[name]!!
+        val classPrototype = sunlite.collector!!.typeHierarchy[name] ?: throw CompilationException("Class '$name' not found.")
         val methods: Map<Token, TypeCollector.FunctionPrototype> =
 	        (classPrototype.scope?.contents?.filter { it.value is TypeCollector.FunctionPrototype } ?: mapOf()) as Map<Token, TypeCollector.FunctionPrototype>
 
@@ -943,7 +953,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?) : Exp
             return
         }
 
-        getInheritedMethods(name).forEach { methodName ->
+        getInheritedMethods(name, token = classToken).forEach { methodName ->
             if (!methods.any { it.key.lexeme == methodName.second.lexeme }) {
                 sunlite.error(classToken, "Class does not implement required or abstract method '${methodName.second.lexeme}' from superclass '${methodName.first}'.")
             }
@@ -955,7 +965,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?) : Exp
 	        }
         }
 
-        getInheritedMethodsFromInterfaces(name).forEach { methodName ->
+        getInheritedMethodsFromInterfaces(name, token = classToken).forEach { methodName ->
             if (!methods.any { it.key.lexeme == methodName.second.lexeme }) {
                 sunlite.error(
                     classToken,
@@ -995,6 +1005,13 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?) : Exp
         currentClass = classInfo
 
         checkClassMethodInheritance(stmt.name.lexeme, stmt.name)
+
+        /*addIdentifier("this", Expr.This(Token.identifier("this")))
+        chunk.debugInfo.locals.add(0,"this")
+        locals.add(0, Local(Token.identifier("this", -1, currentFile), 0))
+        localsCount++*/
+
+        //addLocal(Token.identifier("this", stmt.getLine(), stmt.getFile()), stmt)
 
         if (stmt.superclass != null) {
             compile(Expr.Variable(stmt.superclass.name))

@@ -12,7 +12,7 @@ class Parser(
     val allowIncluding: Boolean = false,
     val including: Boolean = false,
     val includingDepth: Int = 0,
-    val importing: String = ""
+    val importing: String = "",
 ) {
     private var current = 0
 
@@ -85,22 +85,34 @@ class Parser(
         }
     }
 
-    private fun allowedToParse(): Boolean = importing.isEmpty() || importing.isNotEmpty() && importing == currentClass?.lexeme
+    private fun allowedToParse(): Boolean = (importing.isEmpty() || importing.isNotEmpty() && importing == currentClass?.lexeme) || currentClass != null
 
     private fun declaration(): Stmt? {
         return when {
-            match(VAR) -> if(allowedToParse()) varDeclaration() else null
-            match(VAL) -> if(allowedToParse()) varDeclaration(FieldModifier.CONST) else null
-            match(FUN) -> if(allowedToParse()) function(FunctionType.FUNCTION, null) else null
+            match(INCLUDE) -> includeStatement()
+            match(IMPORT) -> importStatement()
+            match(VAR) -> {
+                val decl = varDeclaration()
+                if(allowedToParse()) decl else null
+            }
+            match(VAL) -> {
+                val decl = varDeclaration(FieldModifier.CONST)
+                if(allowedToParse()) decl else null
+            }
+            match(FUN) -> {
+                val decl = function(FunctionType.FUNCTION, null)
+                if(allowedToParse()) decl else null
+            }
             match(ABSTRACT) -> {
                 consume(CLASS, "Expected 'class' after class modifier.")
                 classDeclaration(ClassModifier.ABSTRACT)
             }
             match(CLASS) -> classDeclaration(ClassModifier.NORMAL)
             match(INTERFACE) -> interfaceDeclaration()
-            match(INCLUDE) -> includeStatement()
-            match(IMPORT) -> importStatement()
-            else -> if(allowedToParse()) statement() else null
+            else -> {
+                val stmt = statement()
+                if(allowedToParse()) stmt else null
+            }
         }
     }
 
@@ -152,7 +164,7 @@ class Parser(
         val id = (location.literal as String) + "::" + what.lexeme
         if (sunlite.imports.contains(id)) {
             if (sunlite.imports[id]?.second == null) {
-                sunlite.error(keyword, "ImportError: Circular import detected.")
+                //sunlite.error(keyword, "ImportError: Circular import detected.")
                 return null
             }
             return Stmt.Import(keyword, what, location, alias)
@@ -180,6 +192,7 @@ class Parser(
         }
 
         if (data == null) {
+            sunlite.imports.remove(id)
             sunlite.error(keyword, "ImportError: Couldn't find '${location.literal}' on the load path list.")
             return null
         }
@@ -192,6 +205,7 @@ class Parser(
 
         // Stop if there was a syntax error.
         if (sunlite.hadError) {
+            sunlite.imports.remove(id)
             sunlite.error(keyword, "ImportError: SyntaxError in file being imported.")
             return null
         }
@@ -200,24 +214,31 @@ class Parser(
 
         // Stop if there was a type collection error.
         if (sunlite.hadError) {
+            sunlite.imports.remove(id)
             sunlite.error(keyword, "ImportError: TypeError in file being imported.")
             return null
         }
 
-        parser = Parser(tokens, sunlite, false, true, includingDepth + 1, what.lexeme)
+        parser = Parser(tokens, sunlite, true, true, includingDepth + 1, what.lexeme)
         statements = parser.parse(location.literal)
 
         // Stop if there was a syntax error.
         if (sunlite.hadError) {
+            sunlite.imports.remove(id)
             sunlite.error(keyword, "ImportError: SyntaxError in file being imported.")
             return null
         }
 
-        val checker = TypeChecker(sunlite, null)
-        checker.check(statements)
+        sunlite.collector?.collect(statements, location.literal, sunlite.compileStep + 2)
+
+        if(sunlite.compileStep > 0){
+            val checker = TypeChecker(sunlite, null)
+            checker.check(statements)
+        }
 
         // Stop if there was a type error.
         if (sunlite.hadError) {
+            sunlite.imports.remove(id)
             sunlite.error(keyword, "ImportError: TypeError in file being imported.")
             return null
         }
@@ -225,7 +246,7 @@ class Parser(
         sunlite.imports[id] = includingDepth to statements
 
         if (Sunlite.showAST) {
-            sunlite.printInfo("AST: ")
+            sunlite.printInfo("AST: ${location.literal}")
             sunlite.printInfo("-----")
             statements.forEach {
                 sunlite.printInfo(AstPrinter.print(it))
@@ -238,7 +259,6 @@ class Parser(
             sunlite.printInfo("Parsed and imported ${what.lexeme} from ${location.literal}!")
             sunlite.printInfo()
         }
-
         return Stmt.Import(keyword, what, location, alias)
     }
 
@@ -325,7 +345,7 @@ class Parser(
         sunlite.includes[what.literal] = includingDepth to statements
 
         if (Sunlite.showAST) {
-            sunlite.printInfo("AST: ")
+            sunlite.printInfo("AST: ${currentFile}")
             sunlite.printInfo("-----")
             statements.forEach {
                 sunlite.printInfo(AstPrinter.print(it))
@@ -523,16 +543,15 @@ class Parser(
 
         val typeParameters: MutableList<Param> = ArrayList()
         if (match(LESS)) {
-            throw error(peek(), "Generic interfaces not supported.")
-//			do {
-//				if (typeParameters.size >= 255) {
-//					error(peek(), "Can't have more than 255 type parameters.")
-//				}
-//
-//				val identifier = consume(IDENTIFIER, "Expected type parameter name.")
-//				typeParameters.add(Param(identifier, Type.Parameter(identifier)))
-//			} while (match(COMMA))
-//			consume(GREATER, "Expected '>' after type parameter declaration.")
+			do {
+				if (typeParameters.size >= 255) {
+					error(peek(), "Can't have more than 255 type parameters.")
+				}
+
+				val identifier = consume(IDENTIFIER, "Expected type parameter name.")
+				typeParameters.add(Param(identifier, Type.Parameter(identifier)))
+			} while (match(COMMA))
+			consume(GREATER, "Expected '>' after type parameter declaration.")
         }
 
         val name = consume(IDENTIFIER, "Expected interface name.")
@@ -1215,7 +1234,7 @@ class Parser(
                 when (expr) {
                     is Variable -> {
                         if (expr.constant) {
-                            throw error(equals, "Cannot reassign constant '${expr.name.lexeme}'.")
+                            throw error(equals, "Cannot reassign constant '${expr.name.lexeme}: ${expr.type}'.")
                         }
                         val name = expr.name
                         return Assign(name, value, EQUAL, expr.getExprType())
@@ -1223,7 +1242,7 @@ class Parser(
 
                     is Get -> {
                         if (expr.constant) {
-                            throw error(equals, "Cannot reassign constant '${expr.name.lexeme}'.")
+                            throw error(equals, "Cannot reassign constant '${expr.name.lexeme}: ${expr.type}'.")
                         }
                         return Set(expr.obj, expr.name, value, EQUAL, expr.getExprType())
                     }
@@ -1243,7 +1262,7 @@ class Parser(
                 when (expr) {
                     is Variable -> {
                         if (expr.constant) {
-                            throw error(equals, "Cannot reassign constant '${expr.name.lexeme}'.")
+                            throw error(equals, "Cannot reassign constant '${expr.name.lexeme}: ${expr.type}'.")
                         }
                         val name = expr.name
                         return Assign(name, value, PLUS_EQUAL, expr.getExprType())
@@ -1251,7 +1270,7 @@ class Parser(
 
                     is Get -> {
                         if (expr.constant) {
-                            throw error(equals, "Cannot reassign constant '${expr.name.lexeme}'.")
+                            throw error(equals, "Cannot reassign constant '${expr.name.lexeme}: ${expr.type}'.")
                         }
                         return Set(expr.obj, expr.name, value, PLUS_EQUAL, expr.getExprType())
                     }
@@ -1271,7 +1290,7 @@ class Parser(
                 when (expr) {
                     is Variable -> {
                         if (expr.constant) {
-                            throw error(equals, "Cannot reassign constant '${expr.name.lexeme}'.")
+                            throw error(equals, "Cannot reassign constant '${expr.name.lexeme}: ${expr.type}'.")
                         }
                         val name = expr.name
                         return Assign(name, value, MINUS_EQUAL, expr.getExprType())
@@ -1279,7 +1298,7 @@ class Parser(
 
                     is Get -> {
                         if (expr.constant) {
-                            throw error(equals, "Cannot reassign constant '${expr.name.lexeme}'.")
+                            throw error(equals, "Cannot reassign constant '${expr.name.lexeme}: ${expr.type}'.")
                         }
                         return Set(expr.obj, expr.name, value, MINUS_EQUAL, expr.getExprType())
                     }
@@ -1620,12 +1639,18 @@ class Parser(
                     sunlite.collector!!.findType(currentClass!!, Token.identifier("<global>", -1, currentFile))
                 }
 
-                val scope =
-                    sunlite.collector?.getValidScope(
-                        sunlite.collector!!.typeScopes.first(),
-                        currentClass!!,
-                        Token.identifier("<global>", -1, currentFile)
-                    )?.inner?.find { it.name.lexeme == currentClass?.lexeme }
+                var scope: TypeCollector.Scope? = null
+
+                if(currentClass != null){
+                    scope =
+                        currentClass?.let {
+                            sunlite.collector?.getValidScope(
+                                sunlite.collector!!.typeScopes.first(),
+                                currentClass!!,
+                                Token.identifier("<global>", -1, currentFile)
+                            )?.inner?.find { it.name.lexeme == currentClass?.lexeme }
+                        }
+                }
 
                 val typeParams = scope?.contents?.keys?.filter { it.lexeme.startsWith("<") }
 
@@ -1669,21 +1694,38 @@ class Parser(
 
         if (match(IDENTIFIER)) {
             val varToken = previous()
-            if (sunlite.collector != null) {
-                val pair = sunlite.collector?.findProp(
-                    varToken,
+            if (sunlite.collector != null && sunlite.compileStep > 0) {
+                if(currentClass != null){
+                    val scope = sunlite.collector?.typeHierarchy[currentClass!!.lexeme]?.scope
+                    if(scope != null){
+                        if(scope.name.lexeme == varToken.lexeme){
+                            val type = scope.representing
+                            return Variable(varToken, type?.getElementType() ?: Type.UNKNOWN, type?.isConstant() ?: false)
+                        }
+                        val pair = sunlite.collector?.findProp(
+                            varToken,
+                            if (currentFunction != null) currentFunction else currentClass,
+                            currentBlockDepth,
+                            scope
+                        )
+                        val type = pair?.second
+                        if(pair != null && type != null){
+	                        if (pair.first?.name?.lexeme != scope.name.lexeme) {
+                                return Variable(varToken, type.getElementType(), type.isConstant())
+	                        } else {
+                                val self = This(
+                                    Token(THIS, "this", null, varToken.line, varToken.file, varToken.pos),
+                                    (scope.representing!!.getElementType() as Type.Reference?)?.returnType ?: Type.UNKNOWN
+                                )
+                                return Get(self, varToken, type.getElementType(), type.isConstant())
+                            }
+                        }
+                    }
+                }
+                val type = sunlite.collector?.findType(varToken,
                     if (currentFunction != null) currentFunction else Token.identifier("<global>", -1, currentFile),
                     currentBlockDepth
                 )
-                val scope = pair?.first
-                val type = pair?.second
-                if(pair != null && scope != null && type != null && scope.representing != null){
-                    val self = This(
-                        Token(THIS, "this", null, varToken.line, varToken.file, varToken.pos),
-                        (scope.representing!!.getElementType() as Type.Reference?)?.returnType ?: Type.UNKNOWN
-                    )
-                    return Get(self, varToken, type.getElementType(), type.isConstant())
-                }
                 return Variable(varToken, type?.getElementType() ?: Type.UNKNOWN, type?.isConstant() ?: false)
             }
             return Variable(varToken)
@@ -1779,7 +1821,7 @@ class Parser(
             if (previous().type == SEMICOLON) return
 
             when (peek().type) {
-                CLASS, INTERFACE, FUN, VAR, FOR, IF, WHILE, /*PRINT,*/ RETURN, BREAK, CONTINUE -> return
+                CLASS, INTERFACE, FUN, VAR, FOR, IF, WHILE, RETURN, BREAK, CONTINUE -> return
                 else -> {}
             }
 

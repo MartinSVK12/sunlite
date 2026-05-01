@@ -30,6 +30,8 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
 
     val globalProgramData: MutableMap<String, MutableList<Int>> = mutableMapOf()
 
+    var noExceptions: Boolean = false
+
     init {
         globals.clear()
         openUpvalues.clear()
@@ -1005,7 +1007,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                 }
             }
         }
-        runtimeError("Can only call functions.")
+        runtimeError("Can only call functions but tried to call '${Type.fromValue(callee.value, sunlite)}'.")
         return false
     }
 
@@ -1183,19 +1185,26 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
     fun internalLoadClass(name: String): SLClassObj {
         try {
             val subVM = VM(sunlite, arrayOf())
+            subVM.noExceptions = true
             subVM.imports.putAll(imports)
             subVM.importedClasses.putAll(importedClasses)
             subVM.globals.putAll(globals)
             subVM.findClass(name)
             subVM.run()
             return subVM.globals[name] as SLClassObj
-        } catch (e: Exception){
-            throw Error("InternalError: $e",e)
+        } catch (e: VMError){
+            throw VMError("Internal class loading of '$name' failed.",e);
         }
+
     }
 
     fun makeExceptionObject(message: String): SLClassInstanceObj {
-        globals["Exception"] = internalLoadClass("Exception")
+        try {
+            globals["Exception"] = internalLoadClass("Exception")
+        } catch (e: VMError){
+            throw VMError(message, e)
+        }
+
         val clazz = globals["Exception"] as SLClassObj
         val fields: MutableMap<String, SLField> =
             clazz.value.fieldDefaults.mapValues { it.value.copy() }.toMutableMap()
@@ -1345,6 +1354,10 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
         /*if (stacktrace) {
             Exception("runtime error: $message").printStackTrace()
         }*/
+
+        if(noExceptions){
+            throw VMError("InternalError: $message")
+        }
 
         sunlite.hadRuntimeError = true
 
