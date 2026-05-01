@@ -226,7 +226,7 @@ object AstPrinter : Expr.Visitor<String>, Stmt.Visitor<String> {
 
     override fun visitFunctionStmt(stmt: Stmt.Function): String {
         return parenthesize(
-            "${stmt.modifier.name.lowercase()} ${
+            "${stmt.modifier.joinToString(" ") { it.name.lowercase() }} ${
                 stmt.type.toString().lowercase()
             }${if (stmt.typeParameters.isEmpty()) "" else "<${stmt.typeParameters.joinToString(", ") { it.token.lexeme }}>"} ${stmt.name.lexeme}( ${
                 stmt.params.toString().replace("[", "").replace("]", "")

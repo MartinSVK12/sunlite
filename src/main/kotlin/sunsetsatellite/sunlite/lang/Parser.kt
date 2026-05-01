@@ -92,6 +92,10 @@ class Parser(
             match(VAR) -> if(allowedToParse()) varDeclaration() else null
             match(VAL) -> if(allowedToParse()) varDeclaration(FieldModifier.CONST) else null
             match(FUN) -> if(allowedToParse()) function(FunctionType.FUNCTION, null) else null
+            match(ABSTRACT) -> {
+                consume(CLASS, "Expected 'class' after class modifier.")
+                classDeclaration(ClassModifier.ABSTRACT)
+            }
             match(CLASS) -> classDeclaration(ClassModifier.NORMAL)
             match(INTERFACE) -> interfaceDeclaration()
             match(INCLUDE) -> includeStatement()
@@ -391,6 +395,7 @@ class Parser(
                     superclass?.name?.lexeme ?: "<nil>",
                     superinterfaces.map { it.name.lexeme },
                     typeParameters.map { it.token.lexeme },
+                    modifier,
                     null,
                     true,
                     sunlite.compileStep
@@ -412,10 +417,34 @@ class Parser(
                     }
                 }
 
+                checkToken(OVERRIDE) && checkNext(REQUIRED) -> {
+                    val modifier = peek()
+                    val modifier2 = next()
+                    advance()
+                    advance()
+                    when {
+                        match(FUN) -> {
+                            methods.add(function(FunctionType.METHOD, modifier, modifier2))
+                        }
+                    }
+                }
+
+                match(ABSTRACT) -> {
+                    methods.add(abstractMethod())
+                }
+
                 match(OVERRIDE) -> {
                     when {
                         match(FUN) -> {
-                            methods.add(function(FunctionType.METHOD, null))
+                            methods.add(function(FunctionType.METHOD, currentModifier))
+                        }
+                    }
+                }
+
+                match(REQUIRED) -> {
+                    when {
+                        match(FUN) -> {
+                            methods.add(function(FunctionType.METHOD, currentModifier))
                         }
                     }
                 }
@@ -531,6 +560,7 @@ class Parser(
                     "<nil>",
                     superinterfaces.map { it.name.lexeme },
                     typeParameters.map { it.token.lexeme },
+                    ClassModifier.ABSTRACT,
                     null,
                     true,
                     sunlite.compileStep
@@ -607,7 +637,7 @@ class Parser(
             FunctionType.METHOD,
             signature.second,
             listOf(),
-            FunctionModifier.ABSTRACT,
+            arrayOf(FunctionModifier.ABSTRACT),
             signature.third,
             typeParameters
         )
@@ -636,7 +666,7 @@ class Parser(
         val signature = funcSignature(kind)
 
         var body: List<Stmt> = listOf()
-        if (funcModifier != FunctionModifier.NATIVE && funcModifier != FunctionModifier.STATIC_NATIVE) {
+        if (!funcModifier.contains(FunctionModifier.NATIVE)) {
             consume(LEFT_BRACE, "Expected '{' before ${kind.toString().lowercase()} body.")
             body = block()
         } else {
@@ -1522,7 +1552,7 @@ class Parser(
                     token.line,
                     currentFile,
                     token.pos
-                ), FunctionType.LAMBDA, parameters, body, FunctionModifier.NORMAL, type, typeParameters
+                ), FunctionType.LAMBDA, parameters, body, arrayOf(FunctionModifier.NORMAL), type, typeParameters
             )
         )
     }

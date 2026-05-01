@@ -8,7 +8,8 @@ class SLClass(
     val fieldDefaults: MutableMap<String, SLField>,
     val staticFields: MutableMap<String, SLField>,
     val typeParams: MutableMap<String, Type>,
-    val isAbstract: Boolean = false
+    val isAbstract: Boolean = false,
+    val isInterface: Boolean = false,
 ) {
 
     override fun toString(): String {
@@ -22,7 +23,8 @@ class SLClass(
             fieldDefaults.mapValues { it.value.copy() }.toMutableMap(),
             staticFields.mapValues { it.value.copy() }.toMutableMap(),
             typeParams.toMutableMap(),
-            isAbstract
+            isAbstract,
+            isInterface
         )
     }
 }

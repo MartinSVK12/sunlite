@@ -129,7 +129,7 @@ abstract class Stmt : Element {
         val type: FunctionType,
         val params: List<Param>,
         val body: List<Stmt>,
-        var modifier: FunctionModifier,
+        var modifier: Array<FunctionModifier>,
         val returnType: Type,
         val typeParameters: List<Param>,
         val annotation: List<Annotation> = listOf()

@@ -75,6 +75,8 @@ class Scanner(private var source: String, val sunlite: Sunlite) {
             keywords["package"] = PACKAGE
             keywords["import"] = IMPORT
             keywords["from"] = FROM
+            keywords["required"] = REQUIRED
+            keywords["abstract"] = ABSTRACT
         }
     }
 

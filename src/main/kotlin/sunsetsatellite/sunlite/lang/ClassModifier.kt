@@ -1,12 +1,13 @@
 package sunsetsatellite.sunlite.lang
 
 enum class ClassModifier {
-    NORMAL;
+    NORMAL,
+    ABSTRACT;
 
     companion object {
         fun get(token: Token?): ClassModifier {
             return when (token?.type) {
-                //TokenType.DYNAMIC -> DYNAMIC
+                TokenType.ABSTRACT -> ABSTRACT
                 else -> NORMAL
             }
         }

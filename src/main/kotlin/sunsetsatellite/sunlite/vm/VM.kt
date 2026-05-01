@@ -125,7 +125,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                         val frame = frameStack.pop()
                         fr = frameStack.peek()
                         currentFrame = fr
-                        if(modifier != FunctionModifier.CHUNK){
+                        if(!modifier.contains(FunctionModifier.CHUNK)){
                             for (i in 0 until (frame.closure.function.arity + 1)) {
                                 fr.pop()
                             }
@@ -323,6 +323,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
 
                     Opcodes.CLASS -> {
                         val constant = readConstant(fr) as SLString
+                        val isInterface = fr.pop() as SLBool
                         val isAbstract = fr.pop() as SLBool
                         fr.push(
                             SLClassObj(
@@ -332,7 +333,8 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                                     mutableMapOf(),
                                     mutableMapOf(),
                                     mutableMapOf(),
-                                    isAbstract.value
+                                    isAbstract.value,
+                                    isInterface.value
                                 )
                             )
                         )
@@ -388,17 +390,18 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                         if (arg is SLClassObj) {
                             val clazz = arg.value
                             val name = readString(fr).value
+                            val modifier = clazz.methods[name]?.value?.function?.modifier
                             if (clazz.staticFields.containsKey(name)) {
                                 fr.pop()
                                 fr.push(clazz.staticFields[name]!!.value)
-                            } else if (clazz.methods.containsKey(name) && clazz.methods[name]?.value?.function?.modifier == FunctionModifier.STATIC) {
+                            } else if (clazz.methods.containsKey(name) && modifier?.contains(FunctionModifier.STATIC) == true) {
                                 fr.pop()
                                 fr.push(clazz.methods[name]!!)
-                            } else if (clazz.methods[name]?.value?.function?.modifier == FunctionModifier.STATIC_NATIVE && bindMethod(
-                                    fr,
-                                    clazz,
-                                    name
-                                )
+                            } else if (modifier?.contains(FunctionModifier.STATIC) == true && modifier.contains(FunctionModifier.NATIVE) && bindMethod(
+		                            fr,
+		                            clazz,
+		                            name
+	                            )
                             ) {
 
                             } else {
@@ -673,8 +676,13 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
         var method = fr.peek(0) as SLClosureObj
         val clazz = (fr.peek(1) as SLClassObj).value
         val function = method.value.function
-        if (function.modifier != FunctionModifier.ABSTRACT && clazz.isAbstract) {
+        if (!function.modifier.contains(FunctionModifier.ABSTRACT) && clazz.isInterface) {
             runtimeError("Attempted to define a non-abstract method '$method' on interface '$clazz'.")
+            fr.pop()
+            return
+        }
+        if (function.modifier.contains(FunctionModifier.ABSTRACT) && !clazz.isInterface && !clazz.isAbstract) {
+            runtimeError("Attempted to define a abstract method '$method' on non-abstract class '$clazz'.")
             fr.pop()
             return
         }
@@ -839,6 +847,10 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
 
                 is SLClass -> {
                     if (callee.value.isAbstract) {
+                        runtimeError("Can't instantiate abstract class '${callee.value.name}'.")
+                        return false
+                    }
+                    if (callee.value.isInterface) {
                         runtimeError("Can't instantiate interface '${callee.value.name}'.")
                         return false
                     }
@@ -955,7 +967,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                         return false
                     }
                     if (callee.value.receiver is SLClassInstanceObj) {
-                        if (callee.value.method.function.modifier == FunctionModifier.NATIVE) {
+                        if (callee.value.method.function.modifier.contains(FunctionModifier.NATIVE)) {
                             val methodName =
                                 "${callee.value.receiver.value.clazz.name}#${callee.value.method.function.name}"
                             if (!(globals.containsKey(methodName))) {
@@ -973,7 +985,8 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                         frameStack.peek().locals.add(0, callee.value.receiver)
                         return true
                     } else if (callee.value.receiver is SLClassObj) {
-                        if (callee.value.method.function.modifier == FunctionModifier.STATIC_NATIVE) {
+                        val modifier = callee.value.method.function.modifier
+                        if (modifier.contains(FunctionModifier.STATIC) && modifier.contains(FunctionModifier.NATIVE)) {
                             val methodName = "${callee.value.receiver.value.name}#${callee.value.method.function.name}"
                             if (!(globals.containsKey(methodName))) {
                                 runtimeError("Native method '$methodName' not bound to anything.")
@@ -1012,7 +1025,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
 
     fun call(callee: SLClosureObj, argCount: Int, typeArgCount: Int = 0, receiverObj: AnySLValue? = null): Boolean {
         val receiver = (receiverObj as SLClassInstanceObj?)?.value
-        if (callee.value.function.modifier == FunctionModifier.ABSTRACT) {
+        if (callee.value.function.modifier.contains(FunctionModifier.ABSTRACT)) {
             runtimeError("Can't call abstract method '${callee.value.function.name}'.")
             return false
         }
@@ -1055,7 +1068,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
         }*/
         //locals.addAll(Array(argCount) { i -> frameStack.peek().peek(i - typeArgCount) })
         locals.reverse()
-        if (callee.value.function.modifier == FunctionModifier.STATIC) locals.add(0, SLNil)
+        if (callee.value.function.modifier.contains(FunctionModifier.STATIC)) locals.add(0, SLNil)
         val frame = CallFrame(frameFunction, locals)
         frameStack.push(frame)
         return true
@@ -1142,7 +1155,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
 
         val compiler = Compiler(sunlite, this, null)
         val program =
-            compiler.compile(FunctionType.CHUNK, FunctionModifier.CHUNK, Type.NIL, listOf(), listOf(), statements, path)
+            compiler.compile(FunctionType.CHUNK, arrayOf(FunctionModifier.CHUNK), Type.NIL, listOf(), listOf(), statements, path)
         if (sunlite.hadError) {
             sunlite.hadError = false
             return null

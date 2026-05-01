@@ -1,9 +1,10 @@
-interface A {
-    func test()
+abstract class Base {
+    abstract func foo()
 }
 
-class B implements A {
-    override func test() {
-        print("kek");
+class Derived extends Base {
+    override func foo() {
     }
 }
+
+Base();

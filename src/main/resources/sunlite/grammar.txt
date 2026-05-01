@@ -8,8 +8,8 @@ declaration    → classDecl
                | varDecl
                | statement ;
 
-classDecl      → "class" ( typeParam )? IDENTIFIER ( "extends" IDENTIFIER )? ( "implements" IDENTIFIER )?
-                 "{" varDecl* method* initializer* "}" ;
+classDecl      → ( classModifier* )? "class" ( typeParam )? IDENTIFIER ( "extends" IDENTIFIER )? ( "implements" IDENTIFIER )?
+                 "{" varDecl* method* initializer* ( staticInit )? "}" ;
 interfaceDecl  → "interface" ( typeParam )? IDENTIFIER ( "implements" IDENTIFIER ( "," IDENTIFIER )* )?
                  "{" abstractMethod* "}" ;
 funDecl        → "func" ( typeParam )? function ;
@@ -27,6 +27,7 @@ statement      → exprStmt
                | breakStmt
                | continueStmt
                | importStmt
+               | includeStmt
                | tryCatchStmt
                | block ;
 
@@ -43,7 +44,8 @@ whileStmt      → "while" "(" expression ")" statement ;
 block          → "{" declaration* "}" ;
 continueStmt   → "continue;" ;
 breakStmt      → "break;" ;
-importStmt     → "import" STRING ";" ;
+includeStmt    → "include" ( "<" )? STRING ( ">" )? ";" ;
+importStmt     → "import" IDENTIFIER "from" STRING ( "as" IDENTIFIER )? ";" ;
 tryCatchStmt   → "try" block "catch" "(" IDENTIFIER ")" block ;
 throwStmt      → "throw" expression ";" ;
 
@@ -71,10 +73,11 @@ primary        → "true" | "false" | "nil" | "this"
 
 // UTILITY
 
-method         → ( "static" | "native" | "static native" | "operator" | "override" )? "func" ( typeParam )? methodSignature block? ;
-abstractMethod → ( "static" | "native" | "static native" )? "func" ( typeParam )? methodSignature ;
+method         → ( funcModifier* )? "func" ( typeParam )? methodSignature block? ;
+abstractMethod → ( "native" )? "func" ( typeParam )? methodSignature ;
 methodSignature→ IDENTIFIER "(" parameters? ")" ( ":" type )? ;
 initializer    → "init" "(" parameters? ")" block? ;
+staticInit     → "static" "init" block ;
 function       → IDENTIFIER "(" parameters? ")" ( ":" type )? block ;
 parameters     → IDENTIFIER ( ":" type )? ( "," IDENTIFIER ( ":" type )? )* ;
 arguments      → expression ( "," expression )* ;
@@ -97,6 +100,8 @@ type           → ( "Any"
                  | IDENTIFIER ( typeParam )?
                  ( "|" type* )? ( "?" )? ) ;
 typeParam      → "<" type ( ( "," type )* )? ">" ;
+funcModifier   → ( "static" | "native" | "required" | "operator" | "override" | "abstract" )
+classModifier  → ( "abstract" )
 
 // LEXICAL
 

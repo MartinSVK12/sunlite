@@ -192,7 +192,7 @@ class Sunlite(val args: Array<String>) {
         val compiler = Compiler(this, vm, null)
         return compiler.compile(
             FunctionType.FUNCTION,
-            FunctionModifier.NORMAL,
+            arrayOf(FunctionModifier.NORMAL),
             Type.NIL,
             listOf(),
             listOf(),
@@ -362,7 +362,7 @@ class Sunlite(val args: Array<String>) {
             vm.importedClasses[it.key.split("::")[1]] =
                 Compiler(this, vm, null).compile(
                     FunctionType.CHUNK,
-                    FunctionModifier.CHUNK,
+                    arrayOf(FunctionModifier.CHUNK),
                     Type.NIL,
                     listOf(),
                     listOf(),
@@ -373,7 +373,7 @@ class Sunlite(val args: Array<String>) {
 
         val program: SLFunction = compiler.compile(
             FunctionType.CHUNK,
-            FunctionModifier.CHUNK,
+            arrayOf(FunctionModifier.CHUNK),
             Type.NIL,
             listOf(),
             listOf(),

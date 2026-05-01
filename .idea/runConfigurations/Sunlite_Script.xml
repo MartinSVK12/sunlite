@@ -1,0 +1,12 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Sunlite Script" type="JetRunConfigurationType">
+    <option name="MAIN_CLASS_NAME" value="sunsetsatellite.sunlite.lang.Sunlite" />
+    <module name="sunlite.main" />
+    <option name="PROGRAM_PARAMETERS" value="&quot;$PROJECT_DIR$/src/test/resources/test.sl&quot; &quot;$PROJECT_DIR$/src/test/resources/;$PROJECT_DIR$/src/main/resources/stdlib/&quot; &quot;debug;stacktrace&quot; &quot;&quot;" />
+    <shortenClasspath name="NONE" />
+    <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
+    <method v="2">
+      <option name="Make" enabled="true" />
+    </method>
+  </configuration>
+</component>

@@ -31,7 +31,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?) : Exp
 
     fun compile(
         type: FunctionType,
-        modifier: FunctionModifier,
+        modifier: Array<FunctionModifier>,
         returnType: Type,
         params: List<Param>,
         typeParams: List<Param>,
@@ -271,7 +271,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?) : Exp
                             )
 
                             if (type is TypeCollector.FunctionPrototype) {
-                                if (type.modifier == FunctionModifier.OPERATOR) {
+                                if (type.modifier.contains(FunctionModifier.OPERATOR)) {
                                     val get = Get(expr.left, name, type.getElementType(), type.isConstant())
                                     val call = Expr.Call(
                                         get,
@@ -889,12 +889,103 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?) : Exp
         }
     }
 
+    fun getInheritedMethods(name: String, methods: MutableList<Pair<String,Token>> = mutableListOf()): List<Pair<String,Token>> {
+        val classPrototype = sunlite.collector!!.typeHierarchy[name]!!
+        if(classPrototype.superclass != "<nil>"){
+            sunlite.collector?.typeHierarchy[classPrototype.superclass]?.let { type ->
+                val list = type.scope?.contents?.filter { it.value is TypeCollector.FunctionPrototype }?.filter {
+                    val prototype = it.value as TypeCollector.FunctionPrototype
+                    prototype.modifier.contains(FunctionModifier.REQUIRED) || prototype.modifier.contains(
+                        FunctionModifier.ABSTRACT
+                    )
+                }?.map { classPrototype.superclass to it.key }?.toMutableList() ?: mutableListOf()
+                methods.addAll(list)
+            }
+            getInheritedMethods(classPrototype.superclass, methods)
+        }
+        return methods
+    }
+    fun getInheritedMethodsFromInterfaces(name: String, methods: MutableList<Pair<String,Token>> = mutableListOf()): List<Pair<String,Token>> {
+        val classPrototype = sunlite.collector!!.typeHierarchy[name]!!
+        classPrototype.superinterfaces.forEach { intf ->
+            sunlite.collector?.typeHierarchy[intf]?.let { type ->
+                val list = type.scope?.contents?.filter { it.value is TypeCollector.FunctionPrototype }?.filter {
+                    val prototype = it.value as TypeCollector.FunctionPrototype
+                    prototype.modifier.contains(FunctionModifier.REQUIRED) || prototype.modifier.contains(
+                        FunctionModifier.ABSTRACT
+                    )
+                }?.map { intf to it.key }?.toMutableList() ?: mutableListOf()
+                methods.addAll(list)
+            }
+            getInheritedMethodsFromInterfaces(intf, methods)
+        }
+        return methods
+    }
+
+
+    fun checkClassMethodInheritance(name: String, classToken: Token) {
+        val classPrototype = sunlite.collector!!.typeHierarchy[name]!!
+        val methods: Map<Token, TypeCollector.FunctionPrototype> =
+	        (classPrototype.scope?.contents?.filter { it.value is TypeCollector.FunctionPrototype } ?: mapOf()) as Map<Token, TypeCollector.FunctionPrototype>
+
+        if(classPrototype.modifier != ClassModifier.ABSTRACT){
+            methods.forEach { (key, value) ->
+                if(value.modifier.contains(FunctionModifier.ABSTRACT)){
+                    sunlite.error(
+                        key,
+                        "Cannot have abstract method '${value.name.lexeme}' in non-abstract class '${classPrototype.name}'."
+                    )
+                }
+            }
+        }
+
+        if(sunlite.hadError){
+            return
+        }
+
+        getInheritedMethods(name).forEach { methodName ->
+            if (!methods.any { it.key.lexeme == methodName.second.lexeme }) {
+                sunlite.error(classToken, "Class does not implement required or abstract method '${methodName.second.lexeme}' from superclass '${methodName.first}'.")
+            }
+            val override = methods.values.firstOrNull { it.name.lexeme == methodName.second.lexeme }
+	        override?.modifier?.contains(FunctionModifier.OVERRIDE)?.let {
+		        if(!it){
+			        sunlite.error(methodName.second, "Method without 'override' modifier shadows overridable method '${methodName.second.lexeme}' from superclass '${methodName.first}'")
+		        }
+	        }
+        }
+
+        getInheritedMethodsFromInterfaces(name).forEach { methodName ->
+            if (!methods.any { it.key.lexeme == methodName.second.lexeme }) {
+                sunlite.error(
+                    classToken,
+                    "Class does not implement abstract method '${methodName.second.lexeme}' from interface '${methodName.first}'."
+                )
+            }
+            val override = methods.values.firstOrNull { it.name.lexeme == methodName.second.lexeme }
+	        override?.modifier?.contains(FunctionModifier.OVERRIDE)?.let {
+		        if (!it) {
+			        sunlite.error(
+				        methodName.second,
+				        "Method without 'override' modifier shadows overridable method '${methodName.second.lexeme}' from interface '${methodName.first}'"
+			        )
+		        }
+	        }
+        }
+    }
+
     override fun visitClassStmt(stmt: Stmt.Class) {
         val className = stmt.name
         val nameConstant = addIdentifier(className.lexeme, stmt)
         declareVariable(className, stmt)
 
+        if(stmt.modifier == ClassModifier.ABSTRACT){
+            emitByte(Opcodes.TRUE, stmt)
+        } else {
+            emitByte(Opcodes.FALSE, stmt)
+        }
         emitByte(Opcodes.FALSE, stmt)
+
         emitByte(Opcodes.CLASS, stmt)
         emitShort(nameConstant, stmt)
 
@@ -903,9 +994,10 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?) : Exp
         val classInfo = ClassInfo(currentClass)
         currentClass = classInfo
 
+        checkClassMethodInheritance(stmt.name.lexeme, stmt.name)
+
         if (stmt.superclass != null) {
             compile(Expr.Variable(stmt.superclass.name))
-
             beginScope(stmt.superclass)
             addLocal(Token.identifier("super", stmt.getLine(), stmt.getFile()), stmt)
             defineVariable(0, stmt)
@@ -915,16 +1007,6 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?) : Exp
         }
 
         stmt.superinterfaces.forEach { intf ->
-
-            //sunlite.error(stmt.name, "Class does not implement abstract method '${methodName}' from interface '${type.name}'.")
-            sunlite.collector?.typeHierarchy[intf.name.lexeme]?.let { type ->
-                type.scope?.contents?.keys?.forEach { methodName ->
-	                if (!stmt.methods.any { it.name.lexeme == methodName.lexeme }) {
-                        sunlite.error(stmt.name, "Class does not implement abstract method '${methodName.lexeme}' from interface '${type.name}'.")
-	                }
-                }
-            }
-
             compile(Expr.Variable(intf.name))
             compile(Expr.Variable(className))
             emitByte(Opcodes.INHERIT, intf)
@@ -973,6 +1055,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM, val enclosing: Compiler?) : Exp
         val nameConstant = addIdentifier(className.lexeme, stmt)
         declareVariable(className, stmt)
 
+        emitByte(Opcodes.TRUE, stmt)
         emitByte(Opcodes.TRUE, stmt)
         emitByte(Opcodes.CLASS, stmt)
         emitShort(nameConstant, stmt)

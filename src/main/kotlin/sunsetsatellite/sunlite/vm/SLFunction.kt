@@ -18,7 +18,7 @@ class SLFunction(
     val arity: Int = 0,
     val upvalueCount: Int,
     val localsCount: Int,
-    val modifier: FunctionModifier = FunctionModifier.NORMAL
+    val modifier: Array<FunctionModifier> = arrayOf(FunctionModifier.NORMAL)
 ) {
 
     companion object {
@@ -46,8 +46,12 @@ class SLFunction(
             val arity = s.readInt()
             val upvalueCount = s.readInt()
             val localsCount = s.readInt()
-            val modifier = FunctionModifier.entries[s.readInt()]
-            return SLFunction(name, returnType, params, typeParams, chunk, arity, upvalueCount, localsCount, modifier)
+            val modCount = s.readInt()
+            val modifier = mutableListOf<FunctionModifier>()
+            for (i in 0 until modCount) {
+                modifier.add(FunctionModifier.entries[s.readInt()])
+            }
+            return SLFunction(name, returnType, params, typeParams, chunk, arity, upvalueCount, localsCount, modifier.toTypedArray())
         }
     }
 
@@ -77,6 +81,9 @@ class SLFunction(
         s.writeInt(arity)
         s.writeInt(upvalueCount)
         s.writeInt(localsCount)
-        s.writeInt(modifier.ordinal)
+        s.write(modifier.size)
+        for (mod in modifier) {
+            s.writeInt(mod.ordinal)
+        }
     }
 }

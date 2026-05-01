@@ -30,7 +30,7 @@ class TypeCollector(val sunlite: Sunlite, val natives: NativesContainer) : Stmt.
 
     inner class FunctionPrototype(
         val name: Token,
-        val modifier: FunctionModifier,
+        val modifier: Array<FunctionModifier>,
         val params: List<Param>,
         val returnType: Type,
         val typeParams: List<Param> = listOf(),
@@ -71,6 +71,7 @@ class TypeCollector(val sunlite: Sunlite, val natives: NativesContainer) : Stmt.
         val superclass: String,
         val superinterfaces: List<String>,
         val typeParameters: List<String>,
+        val modifier: ClassModifier,
         val scope: Scope?,
         val incomplete: Boolean = false,
         val id: Int
@@ -92,7 +93,7 @@ class TypeCollector(val sunlite: Sunlite, val natives: NativesContainer) : Stmt.
         natives.getNatives().filter { it.value is SLNativeFuncObj }.forEach {
             addFunction(
                 Token.identifier(it.key, -1, "<global>"),
-                FunctionModifier.NATIVE,
+                arrayOf(FunctionModifier.NATIVE),
                 listOf(),
                 (it.value as SLNativeFuncObj).value.returnType
             )
@@ -115,7 +116,7 @@ class TypeCollector(val sunlite: Sunlite, val natives: NativesContainer) : Stmt.
 
     fun addFunction(
         name: Token,
-        modifier: FunctionModifier,
+        modifier: Array<FunctionModifier>,
         params: List<Param>,
         returnType: Type,
         typeParams: List<Param> = listOf()
@@ -288,10 +289,11 @@ class TypeCollector(val sunlite: Sunlite, val natives: NativesContainer) : Stmt.
                 superclass,
                 superinterfaces,
                 stmt.typeParameters.map { it.token.lexeme },
+                stmt.modifier,
                 currentScope!!,
                 false,
                 currentId
-            )//Triple(superclass, superinterfaces, stmt.typeParameters.map { it.token.lexeme })
+            )
         stmt.superclass?.let {
             addVariable(Token.identifier("<superclass>", it.getLine(), it.getFile()), Type.ofClass(it.name.lexeme))
         }
@@ -332,11 +334,18 @@ class TypeCollector(val sunlite: Sunlite, val natives: NativesContainer) : Stmt.
                 "<nil>",
                 superinterfaces,
                 stmt.typeParameters.map { it.token.lexeme },
+                ClassModifier.ABSTRACT,
                 currentScope!!,
                 false,
                 currentId
-            )//Triple("<nil>",superinterfaces,stmt.typeParameters.map { it.token.lexeme })
+            )
         stmt.methods.forEach { it.accept(this) }
+        stmt.superinterfaces.forEach {
+            addVariable(
+                Token.identifier("<superinterface ${it.name.lexeme}>", it.getLine(), it.getFile()),
+                Type.ofClass(it.name.lexeme)
+            )
+        }
         removeScope()
     }
 
