@@ -93,7 +93,8 @@ class Compiler(val sunlite: Sunlite, val vm: VM?, val enclosing: Compiler?) : Ex
             sunlite.error(chunk.debugInfo.lines[it], "Unexpected 'continue' outside of loop.", chunk.debugInfo.file)
         }
 
-        if(returnType != Type.NIL && currentReturn == null && !modifier.contains(FunctionModifier.ABSTRACT)){
+        if(returnType != Type.NIL && currentReturn == null
+            && !modifier.contains(FunctionModifier.ABSTRACT) && !modifier.contains(FunctionModifier.NATIVE)){
             sunlite.error(statements.lastOrNull()?.getLine() ?: -1, "Not all code paths of function '${name}' return a value.", chunk.debugInfo.file)
         }
 

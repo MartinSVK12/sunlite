@@ -32,6 +32,7 @@ class Parser(
             autoImported["Exception"] = "/sunlite/stdlib/exception.sl"
             autoImported["ArrayIterator"] = "/sunlite/stdlib/array.sl"
             autoImported["array"] = "/sunlite/stdlib/array.sl"
+            autoImported["string"] = "/sunlite/stdlib/string.sl"
         }
     }
 
