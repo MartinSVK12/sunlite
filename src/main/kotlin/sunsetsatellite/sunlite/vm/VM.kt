@@ -844,7 +844,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                 }
 
                 is SLNativeFunction -> {
-                    return callNative(callee as SLNativeFuncObj, argCount)
+                    return callNative(callee as SLNativeFuncObj, argCount, typeArgCount)
                 }
 
                 is SLClass -> {
@@ -980,7 +980,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                                 runtimeError("Native method '$methodName' bound to invalid value '${globals[methodName]}'.")
                                 return false
                             }
-                            return callNative(globals[methodName] as SLNativeFuncObj, argCount)
+                            return callNative(globals[methodName] as SLNativeFuncObj, argCount, typeArgCount)
                         }
                         val success = call(SLClosureObj(callee.value.method), argCount, typeArgCount, callee.value.receiver)
                         if (!success) return false
@@ -998,7 +998,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                                 runtimeError("Native method '$methodName' bound to invalid value '${globals[methodName]}'.")
                                 return false
                             }
-                            return callNative(globals[methodName] as SLNativeFuncObj, argCount)
+                            return callNative(globals[methodName] as SLNativeFuncObj, argCount, typeArgCount)
                         } else {
                             runtimeError("Can only call static methods on classes.")
                             return false
@@ -1011,16 +1011,23 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
         return false
     }
 
-    fun callNative(callee: SLNativeFuncObj, argCount: Int): Boolean {
+    fun callNative(callee: SLNativeFuncObj, argCount: Int, typeArgCount: Int = 0): Boolean {
         if (callee.value.arity != -1 && argCount != callee.value.arity) {
             runtimeError("Expected ${callee.value.arity} arguments but got ${argCount}.")
             return false
         }
 
-        frameStack.peek().stack.removeAt((frameStack.peek().stack.size - 1) - argCount)
-        val args = Array(argCount) { i -> frameStack.peek().pop() }
+        if (callee.value.typeArity != -1 && typeArgCount != callee.value.typeArity) {
+            runtimeError("Expected ${callee.value.typeArity} type arguments but got ${typeArgCount}.")
+            return false
+        }
+
+        frameStack.peek().stack.removeAt((frameStack.peek().stack.size - 1) - argCount - typeArgCount)
+        val typeArgs: Array<SLType> = Array(typeArgCount) { _ -> (frameStack.peek().pop() as SLType) }
+        val args = Array(argCount) { _ -> frameStack.peek().pop() }
+        typeArgs.reverse()
         args.reverse()
-        val value = callee.value.call(this, args)
+        val value = callee.value.call(this, args, typeArgs)
         frameStack.peek().push(value)
         return true
     }
@@ -1211,7 +1218,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
         fields["message"]?.value = SLString(message)
         val trace = getCurrentStacktrace(false)
 
-        fields["stacktrace"]?.value = SLArrayObj(SLArray(trace.size, sunlite).overwrite(trace as Array<AnySLValue>))
+        fields["stacktrace"]?.value = SLArrayObj(SLArray(trace.size, sunlite, Type.STRING).overwrite(trace as Array<AnySLValue>))
         return SLClassInstanceObj(SLClassInstance(clazz.value, mutableMapOf(), fields))
     }
 

@@ -1,8 +1,9 @@
 package sunsetsatellite.sunlite.vm
 
 import sunsetsatellite.sunlite.lang.Sunlite
+import sunsetsatellite.sunlite.lang.Type
 
-class SLTable(val sunlite: Sunlite) {
+class SLTable(val sunlite: Sunlite, val types: Pair<Type, Type>) {
     private var map: MutableMap<AnySLValue, AnySLValue> = mutableMapOf()
 
     fun internal(): MutableMap<AnySLValue, AnySLValue> {
@@ -23,7 +24,7 @@ class SLTable(val sunlite: Sunlite) {
     }
 
     fun copy(): SLTable {
-        return SLTable(sunlite).overwrite(map.mapKeys { it.key.copy() }.mapValues { it.value.copy() }.toMutableMap())
+        return SLTable(sunlite, types).overwrite(map.mapKeys { it.key.copy() }.mapValues { it.value.copy() }.toMutableMap())
     }
 
     override fun toString(): String {

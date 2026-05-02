@@ -28,6 +28,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM?, val enclosing: Compiler?) : Ex
 
     val incompleteBreaks: MutableList<Int> = mutableListOf()
     val incompleteContinues: MutableList<Int> = mutableListOf()
+    var currentReturn: Type? = null
 
     fun compile(
         type: FunctionType,
@@ -44,6 +45,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM?, val enclosing: Compiler?) : Ex
         currentFile = path
         chunk.debugInfo.file = currentFile
         currentFunctionType = type
+        currentReturn = null
 
         if (type == FunctionType.METHOD || type == FunctionType.INITIALIZER) {
             addIdentifier("this", Expr.This(Token.identifier("this")))
@@ -89,6 +91,10 @@ class Compiler(val sunlite: Sunlite, val vm: VM?, val enclosing: Compiler?) : Ex
         }
         incompleteContinues.forEach {
             sunlite.error(chunk.debugInfo.lines[it], "Unexpected 'continue' outside of loop.", chunk.debugInfo.file)
+        }
+
+        if(returnType != Type.NIL && currentReturn == null && !modifier.contains(FunctionModifier.ABSTRACT)){
+            sunlite.error(statements.lastOrNull()?.getLine() ?: -1, "Not all code paths of function '${name}' return a value.", chunk.debugInfo.file)
         }
 
         return SLFunction(
@@ -203,7 +209,6 @@ class Compiler(val sunlite: Sunlite, val vm: VM?, val enclosing: Compiler?) : Ex
     }
 
     private fun addConstant(value: AnySLValue, e: Element): Int {
-        //fixme: breaks with SLType objects, cause equals in it is stupid
         if (chunk.constants.contains(value) && value !is SLType) {
             return chunk.constants.indexOf(value)
         }
@@ -787,6 +792,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM?, val enclosing: Compiler?) : Ex
             return@removeIf it.depth > localScopeDepth
             //emitByte(Opcodes.POP, e)
         }
+        currentReturn = null
     }
 
     override fun visitIfStmt(stmt: Stmt.If) {
@@ -890,6 +896,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM?, val enclosing: Compiler?) : Ex
         if (currentFunctionType == FunctionType.INITIALIZER) {
             sunlite.error(stmt.getLine(), "Can't explicitly return from an initializer.", currentFile)
         }
+        currentReturn = stmt.value?.getExprType() ?: Type.NIL
         if (stmt.value == null) {
             emitByte(Opcodes.NIL, stmt)
             emitByte(Opcodes.RETURN, stmt)
@@ -1145,6 +1152,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM?, val enclosing: Compiler?) : Ex
     override fun visitThrowStmt(stmt: Stmt.Throw) {
         compile(stmt.expr)
         emitByte(Opcodes.THROW, stmt)
+        currentReturn = Type.UNKNOWN
     }
 
     override fun visitAnnotationStmt(stmt: Stmt.Annotation) {

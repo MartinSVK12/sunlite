@@ -1,8 +1,9 @@
 package sunsetsatellite.sunlite.vm
 
 import sunsetsatellite.sunlite.lang.Sunlite
+import sunsetsatellite.sunlite.lang.Type
 
-class SLArray(var size: Int, val sunlite: Sunlite) {
+class SLArray(var size: Int, val sunlite: Sunlite, val type: Type) {
     private var array: Array<AnySLValue> = VM.arrayOfNils(size)
 
     fun internal(): Array<AnySLValue> {
@@ -36,7 +37,7 @@ class SLArray(var size: Int, val sunlite: Sunlite) {
     }
 
     fun copy(): SLArray {
-        return SLArray(size, sunlite).overwrite(array.map { it.copy() }.toTypedArray())
+        return SLArray(size, sunlite, type).overwrite(array.map { it.copy() }.toTypedArray())
     }
 
     override fun toString(): String {

@@ -1,5 +1,8 @@
 import Iterator from "/sunlite/stdlib/iterable.sl";
 import Iterable from "/sunlite/stdlib/iterable.sl";
+import List from "/sunlite/stdlib/list.sl";
+import ArrayList from "/sunlite/stdlib/list.sl";
+import ListIterator from "/sunlite/stdlib/list.sl";
 
 interface<T> List implements Iterable {
     func size(): Int
@@ -143,27 +146,27 @@ class<T> ArrayList implements List {
     
     override func any(callback: Function<Generic<T>, Boolean>): Boolean {
         foreach(var o: Generic<T> in this){
-            if(callback(o)) {
-                return true;
+            if(callback(o)) { 
+                return true; 
             }
         }
         return false;
     }
     override func all(callback: Function<Generic<T>, Boolean>): Boolean {
         foreach(var o: Generic<T> in this){
-            if(!callback(o)) {
-                return false;
+            if(!callback(o)) { 
+                return false; 
             }
         }
         return true;
     }
     override func none(callback: Function<Generic<T>, Boolean>): Boolean {
         foreach(var o: Generic<T> in this){
-            if(callback(o)) {
-                return false;
+            if(!callback(o)) { 
+                return true; 
             }
         }
-        return true;
+        return false;
     }
 
     override func filter(callback: Function<Generic<T>,Boolean>): List<Generic<T>> {

@@ -1,4 +1,5 @@
-include "/iterable.sl";
+import Iterator from "/sunlite/stdlib/iterable.sl";
+import Iterable from "/sunlite/stdlib/iterable.sl";
 
 class array {
     static func forEach(arr: Array, block: Function<Any?, Nil>) {
@@ -18,21 +19,21 @@ class ArrayIterator implements Iterator {
     var _array: Array<Any?>? = nil;
     
     init(arr: Array<Any?>?) {
-        this._array = arr;
+        _array = arr;
     }
 
-    func current(): Any? {
-        return this._array[this._index] as Any?;
+    override func current(): Any? {
+        return _array[_index] as Any?;
     }
     
-    func next(): Any? {
-        val v = this._array[this._index] as Any?;
-        this._index = this._index + 1;
+    override func next(): Any? {
+        val v = _array[_index] as Any?;
+        _index = _index + 1;
         return v;
     }
     
-    func hasNext(): Boolean {
-        if(this._index < sizeOf(this._array)){
+    override func hasNext(): Boolean {
+        if(_index < sizeOf(_array)){
             return true;
         }
         return false;

@@ -30,6 +30,8 @@ class Parser(
         init {
             autoImported["Object"] = "/sunlite/stdlib/object.sl"
             autoImported["Exception"] = "/sunlite/stdlib/exception.sl"
+            autoImported["ArrayIterator"] = "/sunlite/stdlib/array.sl"
+            autoImported["array"] = "/sunlite/stdlib/array.sl"
         }
     }
 
@@ -1484,7 +1486,7 @@ class Parser(
                                 }
                             }
                             //sunlite.collector!!.findProp(expr.getNameToken(), )
-							typeParameters.add(Param(Token.identifier(typeParams?.get(i) ?: "???"),getType(function = false, noColon = true)))
+							typeParameters.add(Param(Token.identifier(typeParams?.getOrNull(i) ?: "???"),getType(function = false, noColon = true)))
 						} else {
 							typeParameters.add(Param(Token.identifier("????"),getType(function = false, noColon = true)))
 						}
