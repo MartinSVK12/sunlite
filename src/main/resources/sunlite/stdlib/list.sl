@@ -51,7 +51,7 @@ class ListIterator implements Iterator {
 class<T> ArrayList implements List {
 
     var _l: Int = 0;
-    var _a: Array<Generic<T>> = arrayOf(10);
+    var _a: Array<Generic<T>> = arrayOf(<Generic<T>>10);
 
     override func size(): Int { return _l; }
 

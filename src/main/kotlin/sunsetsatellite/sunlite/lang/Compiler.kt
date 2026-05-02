@@ -1068,6 +1068,8 @@ class Compiler(val sunlite: Sunlite, val vm: VM?, val enclosing: Compiler?) : Ex
 
         emitByte(Opcodes.POP, stmt)
 
+        stmt.staticInit?.let { compile(it) }
+
         if (currentClass?.hasSuperclass == true) {
             endScope(stmt)
         }

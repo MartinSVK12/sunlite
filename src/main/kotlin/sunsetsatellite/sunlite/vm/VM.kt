@@ -396,9 +396,6 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                             if (clazz.staticFields.containsKey(name)) {
                                 fr.pop()
                                 fr.push(clazz.staticFields[name]!!.value)
-                            } else if (clazz.methods.containsKey(name) && modifier?.contains(FunctionModifier.STATIC) == true) {
-                                fr.pop()
-                                fr.push(clazz.methods[name]!!)
                             } else if (modifier?.contains(FunctionModifier.STATIC) == true && modifier.contains(FunctionModifier.NATIVE) && bindMethod(
 		                            fr,
 		                            clazz,
@@ -406,6 +403,9 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
 	                            )
                             ) {
 
+                            } else if (clazz.methods.containsKey(name) && modifier?.contains(FunctionModifier.STATIC) == true) {
+                                fr.pop()
+                                fr.push(clazz.methods[name]!!)
                             } else {
                                 runtimeError("Undefined static property '$name'.")
                                 return

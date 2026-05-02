@@ -209,7 +209,7 @@ class Parser(
         // Stop if there was a syntax error.
         if (sunlite.hadError) {
             sunlite.imports.remove(id)
-            sunlite.error(keyword, "ImportError: SyntaxError in file being imported.")
+            //sunlite.error(keyword, "ImportError: SyntaxError in file being imported.")
             return null
         }
 
@@ -218,7 +218,7 @@ class Parser(
         // Stop if there was a type collection error.
         if (sunlite.hadError) {
             sunlite.imports.remove(id)
-            sunlite.error(keyword, "ImportError: TypeError in file being imported.")
+            //sunlite.error(keyword, "ImportError: TypeError in file being imported.")
             return null
         }
 
@@ -228,7 +228,7 @@ class Parser(
         // Stop if there was a syntax error.
         if (sunlite.hadError) {
             sunlite.imports.remove(id)
-            sunlite.error(keyword, "ImportError: SyntaxError in file being imported.")
+            //sunlite.error(keyword, "ImportError: SyntaxError in file being imported.")
             return null
         }
 
@@ -242,7 +242,7 @@ class Parser(
         // Stop if there was a type error.
         if (sunlite.hadError) {
             sunlite.imports.remove(id)
-            sunlite.error(keyword, "ImportError: TypeError in file being imported.")
+            //sunlite.error(keyword, "ImportError: TypeError in file being imported.")
             return null
         }
 
@@ -429,6 +429,7 @@ class Parser(
 
         val methods: MutableList<Stmt.Function> = ArrayList()
         val fields: MutableList<Stmt.Var> = ArrayList()
+        var staticInit: Stmt.Block? = null
         while (!checkToken(RIGHT_BRACE) && !isAtEnd()) {
             val currentModifier = peek()
             when {
@@ -499,6 +500,11 @@ class Parser(
                                 methods.add(function(FunctionType.METHOD, currentModifier))
                             }
 
+                            match(INIT) -> {
+                                consume(LEFT_BRACE, "Expected '{' before static initializer body.")
+                                staticInit = Stmt.Block(block(), previous().line, previous().file)
+                            }
+
                             else -> {
                                 throw error(peek(), "Expected a field or method declaration.")
                             }
@@ -539,7 +545,7 @@ class Parser(
 
         if(importing.isNotEmpty() && name.lexeme != importing) return null
 
-        return Stmt.Class(name, methods, fields, superclass, superinterfaces, modifier, typeParameters)
+        return Stmt.Class(name, methods, fields, superclass, superinterfaces, modifier, typeParameters, staticInit)
     }
 
     private fun interfaceDeclaration(): Stmt? {

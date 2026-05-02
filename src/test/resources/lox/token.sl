@@ -1,4 +1,4 @@
-import "/lox/tokenType.sl";
+import TokenType from "/lox/tokenType.sl";
 
 class Token {
     var type: Int = 0;

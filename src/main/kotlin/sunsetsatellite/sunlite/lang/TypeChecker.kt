@@ -156,6 +156,9 @@ class TypeChecker(val sunlite: Sunlite, val vm: VM?) : Expr.Visitor<Unit>, Stmt.
                 indexType = ref.typeParams[0].type
             }
         }
+        if(expr.obj.getExprType() == Type.UNKNOWN){
+            indexType = Type.UNKNOWN
+        }
         checkType(indexType, expr.what.getExprType(), false, expr.token)
     }
 

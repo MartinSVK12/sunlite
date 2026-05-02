@@ -222,7 +222,8 @@ abstract class Stmt : Element {
         val superclass: Expr.Variable?,
         val superinterfaces: List<Expr.Variable>,
         val modifier: ClassModifier,
-        val typeParameters: List<Param>
+        val typeParameters: List<Param>,
+        val staticInit: Block?
     ) : Stmt(), NamedStmt, GenericStmt {
         override fun <R> accept(visitor: Visitor<R>): R {
             return visitor.visitClassStmt(this)

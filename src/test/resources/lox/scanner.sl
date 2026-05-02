@@ -1,31 +1,33 @@
-import "/lox/tokenType.sl";
-import "/lox/token.sl";
-import "/lox/lox.sl";
-import "/sunlite/stdlib/list.sl";
-import "/sunlite/stdlib/string.sl";
-
-val KEYWORDS: Table<String, Int> = emptyTable();
-
-KEYWORDS["and"] = TokenType.AND;
-KEYWORDS["class"] = TokenType.CLASS;
-KEYWORDS["else"] = TokenType.ELSE;
-KEYWORDS["false"] = TokenType.FALSE;
-KEYWORDS["for"] = TokenType.FOR;
-KEYWORDS["fun"] = TokenType.FUN;
-KEYWORDS["if"] = TokenType.IF;
-KEYWORDS["nil"] = TokenType.NIL;
-KEYWORDS["or"] = TokenType.OR;
-KEYWORDS["print"] = TokenType.PRINT;
-KEYWORDS["return"] = TokenType.RETURN;
-KEYWORDS["super"] = TokenType.SUPER;
-KEYWORDS["this"] = TokenType.THIS;
-KEYWORDS["true"] = TokenType.TRUE;
-KEYWORDS["var"] = TokenType.VAR;
-KEYWORDS["while"] = TokenType.WHILE;
+import TokenType from "/lox/tokenType.sl";
+import Token from "/lox/token.sl";
+import Lox from "/lox/lox.sl";
+import List from "/sunlite/stdlib/list.sl";
+import ArrayList from "/sunlite/stdlib/list.sl";
 
 class Scanner {
     var source: String = "";
-    var tokens: List<Token> = List(<Token>);
+    var tokens: List<Token> = ArrayList(<Token>);
+
+    static val KEYWORDS: Table<String, Int> = emptyTable(<String, Int>);
+
+    static init {
+        Scanner.KEYWORDS["and"] = TokenType.AND;
+        Scanner.KEYWORDS["class"] = TokenType.CLASS;
+        Scanner.KEYWORDS["else"] = TokenType.ELSE;
+        Scanner.KEYWORDS["false"] = TokenType.FALSE;
+        Scanner.KEYWORDS["for"] = TokenType.FOR;
+        Scanner.KEYWORDS["fun"] = TokenType.FUN;
+        Scanner.KEYWORDS["if"] = TokenType.IF;
+        Scanner.KEYWORDS["nil"] = TokenType.NIL;
+        Scanner.KEYWORDS["or"] = TokenType.OR;
+        Scanner.KEYWORDS["print"] = TokenType.PRINT;
+        Scanner.KEYWORDS["return"] = TokenType.RETURN;
+        Scanner.KEYWORDS["super"] = TokenType.SUPER;
+        Scanner.KEYWORDS["this"] = TokenType.THIS;
+        Scanner.KEYWORDS["true"] = TokenType.TRUE;
+        Scanner.KEYWORDS["var"] = TokenType.VAR;
+        Scanner.KEYWORDS["while"] = TokenType.WHILE;
+    }
     
     var start: Int = 0;
     var current: Int = 0;
@@ -156,7 +158,7 @@ class Scanner {
             advance();
         }
         val s: String = source.sub(start, current);
-        var type: Int = KEYWORDS[s];
+        var type: Int = Scanner.KEYWORDS[s];
         if(type == nil){
            type = TokenType.IDENTIFIER; 
         }
