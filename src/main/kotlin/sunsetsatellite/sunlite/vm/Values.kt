@@ -398,6 +398,20 @@ object SLNil : SLValue<Unit>(Unit, 0) {
     }
 }
 
+object SLUninitialized : SLValue<Unit>(Unit, 1) {
+    override fun equals(other: Any?): Boolean {
+        return other is SLUninitialized
+    }
+
+    override fun copy(): SLValue<Unit> {
+        return SLUninitialized
+    }
+
+    override fun toString(): String {
+        return "<uninitialized>"
+    }
+}
+
 abstract class SLObj<T>(value: T, id: Int) : SLValue<T>(value, id) {
     fun isString(): Boolean {
         return value is String

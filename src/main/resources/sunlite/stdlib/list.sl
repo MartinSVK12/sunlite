@@ -53,6 +53,11 @@ class<T> ArrayList implements List {
     var _l: Int = 0;
     var _a: Array<Generic<T>> = arrayOf(<Generic<T>>10);
 
+    init(arr: Array) {
+        _a = arrayOf(<Generic<T>> sizeOf(arr));
+        Arrays.forEach(arr,func(o){ this.add(o); });
+    }
+
     override func size(): Int { return _l; }
 
     override func isEmpty(): Boolean {

@@ -66,6 +66,8 @@ object Disassembler {
             Opcodes.METHOD -> return constantInstruction(sb, opcode.name, chunk, offset)
             Opcodes.FIELD -> return constantInstruction(sb, opcode.name, chunk, offset)
             Opcodes.STATIC_FIELD -> return constantInstruction(sb, opcode.name, chunk, offset)
+            Opcodes.INIT_FIELD -> return constantInstruction(sb, opcode.name, chunk, offset)
+            Opcodes.INIT_STATIC_FIELD -> return constantInstruction(sb, opcode.name, chunk, offset)
             Opcodes.INHERIT -> return simpleInstruction(sb, opcode.name, offset)
             Opcodes.GET_SUPER -> return constantInstruction(sb, opcode.name, chunk, offset)
             Opcodes.ARRAY_GET -> return simpleInstruction(sb, opcode.name, offset)
@@ -76,6 +78,7 @@ object Disassembler {
             Opcodes.CAST -> return constantInstruction(sb, opcode.name, chunk, offset)
             Opcodes.SWAP -> return simpleInstruction(sb, opcode.name, offset)
             Opcodes.IMPORT -> return constantInstruction(sb, opcode.name, chunk, offset)
+            Opcodes.LOCK -> return simpleInstruction(sb, opcode.name, offset)
         }
     }
 
@@ -83,7 +86,7 @@ object Disassembler {
         var offset = startOffset
         val constant = ((chunk.code[offset + 1].toInt() and 0xFF) shl 8) or (chunk.code[offset + 2].toInt() and 0xFF)
         offset += 3
-        sb.append(String.format("%-16s (%02X) %4d ", name, Opcodes.valueOf(name).ordinal, constant))
+        sb.append(String.format("%-18s (%02X) %4d ", name, Opcodes.valueOf(name).ordinal, constant))
         if (constant > chunk.constants.size) {
             sb.append("<error reading constant>")
         } else {
@@ -111,7 +114,7 @@ object Disassembler {
         val jmp = ((chunk.code[offset + 1].toInt() and 0xFF) shl 8) or (chunk.code[offset + 2].toInt() and 0xFF)
         sb.append(
             String.format(
-                "%-16s (%02X) %4d -> %d\n",
+                "%-18s (%02X) %4d -> %d\n",
                 name,
                 Opcodes.valueOf(name).ordinal,
                 offset,
@@ -123,26 +126,26 @@ object Disassembler {
 
     private fun byteInstruction(sb: StringBuilder, name: String, chunk: Chunk, offset: Int): Int {
         val byte = chunk.code[offset + 1]
-        sb.append(String.format("%-16s (%02X) %4d\n", name, Opcodes.valueOf(name).ordinal, byte))
+        sb.append(String.format("%-18s (%02X) %4d\n", name, Opcodes.valueOf(name).ordinal, byte))
         return offset + 2
     }
 
     private fun twoByteInstruction(sb: StringBuilder, name: String, chunk: Chunk, offset: Int): Int {
         val byte = chunk.code[offset + 1]
         val byte2 = chunk.code[offset + 2]
-        sb.append(String.format("%-16s (%02X) %4d %4d\n", name, Opcodes.valueOf(name).ordinal, byte, byte2))
+        sb.append(String.format("%-18s (%02X) %4d %4d\n", name, Opcodes.valueOf(name).ordinal, byte, byte2))
         return offset + 3
     }
 
     private fun shortInstruction(sb: StringBuilder, name: String, chunk: Chunk, offset: Int): Int {
         val short = ((chunk.code[offset + 1].toInt() and 0xFF) shl 8) or (chunk.code[offset + 2].toInt() and 0xFF)
-        sb.append(String.format("%-16s (%02X) %4d\n", name, Opcodes.valueOf(name).ordinal, short))
+        sb.append(String.format("%-18s (%02X) %4d\n", name, Opcodes.valueOf(name).ordinal, short))
         return offset + 3
     }
 
     private fun constantInstruction(sb: StringBuilder, name: String, chunk: Chunk, offset: Int): Int {
         val constant = ((chunk.code[offset + 1].toInt() and 0xFF) shl 8) or (chunk.code[offset + 2].toInt() and 0xFF)
-        sb.append(String.format("%-16s (%02X) %4d ", name, Opcodes.valueOf(name).ordinal, constant))
+        sb.append(String.format("%-18s (%02X) %4d ", name, Opcodes.valueOf(name).ordinal, constant))
         if (constant > chunk.constants.size) {
             sb.append("<error reading constant>")
         } else {
@@ -153,7 +156,7 @@ object Disassembler {
     }
 
     private fun simpleInstruction(sb: StringBuilder, name: String, offset: Int): Int {
-        sb.append(String.format("%-16s (%02X)\n", name, Opcodes.valueOf(name).ordinal))
+        sb.append(String.format("%-18s (%02X)\n", name, Opcodes.valueOf(name).ordinal))
         return offset + 1
     }
 

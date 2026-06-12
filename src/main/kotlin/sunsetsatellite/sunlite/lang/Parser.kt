@@ -29,9 +29,10 @@ class Parser(
         val autoImported: MutableMap<String, String> = mutableMapOf()
         init {
             autoImported["Object"] = "/sunlite/stdlib/object.sl"
+            autoImported["Enum"] = "/sunlite/stdlib/enum.sl"
             autoImported["Exception"] = "/sunlite/stdlib/exception.sl"
             autoImported["ArrayIterator"] = "/sunlite/stdlib/array.sl"
-            autoImported["array"] = "/sunlite/stdlib/array.sl"
+            autoImported["Arrays"] = "/sunlite/stdlib/array.sl"
             autoImported["string"] = "/sunlite/stdlib/string.sl"
         }
     }
@@ -111,6 +112,7 @@ class Parser(
                 classDeclaration(ClassModifier.ABSTRACT)
             }
             match(CLASS) -> classDeclaration(ClassModifier.NORMAL)
+            match(ENUM) -> enumDeclaration()
             match(INTERFACE) -> interfaceDeclaration()
             else -> {
                 val stmt = statement()
@@ -546,6 +548,171 @@ class Parser(
         if(importing.isNotEmpty() && name.lexeme != importing) return null
 
         return Stmt.Class(name, methods, fields, superclass, superinterfaces, modifier, typeParameters, staticInit)
+    }
+
+    private fun enumDeclaration(): Stmt? {
+        val name = consume(IDENTIFIER, "Expected enum name.")
+
+        currentClass = name
+
+        val superclass = Variable(Token.identifier("Enum", previous()))
+
+        consume(LEFT_BRACE, "Expected '{' before enum body.")
+
+        if(importing.isEmpty() || (importing.isNotEmpty() && name.lexeme == importing)){
+            val types = sunlite.collector?.typeHierarchy
+            if(types?.containsKey(name.lexeme) == false || (types?.containsKey(name.lexeme) == true && types[name.lexeme]?.incomplete == true)){
+                types[name.lexeme] = TypeCollector.TypePrototype(
+                    name.lexeme,
+	                superclass.name.lexeme,
+                    listOf(),
+                    listOf(),
+                    ClassModifier.SEALED,
+                    null,
+                    true,
+                    sunlite.compileStep
+                )
+            }
+        }
+
+        val methods: MutableList<Stmt.Function> = ArrayList()
+        val fields: MutableList<Stmt.Var> = ArrayList()
+        var staticInit: Stmt.Block? = null
+
+        if(checkToken(IDENTIFIER)){
+            do {
+                val valueName = peek()
+                advance()
+                val enumType = Type.ofObject(name.lexeme)
+                val enumClass = Variable(name, enumType, true)
+	            val initializer: Call =
+                    if(checkToken(LEFT_PAREN)){
+                        advance()
+                        finishCall(enumClass, listOf()) as Call
+                    } else {
+                        Call(enumClass, valueName, listOf(), listOf())
+                    }
+                fields.add(Stmt.Var(valueName, enumType, initializer, FieldModifier.STATIC_CONST))
+            } while (match(COMMA))
+            consume(SEMICOLON, "Expected ';' after enum values declaration.")
+        }
+
+        while (!checkToken(RIGHT_BRACE) && !isAtEnd()) {
+            val currentModifier = peek()
+            when {
+                match(OPERATOR) -> {
+                    when {
+                        match(FUN) -> {
+                            methods.add(function(FunctionType.METHOD, currentModifier))
+                        }
+                    }
+                }
+
+                checkToken(OVERRIDE) && checkNext(REQUIRED) -> {
+                    val modifier = peek()
+                    val modifier2 = next()
+                    advance()
+                    advance()
+                    when {
+                        match(FUN) -> {
+                            methods.add(function(FunctionType.METHOD, modifier, modifier2))
+                        }
+                    }
+                }
+
+                match(ABSTRACT) -> {
+                    methods.add(abstractMethod())
+                }
+
+                match(OVERRIDE) -> {
+                    when {
+                        match(FUN) -> {
+                            methods.add(function(FunctionType.METHOD, currentModifier))
+                        }
+                    }
+                }
+
+                match(REQUIRED) -> {
+                    when {
+                        match(FUN) -> {
+                            methods.add(function(FunctionType.METHOD, currentModifier))
+                        }
+                    }
+                }
+
+                checkToken(STATIC) && checkNext(NATIVE) -> {
+                    val modifier = peek()
+                    val modifier2 = next()
+                    advance()
+                    advance()
+                    when {
+                        match(FUN) -> {
+                            methods.add(function(FunctionType.METHOD, modifier, modifier2))
+                        }
+                    }
+                }
+
+                match(STATIC) || match(NATIVE) -> {
+                    if (previous().type == STATIC) {
+                        when {
+                            match(VAR) -> {
+                                fields.add(varDeclaration(FieldModifier.STATIC))
+                            }
+
+                            match(VAL) -> {
+                                fields.add(varDeclaration(FieldModifier.STATIC_CONST))
+                            }
+
+                            match(FUN) -> {
+                                methods.add(function(FunctionType.METHOD, currentModifier))
+                            }
+
+                            match(INIT) -> {
+                                consume(LEFT_BRACE, "Expected '{' before static initializer body.")
+                                staticInit = Stmt.Block(block(), previous().line, previous().file)
+                            }
+
+                            else -> {
+                                throw error(peek(), "Expected a field or method declaration.")
+                            }
+                        }
+                    } else if (match(FUN)) {
+                        //throw error(peek(), "Expected 'static' before native method declaration.")
+                        methods.add(function(FunctionType.METHOD, currentModifier))
+                    } else {
+                        throw error(peek(), "Expected a field or method declaration.")
+                    }
+                }
+
+                match(VAR) -> {
+                    fields.add(varDeclaration())
+                }
+
+                match(VAL) -> {
+                    fields.add(varDeclaration(FieldModifier.CONST))
+                }
+
+                match(FUN) -> {
+                    methods.add(function(FunctionType.METHOD, null))
+                }
+
+                match(INIT) -> {
+                    methods.add(function(FunctionType.INITIALIZER, null))
+                }
+
+                else -> {
+                    throw error(peek(), "Expected a field or method declaration.")
+                }
+            }
+        }
+
+        consume(RIGHT_BRACE, "Expected '}' after enum body.")
+
+        currentClass = null
+
+        if(importing.isNotEmpty() && name.lexeme != importing) return null
+
+        return Stmt.Class(name, methods, fields, superclass, listOf(), ClassModifier.SEALED, listOf(), staticInit)
     }
 
     private fun interfaceDeclaration(): Stmt? {

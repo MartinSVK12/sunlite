@@ -11,6 +11,8 @@ class SLClass(
     val isAbstract: Boolean = false,
     val isInterface: Boolean = false,
     val isSealed: Boolean = false,
+    val isEnum: Boolean = false,
+    var isLocked: Boolean = false,
 ) {
 
     override fun toString(): String {
@@ -25,7 +27,10 @@ class SLClass(
             staticFields.mapValues { it.value.copy() }.toMutableMap(),
             typeParams.toMutableMap(),
             isAbstract,
-            isInterface
+            isInterface,
+            isSealed,
+            isEnum,
+            isLocked
         )
     }
 }

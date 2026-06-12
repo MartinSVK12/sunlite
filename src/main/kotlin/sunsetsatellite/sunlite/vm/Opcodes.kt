@@ -37,6 +37,8 @@ enum class Opcodes {
     METHOD,
     FIELD,
     STATIC_FIELD,
+    INIT_FIELD,
+    INIT_STATIC_FIELD,
     TYPE_PARAM,
     INHERIT,
     GET_SUPER,
@@ -46,5 +48,6 @@ enum class Opcodes {
     CHECK,
     CAST,
     SWAP,
-    IMPORT
+    IMPORT,
+    LOCK
 }

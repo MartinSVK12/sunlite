@@ -997,6 +997,11 @@ class Compiler(val sunlite: Sunlite, val vm: VM?, val enclosing: Compiler?) : Ex
         val nameConstant = addIdentifier(className.lexeme, stmt)
         declareVariable(className, stmt)
 
+        if(stmt.superclass?.name?.lexeme == "Enum"){
+            emitByte(Opcodes.TRUE, stmt)
+        } else {
+            emitByte(Opcodes.FALSE, stmt)
+        }
         if(stmt.modifier == ClassModifier.SEALED){
             emitByte(Opcodes.TRUE, stmt)
         } else {
@@ -1053,7 +1058,6 @@ class Compiler(val sunlite: Sunlite, val vm: VM?, val enclosing: Compiler?) : Ex
 
         for (vars in stmt.fieldDefaults) {
             val name = addIdentifier(vars.name.lexeme, stmt)
-            vars.initializer?.let { compile(it) } ?: emitByte(Opcodes.NIL, stmt)
             emitConstant(SLType(vars.type), vars)
             if (vars.modifier == FieldModifier.STATIC || vars.modifier == FieldModifier.STATIC_CONST) {
                 emitByte(Opcodes.STATIC_FIELD, stmt)
@@ -1069,6 +1073,23 @@ class Compiler(val sunlite: Sunlite, val vm: VM?, val enclosing: Compiler?) : Ex
             compile(method)
             emitByte(Opcodes.METHOD, stmt)
             emitShort(methodName, stmt)
+        }
+
+        for (vars in stmt.fieldDefaults) {
+            vars.initializer?.let {
+                val name = addIdentifier(vars.name.lexeme, stmt)
+                compile(it)
+                if (vars.modifier == FieldModifier.STATIC || vars.modifier == FieldModifier.STATIC_CONST) {
+                    emitByte(Opcodes.INIT_STATIC_FIELD, stmt)
+                } else {
+                    emitByte(Opcodes.INIT_FIELD, stmt)
+                }
+                emitShort(name, stmt)
+            }
+        }
+
+        if(stmt.superclass?.name?.lexeme == "Enum"){
+            emitByte(Opcodes.LOCK, stmt)
         }
 
         emitByte(Opcodes.POP, stmt)
@@ -1087,6 +1108,8 @@ class Compiler(val sunlite: Sunlite, val vm: VM?, val enclosing: Compiler?) : Ex
         val nameConstant = addIdentifier(className.lexeme, stmt)
         declareVariable(className, stmt)
 
+        emitByte(Opcodes.FALSE, stmt)
+        emitByte(Opcodes.FALSE, stmt)
         emitByte(Opcodes.TRUE, stmt)
         emitByte(Opcodes.TRUE, stmt)
         emitByte(Opcodes.CLASS, stmt)

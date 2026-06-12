@@ -4,6 +4,8 @@ program        → declaration* EOF ;
 
 declaration    → classDecl
                | interfaceDecl
+               | enumDecl
+               | enumValueDecl
                | funDecl
                | varDecl
                | statement ;
@@ -14,6 +16,8 @@ interfaceDecl  → "interface" ( typeParam )? IDENTIFIER ( "implements" IDENTIFI
                  "{" abstractMethod* "}" ;
 funDecl        → "func" ( typeParam )? function ;
 varDecl        → ( "static" )? ( "var" | "val" ) IDENTIFIER ( ":" type )? ( "=" expression )?  ";" ;
+enumDecl       → "enum" IDENTIFIER "{" ( enumValueDecl ( "," enumValueDecl )* )? ";" varDecl* method* initializer* ( staticInit )? "}" ;
+enumValueDecl  → IDENTIFIER ( "(" parameters? ")" )? ;
 
 // STATEMENTS
 

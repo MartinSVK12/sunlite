@@ -33,7 +33,7 @@ object AstPrinter : Expr.Visitor<String>, Stmt.Visitor<String> {
     }
 
     override fun visitVariableExpr(expr: Expr.Variable): String {
-        return "(var ${expr.name.lexeme}: ${expr.type})"
+        return "(variable ${expr.name.lexeme}: ${expr.type})"
     }
 
     override fun visitAssignExpr(expr: Expr.Assign): String {

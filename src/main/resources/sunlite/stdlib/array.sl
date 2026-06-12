@@ -1,7 +1,7 @@
 import Iterator from "/sunlite/stdlib/iterable.sl";
 import Iterable from "/sunlite/stdlib/iterable.sl";
 
-class array {
+class Arrays {
     static func forEach(arr: Array, block: Function<Any?, Nil>) {
         for (var i: Int = 0; i < sizeOf(arr); i = i + 1){
             block(arr[i]);
@@ -10,6 +10,12 @@ class array {
     
     static func getIterator(arr: Array): ArrayIterator {
         return ArrayIterator(arr);
+    }
+
+    static func printContents(arr: Array) {
+        for (var i: Int = 0; i < sizeOf(arr); i = i + 1){
+            print(arr[i]);
+        }
     }
 }
 

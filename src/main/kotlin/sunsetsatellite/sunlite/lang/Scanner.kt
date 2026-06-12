@@ -77,6 +77,7 @@ class Scanner(private var source: String, val sunlite: Sunlite) {
             keywords["from"] = FROM
             keywords["required"] = REQUIRED
             keywords["abstract"] = ABSTRACT
+            keywords["enum"] = ENUM
         }
     }
 

@@ -336,6 +336,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                         val isInterface = fr.pop() as SLBool
                         val isAbstract = fr.pop() as SLBool
                         val isSealed = fr.pop() as SLBool
+                        val isEnum = fr.pop() as SLBool
                         fr.push(
                             SLClassObj(
                                 SLClass(
@@ -346,7 +347,8 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                                     mutableMapOf(),
                                     isAbstract.value,
                                     isInterface.value,
-                                    isSealed.value
+                                    isSealed.value,
+                                    isEnum.value
                                 )
                             )
                         )
@@ -530,6 +532,23 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                         defineStaticField(fr, readString(fr).value)
                     }
 
+                    Opcodes.INIT_FIELD -> {
+                        initField(fr, readString(fr).value)
+                    }
+
+                    Opcodes.INIT_STATIC_FIELD -> {
+                        initStaticField(fr, readString(fr).value)
+                    }
+
+                    Opcodes.LOCK -> {
+                        val clazz = (fr.peek(0) as SLClassObj).value
+                        if(clazz.isLocked){
+                            throwException("Class '${clazz.name}' already locked.")
+                            return
+                        }
+                        clazz.isLocked = true
+                    }
+
                     Opcodes.TYPE_PARAM -> {
                         defineTypeParam(fr, readString(fr).value)
                     }
@@ -550,6 +569,10 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                         }
                         if(superclass.value.isSealed){
                             runtimeError("Cannot extend sealed class '${subclass.value.name}'.")
+                            return
+                        }
+                        if(superclass.value.isEnum){
+                            runtimeError("Cannot extend enum '${subclass.value.name}'.")
                             return
                         }
                         subclass.value.methods.putAll(superclass.value.methods)
@@ -691,7 +714,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
     }
 
     private fun defineMethod(fr: CallFrame, name: String) {
-        var method = fr.peek(0) as SLClosureObj
+        val method = fr.peek(0) as SLClosureObj
         val clazz = (fr.peek(1) as SLClassObj).value
         val function = method.value.function
         if (!function.modifier.contains(FunctionModifier.ABSTRACT) && clazz.isInterface) {
@@ -807,19 +830,47 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
 
     private fun defineField(fr: CallFrame, name: String) {
         val type = fr.peek(0) as SLType
-        val value = fr.peek(1)
-        val clazz = (fr.peek(2) as SLClassObj).value
-        clazz.fieldDefaults[name] = SLField(type.value, value)
-        fr.pop()
+        //val value = fr.peek(1)
+        val clazz = (fr.peek(1) as SLClassObj).value
+        clazz.fieldDefaults[name] = SLField(type.value, SLUninitialized)
         fr.pop()
     }
 
     private fun defineStaticField(fr: CallFrame, name: String) {
         val type = fr.peek(0) as SLType
-        val value = fr.peek(1)
-        val clazz = (fr.peek(2) as SLClassObj).value
-        clazz.staticFields[name] = SLField(type.value, value)
+        //val value = fr.peek(1)
+        val clazz = (fr.peek(1) as SLClassObj).value
+        clazz.staticFields[name] = SLField(type.value, SLUninitialized)
         fr.pop()
+    }
+
+    private fun initField(fr: CallFrame, name: String) {
+        val value = fr.peek(0)
+        val clazz = (fr.peek(1) as SLClassObj).value
+        if(clazz.fieldDefaults[name]!!.value is SLUninitialized){
+            clazz.fieldDefaults[name]!!.value = value
+        } else {
+            throwException("Field '$name' already initialized.")
+            return
+        }
+        fr.pop()
+    }
+
+    private fun initStaticField(fr: CallFrame, name: String) {
+        val value = fr.peek(0)
+        val clazz = (fr.peek(1) as SLClassObj).value
+        if(clazz.staticFields[name]!!.value is SLUninitialized){
+            clazz.staticFields[name]!!.value = value
+            if(clazz.isEnum && value is SLClassInstanceObj && value.value.clazz.name == clazz.name){
+	            clazz.staticFields.keys.indexOf(name).let {
+                    value.value.fields["ordinal"] = SLField(Type.INT, SLInt(it))
+	            }
+                value.value.fields["name"] = SLField(Type.STRING, SLString(name))
+            }
+        } else {
+            throwException("Static field '$name' already initialized.")
+            return
+        }
         fr.pop()
     }
 
@@ -870,6 +921,14 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                     }
                     if (callee.value.isInterface) {
                         runtimeError("Can't instantiate interface '${callee.value.name}'.")
+                        return false
+                    }
+                    if(callee.value.isLocked){
+                        if(callee.value.isEnum){
+                            runtimeError("Can't instantiate enum '${callee.value.name}'.")
+                            return false
+                        }
+                        runtimeError("Can't create more instances of class '${callee.value.name}' because it is locked.")
                         return false
                     }
                     val stack = frameStack.peek().stack
@@ -1014,7 +1073,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                                 runtimeError("Native method '$methodName' bound to invalid value '${globals[methodName]}'.")
                                 return false
                             }
-                            return callNative(globals[methodName] as SLNativeFuncObj, argCount, typeArgCount)
+                            return callNative(globals[methodName] as SLNativeFuncObj, argCount, typeArgCount, callee.value.receiver)
                         } else {
                             runtimeError("Can only call static methods on classes.")
                             return false
@@ -1027,7 +1086,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
         return false
     }
 
-    fun callNative(callee: SLNativeFuncObj, argCount: Int, typeArgCount: Int = 0, receiverObj: SLClassInstanceObj? = null): Boolean {
+    fun callNative(callee: SLNativeFuncObj, argCount: Int, typeArgCount: Int = 0, receiverObj: AnySLValue? = null): Boolean {
         if (callee.value.arity != -1 && argCount != callee.value.arity) {
             runtimeError("Expected ${callee.value.arity} arguments but got ${argCount}.")
             return false

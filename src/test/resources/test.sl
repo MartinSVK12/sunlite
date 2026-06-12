@@ -1,17 +1,15 @@
-import Reflect from "/sunlite/stdlib/reflect.sl";
+import ArrayList from "/sunlite/stdlib/list.sl";
 
-class A {
-    static var sv := 69;
-    var v := 420;
+enum Test {
+    ONE(1),
+    TWO(2),
+    THREE(3);
 
-    static func sf() {
-        print(sv);
-    }
+    var value: Int;
 
-    func f() {
-        print(v);
+    init(v: Int) {
+        value = v;
     }
 }
 
-val names: Array<Field> = Reflect.getFields(A());
-array.forEach(names,func(o){print(o.toString());});
+print(Enum.fromName(Test, "ONE").name);

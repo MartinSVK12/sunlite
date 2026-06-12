@@ -8,5 +8,5 @@ abstract class SLNativeFunction(val name: String, val returnType: Type, val arit
         return "<native fn '${name}'>"
     }
 
-    abstract fun call(vm: VM, args: Array<AnySLValue>, typeArgs: Array<SLType>, receiver: SLClassInstanceObj? = null): AnySLValue
+    abstract fun call(vm: VM, args: Array<AnySLValue>, typeArgs: Array<SLType>, receiver: AnySLValue? = null): AnySLValue
 }
