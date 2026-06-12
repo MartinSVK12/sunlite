@@ -1,22 +1,17 @@
+import Reflect from "/sunlite/stdlib/reflect.sl";
+
 class A {
+    static var sv := 69;
+    var v := 420;
 
-    var x := 1;
+    static func sf() {
+        print(sv);
+    }
 
-    func method() {
-        print(this);
-        print("hi");
+    func f() {
+        print(v);
     }
 }
 
-class B extends A {
-
-    override func method() {
-        print("hi 2");
-    }
-
-    func test() {
-        super.method();
-    }
-}
-
-B().test();
+val names: Array<Field> = Reflect.getFields(A());
+array.forEach(names,func(o){print(o.toString());});

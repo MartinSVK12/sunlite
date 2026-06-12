@@ -35,7 +35,7 @@ class TypeChecker(val sunlite: Sunlite, val vm: VM?) : Expr.Visitor<Unit>, Stmt.
         if(expected is Type.Parameter && actual != Type.UNKNOWN && runtime) return
         if (!valid) {
             if (runtime && vm != null) {
-                vm.throwException(0, vm.makeExceptionObject("TypeError: Expected '$expected' but got '$actual'."))
+                vm.throwException("TypeError: Expected '$expected' but got '$actual'.")
             } else {
                 sunlite.error(token!!, "Expected '$expected' but got '$actual'.")
             }

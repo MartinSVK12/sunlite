@@ -1048,7 +1048,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM?, val enclosing: Compiler?) : Ex
 
         for (vars in stmt.fieldDefaults) {
             val name = addIdentifier(vars.name.lexeme, stmt)
-            vars.initializer?.let { compile(it) }
+            vars.initializer?.let { compile(it) } ?: emitByte(Opcodes.NIL, stmt)
             emitConstant(SLType(vars.type), vars)
             if (vars.modifier == FieldModifier.STATIC || vars.modifier == FieldModifier.STATIC_CONST) {
                 emitByte(Opcodes.STATIC_FIELD, stmt)

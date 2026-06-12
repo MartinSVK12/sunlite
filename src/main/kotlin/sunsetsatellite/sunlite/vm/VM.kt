@@ -433,7 +433,10 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                         } else if (arg is SLArrayObj) {
                             val instance = arg.value
                             val name = readString(fr).value
-                            if (globals.containsKey("array")) {
+                            //todo: incompatible with class loading
+                            runtimeError("Please use array.method(arr, ...) instead of arr.method(...) for now.")
+                            return
+                            /*if (globals.containsKey("array")) {
                                 val clazz = globals["array"]!!.value as SLClass
                                 if (!clazz.methods.containsKey(name)) {
                                     runtimeError("Undefined property '$name'.")
@@ -446,7 +449,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                             } else {
                                 runtimeError("InternalError: missing stdlib classes")
                                 return
-                            }
+                            }*/
                         } else if (primitiveWrappers.containsKey(arg.javaClass)) {
                             val wrapperClassName = primitiveWrappers[arg.javaClass]!!
                             val name = readString(fr).value
@@ -989,7 +992,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                                 runtimeError("Native method '$methodName' bound to invalid value '${globals[methodName]}'.")
                                 return false
                             }
-                            return callNative(globals[methodName] as SLNativeFuncObj, argCount, typeArgCount)
+                            return callNative(globals[methodName] as SLNativeFuncObj, argCount, typeArgCount, callee.value.receiver)
                         }
                         val success = call(SLClosureObj(callee.value.method), argCount, typeArgCount, callee.value.receiver)
                         if (!success) return false
@@ -1020,7 +1023,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
         return false
     }
 
-    fun callNative(callee: SLNativeFuncObj, argCount: Int, typeArgCount: Int = 0): Boolean {
+    fun callNative(callee: SLNativeFuncObj, argCount: Int, typeArgCount: Int = 0, receiverObj: SLClassInstanceObj? = null): Boolean {
         if (callee.value.arity != -1 && argCount != callee.value.arity) {
             runtimeError("Expected ${callee.value.arity} arguments but got ${argCount}.")
             return false
@@ -1033,10 +1036,10 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
 
         frameStack.peek().stack.removeAt((frameStack.peek().stack.size - 1) - argCount - typeArgCount)
         val typeArgs: Array<SLType> = Array(typeArgCount) { _ -> (frameStack.peek().pop() as SLType) }
-        val args = Array(argCount) { _ -> frameStack.peek().pop() }
-        typeArgs.reverse()
+        val args: Array<AnySLValue> = Array(argCount) { _ -> frameStack.peek().pop() }
+	    typeArgs.reverse()
         args.reverse()
-        val value = callee.value.call(this, args, typeArgs)
+        val value = callee.value.call(this, args, typeArgs, receiverObj)
         frameStack.peek().push(value)
         return true
     }
@@ -1245,6 +1248,10 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
         return trace
     }
 
+    fun throwException(message: String) {
+        throwException(frameStack.size - 1, makeExceptionObject(message))
+    }
+
     fun throwException(index: Int, e: SLClassInstanceObj) {
         if (index < 0) {
             throw UnhandledException(e)
@@ -1377,6 +1384,6 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
 
         sunlite.hadRuntimeError = true
 
-        throwException(frameStack.size - 1, makeExceptionObject(message))
+        throwException(message)
     }
 }

@@ -2,7 +2,7 @@ import File from "/sunlite/stdlib/file.sl";
 import Scanner from "/lox/scanner.sl";
 import List from "/sunlite/stdlib/list.sl";
 
-val file: File = File.open("test.lox");
+val file: File = File("test.lox").open();
 val s: String = file.readText();
 
 val scanner: Scanner = Scanner(s);

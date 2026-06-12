@@ -510,8 +510,8 @@ class Parser(
                             }
                         }
                     } else if (match(FUN)) {
-                        throw error(peek(), "Expected 'static' before native method declaration.")
-                        //methods.add(function(FunctionType.METHOD, currentModifier))
+                        //throw error(peek(), "Expected 'static' before native method declaration.")
+                        methods.add(function(FunctionType.METHOD, currentModifier))
                     } else {
                         throw error(peek(), "Expected a field or method declaration.")
                     }
