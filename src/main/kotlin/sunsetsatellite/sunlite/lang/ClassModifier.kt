@@ -2,7 +2,8 @@ package sunsetsatellite.sunlite.lang
 
 enum class ClassModifier {
     NORMAL,
-    ABSTRACT;
+    ABSTRACT,
+    SEALED;
 
     companion object {
         fun get(token: Token?): ClassModifier {

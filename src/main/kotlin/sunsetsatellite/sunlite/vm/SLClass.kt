@@ -10,6 +10,7 @@ class SLClass(
     val typeParams: MutableMap<String, Type>,
     val isAbstract: Boolean = false,
     val isInterface: Boolean = false,
+    val isSealed: Boolean = false,
 ) {
 
     override fun toString(): String {

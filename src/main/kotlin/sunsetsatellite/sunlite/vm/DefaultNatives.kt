@@ -1,5 +1,6 @@
 package sunsetsatellite.sunlite.vm
 
+import sunsetsatellite.sunlite.lang.Token
 import sunsetsatellite.sunlite.lang.Type
 import java.io.File
 import java.io.IOException
@@ -526,7 +527,7 @@ object DefaultNatives : Natives {
                 val clazz = args[0]
                 val array: Array<AnySLValue>
                 if(clazz is SLClassObj){
-                    array = clazz.value.fieldDefaults.map { SLString(it.key) }.toTypedArray()
+                    array = clazz.value.staticFields.map { SLString(it.key) }.toTypedArray()
                 } else if(clazz is SLClassInstanceObj){
                     array = clazz.value.fields.map { SLString(it.key) }.toTypedArray()
                 } else {
@@ -565,6 +566,41 @@ object DefaultNatives : Natives {
                     return SLNil
                 }
                 obj.fields["<foreign>field"] = field
+                return SLNil
+            }
+        })
+        natives.defineNative(object : SLNativeFunction("Field#get", Type.NULLABLE_ANY,0,1) {
+            override fun call(
+                vm: VM,
+                args: Array<AnySLValue>,
+                typeArgs: Array<SLType>,
+                receiver: SLClassInstanceObj?
+            ): AnySLValue {
+                val field = receiver!!.value
+                vm.typeChecker.checkType(Type.ofObject("Field"), Type.fromValue(field, vm.sunlite), true)
+                field.fields["<foreign>field"]?.let {
+                    return it.value
+                }
+                vm.throwException("Tried to get value from uninitialized field.")
+                return SLNil
+            }
+        })
+        natives.defineNative(object : SLNativeFunction("Field#set", Type.NIL,1,0) {
+            override fun call(
+                vm: VM,
+                args: Array<AnySLValue>,
+                typeArgs: Array<SLType>,
+                receiver: SLClassInstanceObj?
+            ): AnySLValue {
+                val field = receiver!!.value
+                val value = args[0]
+                vm.typeChecker.checkType(Type.ofObject("Field"), Type.fromValue(field, vm.sunlite), true)
+                field.fields["<foreign>field"]?.let {
+                    vm.typeChecker.checkType(it.type, Type.fromValue(value.value, vm.sunlite), true)
+                    it.value = value
+                    return SLNil
+                }
+                vm.throwException("Tried to set value of uninitialized field.")
                 return SLNil
             }
         })

@@ -26,6 +26,8 @@ class Field {
     }
 
     native func loadField()
+    native func<T> get(): Generic<T>?
+    native func set(v: Any?)
 
     override func toString(): String {
         return "<field '${name}'>";

@@ -997,6 +997,11 @@ class Compiler(val sunlite: Sunlite, val vm: VM?, val enclosing: Compiler?) : Ex
         val nameConstant = addIdentifier(className.lexeme, stmt)
         declareVariable(className, stmt)
 
+        if(stmt.modifier == ClassModifier.SEALED){
+            emitByte(Opcodes.TRUE, stmt)
+        } else {
+            emitByte(Opcodes.FALSE, stmt)
+        }
         if(stmt.modifier == ClassModifier.ABSTRACT){
             emitByte(Opcodes.TRUE, stmt)
         } else {

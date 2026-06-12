@@ -335,6 +335,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                         val constant = readConstant(fr) as SLString
                         val isInterface = fr.pop() as SLBool
                         val isAbstract = fr.pop() as SLBool
+                        val isSealed = fr.pop() as SLBool
                         fr.push(
                             SLClassObj(
                                 SLClass(
@@ -344,7 +345,8 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                                     mutableMapOf(),
                                     mutableMapOf(),
                                     isAbstract.value,
-                                    isInterface.value
+                                    isInterface.value,
+                                    isSealed.value
                                 )
                             )
                         )
@@ -546,7 +548,10 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                             runtimeError("Only classes support inheritance.")
                             return
                         }
-
+                        if(superclass.value.isSealed){
+                            runtimeError("Cannot extend sealed class '${subclass.value.name}'.")
+                            return
+                        }
                         subclass.value.methods.putAll(superclass.value.methods)
                         subclass.value.fieldDefaults.putAll(superclass.value.fieldDefaults)
                         fr.pop()
@@ -557,7 +562,6 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                         val name = readString(fr)
                         val superclass = fr.pop()
 
-                        //fixme: getting super class is completely broken
                         if (superclass !is SLClassObj) {
                             runtimeError("Superclass must be a class, got ${superclass} instead.")
                             return
