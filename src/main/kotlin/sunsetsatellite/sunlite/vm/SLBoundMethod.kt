@@ -3,7 +3,7 @@ package sunsetsatellite.sunlite.vm
 class SLBoundMethod(val method: SLClosure, val receiver: AnySLValue) {
 
     override fun toString(): String {
-        return method.toString()
+        return "<method '${receiver}::$method'>"
     }
 
     fun copy(): SLBoundMethod {

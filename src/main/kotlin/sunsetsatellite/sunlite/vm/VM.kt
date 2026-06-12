@@ -80,8 +80,11 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
             }
             var fr: CallFrame = currentFrame!!
             if (fr.pc < fr.closure.function.chunk.code.size) {
-                if (Sunlite.bytecodeDebug) {
+                if (Sunlite.bytecodeDebug && !noExceptions) {;
                     val sb = StringBuilder()
+                    if(noExceptions){
+                        sb.append("INTERNAL\n")
+                    }
                     sb.append("STACK @ ${fr.closure.function.chunk.debugInfo.file}::${fr.closure.function.name}${Type.fromValue(fr.closure.function, sunlite).getDescriptor()}: ")
                     for (value in fr.stack) {
                         sb.append("[ ")
@@ -315,7 +318,12 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
 
                     Opcodes.GET_UPVALUE -> {
                         val slot = readShort(fr)
-                        fr.push(fr.closure.upvalues[slot]?.closedValue ?: SLNil)
+                        val closedValue = fr.closure.upvalues[slot]?.closedValue
+                        if(closedValue == null){
+                            runtimeError("Tried to get undefined upvalue in slot ${slot}.")
+                            return
+                        }
+                        fr.push(closedValue)
                     }
 
                     Opcodes.SET_UPVALUE -> {
@@ -546,8 +554,9 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                         val name = readString(fr)
                         val superclass = fr.pop()
 
+                        //fixme: getting super class is completely broken
                         if (superclass !is SLClassObj) {
-                            runtimeError("Superclass must be a class.")
+                            runtimeError("Superclass must be a class, got ${superclass} instead.")
                             return
                         }
 

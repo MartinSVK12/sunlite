@@ -11,7 +11,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM?, val enclosing: Compiler?) : Ex
 
     class Upvalue(val index: Int, val isLocal: Boolean)
 
-    class ClassInfo(val enclosing: ClassInfo? = null) {
+    class ClassInfo(val name: Token, val enclosing: ClassInfo? = null) {
         var hasSuperclass: Boolean = false
     }
 
@@ -673,7 +673,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM?, val enclosing: Compiler?) : Ex
             sunlite.error(expr.getLine(), "Can't refer to 'super' outside of a class.", currentFile)
             return
         } else if (compiler.currentClass?.hasSuperclass == false) {
-            sunlite.error(expr.getLine(), "Can't refer to 'super' in a class with no superclass.", currentFile)
+            sunlite.error(expr.getLine(), "Can't refer to 'super' in a class with no explicit superclass.", currentFile)
             return
         }
 
@@ -1009,7 +1009,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM?, val enclosing: Compiler?) : Ex
 
         defineVariable(nameConstant, stmt)
 
-        val classInfo = ClassInfo(currentClass)
+        val classInfo = ClassInfo(className, currentClass)
         currentClass = classInfo
 
         checkClassMethodInheritance(stmt.name.lexeme, stmt.name)
@@ -1025,7 +1025,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM?, val enclosing: Compiler?) : Ex
             compile(Expr.Variable(stmt.superclass.name))
             beginScope(stmt.superclass)
             addLocal(Token.identifier("super", stmt.getLine(), stmt.getFile()), stmt)
-            defineVariable(0, stmt)
+            defineVariable(0, stmt, true)
             compile(Expr.Variable(className))
             emitByte(Opcodes.INHERIT, stmt.superclass)
             classInfo.hasSuperclass = true
@@ -1089,7 +1089,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM?, val enclosing: Compiler?) : Ex
 
         defineVariable(nameConstant, stmt)
 
-        val classInfo = ClassInfo(currentClass)
+        val classInfo = ClassInfo(className, currentClass)
         currentClass = classInfo
 
         /*if(stmt.superclass != null){
