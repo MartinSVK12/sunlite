@@ -232,7 +232,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM?, val enclosing: Compiler?) : Ex
             if (leftType.type == PrimitiveType.OBJECT) {
                 when (expr.operator.type) {
                     PLUS, MINUS, SLASH, STAR, GREATER, GREATER_EQUAL, LESS, LESS_EQUAL, EQUAL_EQUAL, BANG_EQUAL, PERCENT -> {
-                        var not: Boolean = false
+                        var not = false
                         val name = when (expr.operator.type) {
                             PLUS -> {
                                 Token.identifier("add", expr.left.getLine(), currentFile)
@@ -272,7 +272,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM?, val enclosing: Compiler?) : Ex
 
                             BANG_EQUAL -> {
                                 not = true
-                                Token.identifier("notEquals", expr.left.getLine(), currentFile)
+                                Token.identifier("equals", expr.left.getLine(), currentFile)
                             }
 
                             PERCENT -> {
