@@ -1384,7 +1384,7 @@ class Parser(
     }
 
     private fun assignment(): Expr {
-        val expr = orExpr()
+        val expr = elvis()
 
         when {
             match(EQUAL) -> {
@@ -1470,6 +1470,22 @@ class Parser(
                     else -> error(equals, "Invalid assignment target.")
                 }
             }
+        }
+
+        return expr
+    }
+
+    private fun elvis(): Expr {
+        val expr: Expr = orExpr()
+
+        if(match(QUESTION_COLON)){
+            val right: Expr = orExpr()
+            val condition = Binary(
+                expr,
+                Token(BANG_EQUAL, "!=", null, peek().line, peek().file, Token.Position(-1, -1)),
+                Literal(null, previous().line, previous().file, Type.NIL)
+            )
+            return If(condition, expr, right, getIfExprType(expr, right))
         }
 
         return expr
@@ -1921,7 +1937,47 @@ class Parser(
             return Variable(varToken)
         }
 
+        if(match(IF)){
+            consume(LEFT_PAREN, "Expected '(' after 'if'.")
+            val condition = expression()
+            consume(RIGHT_PAREN, "Expected ')' after 'if' condition.")
+
+            val thenBranch = expression()
+            consume(ELSE, "Expected 'else' after ')' in if expression.")
+            val elseBranch: Expr = expression()
+
+            val type: Type = getIfExprType(thenBranch, elseBranch)
+
+            return If(condition, thenBranch, elseBranch, type)
+        }
+
         throw error(peek(), "Expected expression.")
+    }
+
+    fun getIfExprType(
+        thenBranch: Expr,
+        elseBranch: Expr
+    ): Type = if (thenBranch.getExprType() is Type.Singular && elseBranch.getExprType() is Type.Singular) {
+        if (Type.contains(thenBranch.getExprType(), elseBranch.getExprType(), sunlite)) {
+            thenBranch.getExprType()
+        } else if (Type.contains(elseBranch.getExprType(), thenBranch.getExprType(), sunlite)) {
+            elseBranch.getExprType()
+        } else {
+            Type.Union(listOf(thenBranch.getExprType(), elseBranch.getExprType()) as List<Type.Singular>)
+        }
+    } else {
+        val types: MutableList<Type.Singular> = mutableListOf()
+        if (thenBranch.getExprType() is Type.Union) {
+            types.addAll((thenBranch.getExprType() as Type.Union).types)
+        } else {
+            types.add(thenBranch.getExprType() as Type.Singular)
+        }
+        if (elseBranch.getExprType() is Type.Union) {
+            types.addAll((thenBranch.getExprType() as Type.Union).types)
+        } else {
+            types.add(elseBranch.getExprType() as Type.Singular)
+        }
+        Type.Union(types)
     }
 
     private fun subparser(): Parser {

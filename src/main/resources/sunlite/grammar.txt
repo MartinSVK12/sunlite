@@ -59,11 +59,10 @@ superInitStmt  → "super" "(" ( typeParam* )? arguments? ")" ";" ;
 
 expression     → assignment ;
 
-assignment     → ( call "." )? IDENTIFIER ( "[" expression "]" )? "=" assignment
-               | logicOr ;
-
-logicOr       → logicAnd ( "or" logicAnd )* ;
-logicAnd      → check ( "and" check )* ;
+assignment     → ( call "." )? IDENTIFIER ( "[" expression "]" )? "=" assignment | elvis ;
+elvis          → logicOr ( "?:" logicOr ) ;
+logicOr        → logicAnd ( "or" logicAnd )* ;
+logicAnd       → check ( "and" check )* ;
 check          → cast ( "is" | "isnt" ) cast ;
 cast           → equality ( "as" ) equality ;
 equality       → comparison ( ( "!=" | "==" ) comparison )* ;
@@ -74,8 +73,9 @@ unary          → ( "!" | "-" ) unary | lambda ;
 lambda         → ( "func" ( typeParam )? "(" parameters? ")" ( ":" type )? block ) | call ;
 call           → primary ( "(" ( typeParam* )? arguments? ")" | "." IDENTIFIER )* ;
 primary        → "true" | "false" | "nil" | "this"
-               | NUMBER | STRING | IDENTIFIER | "(" expression ")"
+               | NUMBER | STRING | IDENTIFIER | "(" expression ")" | ifExpr |
                | "super" "." IDENTIFIER ;
+ifExpr         → "if" "(" expression ")" expression "else" expression
 
 // UTILITY
 

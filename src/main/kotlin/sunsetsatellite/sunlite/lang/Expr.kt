@@ -489,6 +489,25 @@ abstract class Expr : Element {
 
     }
 
+    data class If(val condition: Expr, val thenBranch: Expr, val elseBranch: Expr, val type: Type): Expr(){
+        override fun <R> accept(visitor: Visitor<R>): R? {
+            return visitor.visitIfExpr(this)
+        }
+
+        override fun getExprType(): Type {
+            return type
+        }
+
+        override fun getLine(): Int {
+            return condition.getLine()
+        }
+
+        override fun getFile(): String? {
+            return condition.getFile()
+        }
+
+    }
+
     interface Visitor<R> {
         fun visitBinaryExpr(expr: Binary): R
         fun visitGroupingExpr(expr: Grouping): R
@@ -508,6 +527,7 @@ abstract class Expr : Element {
         fun visitCheckExpr(expr: Check): R
         fun visitCastExpr(expr: Cast): R
         fun visitArrayExpr(expr: Array): R
+        fun visitIfExpr(expr: If): R
     }
 
     interface NamedExpr : Element {

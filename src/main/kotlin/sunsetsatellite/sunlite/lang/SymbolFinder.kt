@@ -194,5 +194,11 @@ class SymbolFinder(val name: String?, val line: Int, val column: Int) : Expr.Vis
         expr.expr.forEach { it.accept(this) }
     }
 
+    override fun visitIfExpr(expr: Expr.If) {
+        expr.condition.accept(this)
+        expr.thenBranch.accept(this)
+        expr.elseBranch.accept(this)
+    }
+
 
 }

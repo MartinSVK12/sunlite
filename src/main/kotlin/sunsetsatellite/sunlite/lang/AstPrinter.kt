@@ -100,6 +100,11 @@ object AstPrinter : Expr.Visitor<String>, Stmt.Visitor<String> {
         return "(array literal ${parenthesizeList("elements", expr.expr)})"
     }
 
+    override fun visitIfExpr(expr: Expr.If): String {
+        val thenBranch = parenthesize("if expr", expr.condition, expr.thenBranch)
+        return thenBranch + parenthesize("else\n",expr.elseBranch)
+    }
+
     override fun visitUnaryExpr(expr: Expr.Unary): String {
         return parenthesize(expr.operator.lexeme, expr.right)
     }

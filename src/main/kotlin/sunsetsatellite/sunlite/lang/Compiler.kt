@@ -708,6 +708,18 @@ class Compiler(val sunlite: Sunlite, val vm: VM?, val enclosing: Compiler?) : Ex
         visitCallExpr(call)
     }
 
+    override fun visitIfExpr(expr: Expr.If) {
+        compile(expr.condition)
+        val thenJump = emitJump(Opcodes.JUMP_IF_FALSE, expr)
+        emitByte(Opcodes.POP, expr)
+        compile(expr.thenBranch)
+        val elseJump = emitJump(Opcodes.JUMP, expr)
+        patchJump(thenJump, expr)
+        emitByte(Opcodes.POP, expr)
+        compile(expr.elseBranch)
+        patchJump(elseJump, expr)
+    }
+
     override fun visitExprStmt(stmt: Stmt.Expression) {
         compile(stmt.expr)
         emitByte(Opcodes.POP, stmt)

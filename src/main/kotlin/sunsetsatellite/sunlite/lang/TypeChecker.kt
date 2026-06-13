@@ -211,6 +211,11 @@ class TypeChecker(val sunlite: Sunlite, val vm: VM?) : Expr.Visitor<Unit>, Stmt.
         expr.expr.forEach { check(it) }
     }
 
+    override fun visitIfExpr(expr: Expr.If) {
+        check(expr.thenBranch)
+	    check(expr.elseBranch)
+    }
+
     override fun visitExprStmt(stmt: Stmt.Expression) {
         check(stmt.expr)
     }

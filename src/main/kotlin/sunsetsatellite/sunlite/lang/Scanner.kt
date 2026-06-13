@@ -137,7 +137,7 @@ class Scanner(private var source: String, val sunlite: Sunlite) {
             '*' -> addToken(STAR)
             ':' -> addToken(COLON)
             '|' -> addToken(PIPE)
-            '?' -> addToken(if (match('.')) QUESTION_DOT else QUESTION)
+            '?' -> addToken(if (match('.')) QUESTION_DOT else if(match(':')) QUESTION_COLON else QUESTION)
             '!' -> addToken(if (match('=')) BANG_EQUAL else BANG)
             '=' -> addToken(if (match('=')) EQUAL_EQUAL else EQUAL)
             '<' -> addToken(if (match('=')) LESS_EQUAL else LESS)

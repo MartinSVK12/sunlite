@@ -1,3 +1,11 @@
-val a := [<Int> 1,2,3];
+class A {
+    var x := 0;
 
-print(a[-1]);
+    func test(){
+        print(x);
+    }
+}
+
+val o: A? = nil;
+
+o?.test() ?: print("elvis activated");
