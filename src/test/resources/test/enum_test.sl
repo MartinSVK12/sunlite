@@ -11,3 +11,7 @@ enum Test {
 }
 
 print(Enum.fromName(Test, "ONE").name);
+
+foreach(var entry: Enum in Test.entries()){
+    print(entry.name);
+}

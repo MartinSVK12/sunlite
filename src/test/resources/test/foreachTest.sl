@@ -8,6 +8,19 @@ val arr: Array<Int> = arrayOf(0,1,2,3,4,5) as Array<Int>;
 //    print(e);
 //}
 
+//{
+//    val iter := Arrays.getIterator(arr);
+//    while (iter.hasNext() == true) {
+//        {
+//           var annotation := iter.current();
+//           {
+//                print(annotation);
+//            }
+//        }
+//        iter.next();
+//    }
+//}
+
 foreach(var element in arr){
     print(typeOf(element));
 }

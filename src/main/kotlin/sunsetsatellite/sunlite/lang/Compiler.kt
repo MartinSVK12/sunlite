@@ -21,7 +21,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM?, val enclosing: Compiler?) : Ex
     var currentFunctionType: FunctionType = FunctionType.FUNCTION
     val chunk = MutableChunk()
     val locals: MutableList<Local> = mutableListOf()
-    var localsCount = 0
+    var maxLocals = 0
     val upvalues: MutableList<Upvalue> = mutableListOf()
     var localScopeDepth: Int = 0
     var topLevel: Boolean = false
@@ -42,7 +42,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM?, val enclosing: Compiler?) : Ex
         arity: Int = 0,
         annotations: List<String> = listOf()
     ): SLFunction {
-        localsCount = arity
+        maxLocals = arity
         currentFile = path
         chunk.debugInfo.file = currentFile
         currentFunctionType = type
@@ -52,7 +52,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM?, val enclosing: Compiler?) : Ex
             addIdentifier("this", Expr.This(Token.identifier("this")))
             chunk.debugInfo.locals.add(0,"this")
             locals.add(0, Local(Token.identifier("this", -1, currentFile), 0))
-            localsCount++
+            maxLocals++
         }
 
         try {
@@ -107,7 +107,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM?, val enclosing: Compiler?) : Ex
             chunk.toImmutable(),
             arity,
             upvalues.size,
-            localsCount,
+            maxLocals,
             modifier,
             annotations
         )
@@ -791,7 +791,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM?, val enclosing: Compiler?) : Ex
         }
         chunk.debugInfo.locals.add(token.lexeme)
         locals.add(Local(token, -1))
-        localsCount++
+        maxLocals++
         return locals.size - 1
     }
 

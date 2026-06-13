@@ -31,6 +31,17 @@ object DefaultNatives : Natives {
         registerString(consumer)
         registerMath(consumer)
         registerReflect(consumer)
+
+        consumer.defineNative(object : SLNativeFunction("A#a", Type.STRING, 0) {
+            override fun call(
+                vm: VM,
+                args: Array<AnySLValue>,
+                typeArgs: Array<SLType>,
+                receiver: AnySLValue?
+            ): AnySLValue {
+                return SLString(receiver.toString())
+            }
+        })
     }
 
     fun registerIO(natives: NativesContainer) {
@@ -255,7 +266,7 @@ object DefaultNatives : Natives {
             }
         })
 
-        natives.defineNative(object : SLNativeFunction("Enum#entries", Type.ofArray(Type.ofObject("Enum")), 1) {
+        natives.defineNative(object : SLNativeFunction("Enum#entries", Type.ofArray(Type.ofObject("Enum")), 0) {
             override fun call(
                 vm: VM,
                 args: Array<AnySLValue>,
@@ -263,15 +274,15 @@ object DefaultNatives : Natives {
                 receiver: AnySLValue?
             ): AnySLValue {
 	            val clazz: SLClass =
-                    when (args[0]) {
+                    when (receiver) {
                         is SLClassObj -> {
-                            args[0].value as SLClass
+	                        receiver.value
                         }
                         is SLClassInstanceObj -> {
-                            (args[0].value as SLClassInstance).clazz
+                            receiver.value.clazz
                         }
                         else -> {
-                            vm.throwException("Invalid receiver: ${args[0]}.")
+                            vm.throwException("Invalid receiver: ${receiver}.")
                             return SLNil
                         }
 	                }
@@ -282,7 +293,7 @@ object DefaultNatives : Natives {
                 return SLArrayObj(SLArray(list.size, vm.sunlite, Type.ofObject("Enum")).overwrite(list.toTypedArray()))
             }
         })
-        natives.defineNative(object : SLNativeFunction("Enum#fromName", Type.ofObject("Enum"), 2) {
+        natives.defineNative(object : SLNativeFunction("Enum#fromName", Type.ofObject("Enum"), 1) {
             override fun call(
                 vm: VM,
                 args: Array<AnySLValue>,
@@ -290,19 +301,19 @@ object DefaultNatives : Natives {
                 receiver: AnySLValue?
             ): AnySLValue {
                 val clazz: SLClass =
-                    when (args[0]) {
+                    when (receiver) {
                         is SLClassObj -> {
-                            args[0].value as SLClass
+	                        receiver.value
                         }
                         is SLClassInstanceObj -> {
-                            (args[0].value as SLClassInstance).clazz
+                            receiver.value.clazz
                         }
                         else -> {
-                            vm.throwException("Invalid receiver: ${args[0]}.")
+                            vm.throwException("Invalid receiver: ${receiver}.")
                             return SLNil
                         }
                     }
-                val name: String = (args[1] as SLString).value
+                val name: String = (args[0] as SLString).value
                 clazz.staticFields.filter { Type.contains(it.value.type, Type.ofObject("Enum"), vm.sunlite) }.forEach {
                     if(it.key == name){
                         return it.value.value

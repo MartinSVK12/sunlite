@@ -1,28 +1,15 @@
-import Reflect from "/sunlite/stdlib/reflect.sl";
+enum Test {
+    ONE(1),
+    TWO(2),
+    THREE(3);
 
-class A {
-    @Test
-    static func test(){
+    var value: Int;
 
+    init(v: Int) {
+        value = v;
     }
 }
 
-val arr: Array<String> = Reflect.getAnnotations(A.test);
-
-//foreach (var annotation: String in arr) {
-//    print(annotation);
-//}
-
-
-{
-    val iter := Arrays.getIterator(arr);
-    while (iter.hasNext() == true) {
-        {
-           var annotation := iter.current();
-           {
-                print(annotation);
-            }
-        }
-        iter.next();
-    }
+foreach(var entry: Enum in Test.entries()){
+    print(entry.name);
 }

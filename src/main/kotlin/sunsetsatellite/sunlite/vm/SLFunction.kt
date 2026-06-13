@@ -19,7 +19,8 @@ class SLFunction(
     val upvalueCount: Int,
     val localsCount: Int,
     val modifier: Array<FunctionModifier> = arrayOf(FunctionModifier.NORMAL),
-    val annotations: List<String> = listOf()
+    val annotations: List<String> = listOf(),
+    var belongsTo: String = ""
 ) {
 
     companion object {

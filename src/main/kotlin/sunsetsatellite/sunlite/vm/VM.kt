@@ -718,6 +718,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
         val method = fr.peek(0) as SLClosureObj
         val clazz = (fr.peek(1) as SLClassObj).value
         val function = method.value.function
+        function.belongsTo = clazz.name
         if (!function.modifier.contains(FunctionModifier.ABSTRACT) && clazz.isInterface) {
             runtimeError("Attempted to define a non-abstract method '$method' on interface '$clazz'.")
             fr.pop()
@@ -928,7 +929,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                     if (callee.value.receiver is SLClassInstanceObj) {
                         if (callee.value.method.function.modifier.contains(FunctionModifier.NATIVE)) {
                             val methodName =
-                                "${callee.value.receiver.value.clazz.name}#${callee.value.method.function.name}"
+                                "${callee.value.method.function.belongsTo}#${callee.value.method.function.name}"
                             if (!(globals.containsKey(methodName))) {
                                 runtimeError("Native method '$methodName' not bound to anything.")
                                 return false
@@ -946,7 +947,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                     } else if (callee.value.receiver is SLClassObj) {
                         val modifier = callee.value.method.function.modifier
                         if (modifier.contains(FunctionModifier.STATIC) && modifier.contains(FunctionModifier.NATIVE)) {
-                            val methodName = "${callee.value.receiver.value.name}#${callee.value.method.function.name}"
+                            val methodName = "${callee.value.method.function.belongsTo}#${callee.value.method.function.name}"
                             if (!(globals.containsKey(methodName))) {
                                 runtimeError("Native method '$methodName' not bound to anything.")
                                 return false
