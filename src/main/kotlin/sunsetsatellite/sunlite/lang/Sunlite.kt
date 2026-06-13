@@ -1,12 +1,9 @@
 package sunsetsatellite.sunlite.lang
 
+import sun.misc.Unsafe
 import sunsetsatellite.sunlite.vm.*
-import java.io.BufferedReader
-import java.io.DataInputStream
-import java.io.DataOutputStream
-import java.io.File
-import java.io.IOException
-import java.io.InputStreamReader
+import java.io.*
+import java.lang.reflect.Field
 import java.nio.charset.Charset
 import java.nio.file.Files
 import java.nio.file.Paths
@@ -15,8 +12,6 @@ import java.util.zip.GZIPInputStream
 import kotlin.io.path.Path
 import kotlin.io.path.extension
 import kotlin.system.exitProcess
-import kotlin.text.replace
-import kotlin.text.split
 
 class Sunlite(val args: Array<String>) {
 
@@ -433,7 +428,7 @@ class Sunlite(val args: Array<String>) {
                     file.createNewFile()
                     val stream = DataOutputStream(file.outputStream())
                     stream.use { program.write(it) }
-                    CompressUtils.compress(Path(compiledPath), Path(compiledPath.replace(".raw", ".slc")),)
+                    CompressUtils.compress(Path(compiledPath), Path(compiledPath.replace(".raw", ".slc")))
                     File(compiledPath).delete()
                     printInfo("Compiled ${Path(path).fileName}.")
                     return null

@@ -22,6 +22,7 @@ class Parser(
     var currentFunction: Token? = null
     var currentBlockDepth: Int = 0
     var lambdaAmount = 0
+    var parsingConstructor: Boolean = false
 
     val annotations: MutableList<Stmt.Annotation> = mutableListOf()
 
@@ -134,6 +135,7 @@ class Parser(
             match(CONTINUE) -> continueStatement()
             match(RETURN) -> returnStatement()
             match(TRY) -> tryCatchStatement()
+            match(SUPER) -> superInitStatement()
             else -> expressionStatement()
         }
     }
@@ -550,6 +552,18 @@ class Parser(
         return Stmt.Class(name, methods, fields, superclass, superinterfaces, modifier, typeParameters, staticInit)
     }
 
+    private fun superInitStatement(): Stmt {
+        current--
+        val expr = call()
+        consume(SEMICOLON, "Expected ';' after super constructor call.")
+        if(expr is Call){
+            val desc = "init"+Type.ofFunction("init", Type.NIL, expr.arguments.map { Param((it as NamedExpr).getNameToken(), it.getExprType()) }).getDescriptor()
+            (expr.callee as Super).method = Token.identifier(desc, expr.callee.getNameToken())
+            return Stmt.SuperInit(expr)
+        }
+        throw error(peek(), "Expected '(' after 'super' in super constructor call.")
+    }
+
     private fun enumDeclaration(): Stmt? {
         val name = consume(IDENTIFIER, "Expected enum name.")
 
@@ -801,6 +815,7 @@ class Parser(
         if (kind == FunctionType.INITIALIZER) {
             val desc = "init"+Type.ofFunction("init", Type.NIL, parameters).getDescriptor()
             name = Token.identifier(desc, -1, currentFile)
+            parsingConstructor = true
         }
 
         currentFunction = name
@@ -826,6 +841,7 @@ class Parser(
 
         val signature = funcSignature(FunctionType.METHOD)
         currentFunction = null
+        parsingConstructor = false
 
         return Stmt.Function(
             signature.first,
@@ -869,6 +885,7 @@ class Parser(
         }
 
         currentFunction = null
+        parsingConstructor = false
 
         val ann = ArrayList<Stmt.Annotation>(annotations)
         annotations.clear()
@@ -1737,6 +1754,7 @@ class Parser(
         val body = block()
 
         currentFunction = null
+        parsingConstructor = false
 
         return Lambda(
             Stmt.Function(
@@ -1791,8 +1809,11 @@ class Parser(
 
         if (match(SUPER)) {
             val keyword = previous()
+            if(currentFunction != null && parsingConstructor){
+                return Super(keyword, Token.identifier("<super init>", keyword), Type.NIL)
+            }
             consume(DOT, "Expected '.' after 'super'.")
-            if (!match(IDENTIFIER, INIT)) {
+            if (!match(IDENTIFIER)) {
                 throw error(peek(), "Expected superclass method name.")
             }
             val method = previous()

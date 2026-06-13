@@ -684,6 +684,10 @@ class Compiler(val sunlite: Sunlite, val vm: VM?, val enclosing: Compiler?) : Ex
         emitShort(name, expr)
     }
 
+    override fun visitSuperInitStmt(stmt: Stmt.SuperInit) {
+        compile(stmt.expr)
+    }
+
     override fun visitCheckExpr(expr: Expr.Check) {
         compile(expr.left)
         val index = addConstant(SLType(expr.right), expr)

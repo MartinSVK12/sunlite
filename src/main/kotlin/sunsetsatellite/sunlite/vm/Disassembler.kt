@@ -133,7 +133,7 @@ object Disassembler {
     private fun twoByteInstruction(sb: StringBuilder, name: String, chunk: Chunk, offset: Int): Int {
         val byte = chunk.code[offset + 1]
         val byte2 = chunk.code[offset + 2]
-        sb.append(String.format("%-18s (%02X) %4d %4d\n", name, Opcodes.valueOf(name).ordinal, byte, byte2))
+        sb.append(String.format("%-18s (%02X) %4d %d\n", name, Opcodes.valueOf(name).ordinal, byte, byte2))
         return offset + 3
     }
 

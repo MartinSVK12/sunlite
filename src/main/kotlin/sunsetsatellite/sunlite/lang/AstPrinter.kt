@@ -303,4 +303,8 @@ object AstPrinter : Expr.Visitor<String>, Stmt.Visitor<String> {
     override fun visitAnnotationStmt(stmt: Stmt.Annotation): String {
         return "(annotation ${stmt.name.lexeme})"
     }
+
+    override fun visitSuperInitStmt(stmt: Stmt.SuperInit): String {
+        return parenthesize("super init", stmt.expr)
+    }
 }

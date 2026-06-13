@@ -383,6 +383,10 @@ class TypeCollector(val sunlite: Sunlite, val natives: NativesContainer) : Stmt.
 
     }
 
+    override fun visitSuperInitStmt(stmt: Stmt.SuperInit) {
+        stmt.expr.accept(this)
+    }
+
     override fun visitBinaryExpr(expr: Expr.Binary) {
         expr.left.accept(this)
         expr.right.accept(this)

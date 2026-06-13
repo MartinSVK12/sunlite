@@ -33,6 +33,7 @@ statement      → exprStmt
                | importStmt
                | includeStmt
                | tryCatchStmt
+               | superInitStmt
                | block ;
 
 exprStmt       → expression ";" ;
@@ -52,6 +53,7 @@ includeStmt    → "include" ( "<" )? STRING ( ">" )? ";" ;
 importStmt     → "import" IDENTIFIER "from" STRING ( "as" IDENTIFIER )? ";" ;
 tryCatchStmt   → "try" block "catch" "(" IDENTIFIER ")" block ;
 throwStmt      → "throw" expression ";" ;
+superInitStmt  → "super" "(" ( typeParam* )? arguments? ")" ";" ;
 
 // EXPRESSIONS
 

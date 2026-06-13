@@ -412,7 +412,7 @@ abstract class Expr : Element {
         }
     }
 
-    data class Super(val keyword: Token, val method: Token, val type: Type = Type.UNKNOWN) : Expr(), NamedExpr {
+    data class Super(val keyword: Token, var method: Token, val type: Type = Type.UNKNOWN) : Expr(), NamedExpr {
         override fun <R> accept(visitor: Visitor<R>): R? {
             return visitor.visitSuperExpr(this)
         }

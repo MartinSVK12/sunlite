@@ -305,4 +305,8 @@ class TypeChecker(val sunlite: Sunlite, val vm: VM?) : Expr.Visitor<Unit>, Stmt.
     override fun visitAnnotationStmt(stmt: Stmt.Annotation) {
 
     }
+
+    override fun visitSuperInitStmt(stmt: Stmt.SuperInit) {
+        check(stmt.expr)
+    }
 }

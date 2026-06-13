@@ -1,15 +1,22 @@
-import ArrayList from "/sunlite/stdlib/list.sl";
+class A {
+    var x: Int;
 
-enum Test {
-    ONE(1),
-    TWO(2),
-    THREE(3);
-
-    var value: Int;
-
-    init(v: Int) {
-        value = v;
+    init(x: Int) {
+        this.x = x;
     }
 }
 
-print(Enum.fromName(Test, "ONE").name);
+class B extends A {
+    var y: Int;
+
+    init(x: Int, y: Int) {
+        super(x);
+        this.y = y;
+    }
+
+    override func toString(): String {
+        return "B(${str(this.x)}, ${str(this.y)})";
+    }
+}
+
+print(B(1,2).toString());

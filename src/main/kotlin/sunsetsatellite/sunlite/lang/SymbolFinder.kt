@@ -92,6 +92,10 @@ class SymbolFinder(val name: String?, val line: Int, val column: Int) : Expr.Vis
 
     }
 
+    override fun visitSuperInitStmt(stmt: Stmt.SuperInit) {
+        stmt.expr.accept(this)
+    }
+
     override fun visitBinaryExpr(expr: Expr.Binary) {
         expr.left.accept(this)
         expr.right.accept(this)

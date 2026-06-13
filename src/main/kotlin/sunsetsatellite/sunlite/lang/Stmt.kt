@@ -324,6 +324,20 @@ abstract class Stmt : Element {
         override fun getNameToken(): Token {
             return name
         }
+    }
+
+    data class SuperInit(val expr: Expr.Call): Stmt() {
+        override fun <R> accept(visitor: Visitor<R>): R {
+            return visitor.visitSuperInitStmt(this)
+        }
+
+        override fun getLine(): Int {
+            return expr.getLine()
+        }
+
+        override fun getFile(): String? {
+            return expr.getFile()
+        }
 
     }
 
@@ -346,6 +360,7 @@ abstract class Stmt : Element {
         fun visitTryCatchStmt(stmt: TryCatch): R
         fun visitThrowStmt(stmt: Throw): R
         fun visitAnnotationStmt(stmt: Annotation): R
+        fun visitSuperInitStmt(stmt: SuperInit): R
     }
 
     interface NamedStmt : Element {

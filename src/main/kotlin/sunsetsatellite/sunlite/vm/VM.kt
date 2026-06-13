@@ -543,7 +543,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                     Opcodes.LOCK -> {
                         val clazz = (fr.peek(0) as SLClassObj).value
                         if(clazz.isLocked){
-                            throwException("Class '${clazz.name}' already locked.")
+                            runtimeError("Class '${clazz.name}' already locked.")
                             return
                         }
                         clazz.isLocked = true
@@ -850,7 +850,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
         if(clazz.fieldDefaults[name]!!.value is SLUninitialized){
             clazz.fieldDefaults[name]!!.value = value
         } else {
-            throwException("Field '$name' already initialized.")
+            runtimeError("Field '$name' already initialized.")
             return
         }
         fr.pop()
@@ -868,7 +868,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                 value.value.fields["name"] = SLField(Type.STRING, SLString(name))
             }
         } else {
-            throwException("Static field '$name' already initialized.")
+            runtimeError("Static field '$name' already initialized.")
             return
         }
         fr.pop()
@@ -881,10 +881,11 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
         fr.pop()
     }
 
-
     private fun bindMethod(fr: CallFrame, clazz: SLClass, name: String): Boolean {
-        if (!clazz.methods.containsKey(name)) return false
-
+        if (!clazz.methods.containsKey(name)) {
+            runtimeError("Method '$name' not found in class '${clazz.name}'.")
+            return false
+        }
         val receiver = fr.peek(0)
         var method = clazz.methods[name]!!.value
 
@@ -915,127 +916,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                 }
 
                 is SLClass -> {
-                    if (callee.value.isAbstract) {
-                        runtimeError("Can't instantiate abstract class '${callee.value.name}'.")
-                        return false
-                    }
-                    if (callee.value.isInterface) {
-                        runtimeError("Can't instantiate interface '${callee.value.name}'.")
-                        return false
-                    }
-                    if(callee.value.isLocked){
-                        if(callee.value.isEnum){
-                            runtimeError("Can't instantiate enum '${callee.value.name}'.")
-                            return false
-                        }
-                        runtimeError("Can't create more instances of class '${callee.value.name}' because it is locked.")
-                        return false
-                    }
-                    val stack = frameStack.peek().stack
-                    val fields: MutableMap<String, SLField> =
-                        callee.value.fieldDefaults.mapValues { it.value.copy() }.toMutableMap()
-                    val instance =
-                        SLClassInstanceObj(SLClassInstance(callee.value, mutableMapOf(), fields))
-                    stack[stack.size - argCount - 1 - typeArgCount] = instance
-                    val typeArgs = listOf(*Array(typeArgCount) { _ -> (frameStack.peek().pop() as SLType).value })
-                    /*if(frameStack.peek().locals[0] != SLNil){
-                        val functionTypeParams = frameStack.peek().closure.function.typeParams
-                        val classTypeParams = (frameStack.peek().locals[0] as SLClassInstanceObj).value.typeParams
-                        var i = 0
-                        instance.value.clazz.typeParams.forEach { (name, type) ->
-                            typeArgs.getOrNull(i)?.let {
-                                var found = functionTypeParams.find { f -> f.token.lexeme == it.getName() }?.type
-                                if(found == null) {
-                                    found = classTypeParams[name]
-                                }
-                                instance.value.typeParams[name] = found ?: type
-                            }
-                            i++
-                        }
-                        //val enclosingTypeParams = frameStack.peek().closure.function.typeParams.map { it.token.lexeme to it.type }.toMap().toMutableMap()
-                        //enclosingTypeParams.putAll((frameStack.peek().locals[0] as SLClassInstanceObj).value.typeParams)
-                        /*typeArgs.firstOrNull { enclosingTypeParams.contains(it.getName()) }?.let {
-                            instance.value.typeParams[it.getName()] = enclosingTypeParams[it.getName()]!!
-                        }*/
-                        /*enclosingTypeParams.firstNotNullOfOrNull { typeArgs.first { arg -> it.key == arg.getName() } }?.let {
-                            instance.value.typeParams[it.getName()] = it
-                        }*/
-                        /*enclosingTypeParams.forEachIndexed { i, it ->
-                            instance.value.typeParams[callee.value.typeParams.keys.toList()[i]] = it
-                        }*/
-                    } else {
-                        typeArgs.forEachIndexed { i, it ->
-                            instance.value.typeParams[callee.value.typeParams.keys.toList()[i]] = it
-                        }
-                    }*/
-                    typeArgs.forEachIndexed { i, it ->
-                        instance.value.typeParams[callee.value.typeParams.keys.toList()[i]] = it
-                    }
-                    fields.values.filter {
-                        if(it.type is Type.Parameter) {
-                            return@filter true
-                        } else if(it.type is Type.Union){
-                            if((it.type as Type.Union).types.any { innerIt -> innerIt is Type.Parameter }){
-                                return@filter true
-                            }
-                        }
-                        return@filter false
-                    }.forEach { field ->
-                        if(field.type is Type.Parameter){
-                            val typeParamName = (field.type as Type.Parameter).name.lexeme
-                            instance.value.typeParams[typeParamName]?.let { field.type = it }
-                        } else if(field.type is Type.Union){
-                            val types = (field.type as Type.Union).types
-                            val newTypes = mutableListOf<Type.Singular>()
-                            types.forEach {
-                                if(it !is Type.Parameter) {
-                                    newTypes.add(it)
-                                } else {
-                                    val typeParamName = it.name.lexeme
-                                    val type = instance.value.typeParams[typeParamName]
-                                    if(type is Type.Singular){
-                                        newTypes.add(type)
-                                    } else if(type is Type.Union){
-                                        newTypes.addAll(type.types)
-                                    }
-                                }
-                            }
-                            field.type = Type.Union(newTypes)
-                        }
-                    }
-                    if (callee.value.methods.keys.any { it.contains("init") }) {
-                        val args = Array(argCount) { i -> Param(Type.fromValue(frameStack.peek().peek(i).value, sunlite)) }.reversedArray()
-                        val type = Type.ofFunction("", Type.NIL, args.toList())
-                        val constructor =
-                            callee.value.methods
-                                .map { it.value.value.function }
-                                .filter { it.name.contains("init") }
-                                .filter { it.returnType == Type.NIL }
-                                .filter { it.params.size == args.size }
-                                .filter { it.params.zip(args).all { (p, a) -> Type.contains(a.type, p.type, sunlite) } }
-                        if(constructor.size > 1){
-                            runtimeError("Multiple identical constructors defined.")
-                            return false
-                        }
-                        if(constructor.isEmpty()){
-                            val availableConstructors =
-                                callee.value.methods.keys
-                                    .filter { it.contains("init") }
-                                    .map{ it.replace("init","") }
-                                    .map{ Descriptor(it).getType() }.joinToString("\n\t")
-                            runtimeError("Parameters do not match any defined constructor.\nGot ${type}, expected one of\n\t${availableConstructors}\n")
-                            return false
-                        }
-                        val initMethod = callee.value.methods[constructor.first().name]!!
-                        val success = call(initMethod, argCount, typeArgCount)
-                        if (!success) return false
-                        frameStack.peek().locals.add(0, instance)
-                        return true
-                    } else if (argCount != 0) {
-                        runtimeError("Expected 0 arguments but got $argCount.")
-                        return false
-                    }
-                    return true
+                    return callConstructor(callee as SLClassObj, argCount, typeArgCount)
                 }
 
                 is SLBoundMethod -> {
@@ -1084,6 +965,119 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
         }
         runtimeError("Can only call functions but tried to call '${Type.fromValue(callee.value, sunlite)}'.")
         return false
+    }
+
+    fun callConstructor(callee: SLClassObj, argCount: Int, typeArgCount: Int): Boolean {
+        // instantiation checks
+        if (callee.value.isAbstract) {
+            runtimeError("Can't instantiate abstract class '${callee.value.name}'.")
+            return false
+        }
+        if (callee.value.isInterface) {
+            runtimeError("Can't instantiate interface '${callee.value.name}'.")
+            return false
+        }
+        if(callee.value.isLocked){
+            if(callee.value.isEnum){
+                runtimeError("Can't instantiate enum '${callee.value.name}'.")
+                return false
+            }
+            runtimeError("Can't create more instances of class '${callee.value.name}' because it is locked.")
+            return false
+        }
+
+        // create uninitialized instance
+        val stack = frameStack.peek().stack
+        val fields: MutableMap<String, SLField> =
+            callee.value.fieldDefaults.mapValues { it.value.copy() }.toMutableMap()
+        val instance =
+            SLClassInstanceObj(SLClassInstance(callee.value, mutableMapOf(), fields))
+        stack[stack.size - argCount - 1 - typeArgCount] = instance
+
+        // reify type parameters
+        val typeArgs = listOf(*Array(typeArgCount) { _ -> (frameStack.peek().pop() as SLType).value })
+        typeArgs.forEachIndexed { i, it ->
+            instance.value.typeParams[callee.value.typeParams.keys.toList()[i]] = it
+        }
+        fields.values.filter {
+            if(it.type is Type.Parameter) {
+                return@filter true
+            } else if(it.type is Type.Union){
+                if((it.type as Type.Union).types.any { innerIt -> innerIt is Type.Parameter }){
+                    return@filter true
+                }
+            }
+            return@filter false
+        }.forEach { field ->
+            if(field.type is Type.Parameter){
+                val typeParamName = (field.type as Type.Parameter).name.lexeme
+                instance.value.typeParams[typeParamName]?.let { field.type = it }
+            } else if(field.type is Type.Union){
+                val types = (field.type as Type.Union).types
+                val newTypes = mutableListOf<Type.Singular>()
+                types.forEach {
+                    if(it !is Type.Parameter) {
+                        newTypes.add(it)
+                    } else {
+                        val typeParamName = it.name.lexeme
+                        val type = instance.value.typeParams[typeParamName]
+                        if(type is Type.Singular){
+                            newTypes.add(type)
+                        } else if(type is Type.Union){
+                            newTypes.addAll(type.types)
+                        }
+                    }
+                }
+                field.type = Type.Union(newTypes)
+            }
+        }
+
+        // returns with true if there was no error and the call returned null
+        // (class has only an implicit default no-args constructor),
+        // otherwise returns with false
+	    val constructor = findConstructor(callee.value, argCount, typeArgCount) ?: return !sunlite.hadRuntimeError
+
+	    // call constructor
+        val initMethod = callee.value.methods[constructor.name]!!
+        val success = call(initMethod, argCount, typeArgCount)
+        if (!success) return false
+        frameStack.peek().locals.add(0, instance) // this
+        return true
+    }
+
+    fun findConstructor(callee: SLClass, argCount: Int, typeArgCount: Int): SLFunction? {
+        if (callee.methods.keys.any { it.contains("init") }) {
+            val args = Array(argCount) { i -> Param(Type.fromValue(frameStack.peek().peek(i).value, sunlite)) }.reversedArray()
+            val type = Type.ofFunction("", Type.NIL, args.toList())
+            val constructor =
+                callee.methods
+                    .map { it.value.value.function }
+                    .filter { it.name.contains("init") }
+                    .filter { it.returnType == Type.NIL }
+                    .filter { it.params.size == args.size }
+                    .filter { it.params.zip(args).all { (p, a) -> Type.contains(a.type, p.type, sunlite) } }
+            if(constructor.size > 1){
+                runtimeError("Multiple identical constructors defined.")
+                return null
+            }
+
+            if(constructor.isEmpty()){
+                val availableConstructors =
+                    callee.methods.keys
+                        .filter { it.contains("init") }
+                        .map{ it.replace("init","") }
+                        .map{ Descriptor(it).getType() }.joinToString("\n\t")
+                runtimeError("Parameters do not match any defined constructor.\nGot ${type}, expected one of\n\t${availableConstructors}\n")
+                return null
+            }
+
+            return constructor.first()
+
+        } else if (argCount != 0) {
+            runtimeError("Expected 0 arguments but got $argCount.")
+            return null
+        }
+        return null
     }
 
     fun callNative(callee: SLNativeFuncObj, argCount: Int, typeArgCount: Int = 0, receiverObj: AnySLValue? = null): Boolean {
@@ -1339,7 +1333,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
             frameStack.clear()
             stack.forEach { frameStack.push(it) }
             if (fr != frameStack.peek()) {
-                error("Frames were unwinded incorrectly! $fr != ${frameStack.peek()}")
+                throw VMError("Frames were unwinded incorrectly! $fr != ${frameStack.peek()}")
             }
             fr.stack.clear()
             fr.locals[0] = e
