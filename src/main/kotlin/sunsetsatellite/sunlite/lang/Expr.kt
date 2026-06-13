@@ -470,13 +470,13 @@ abstract class Expr : Element {
         }
     }
 
-    data class Array(val expr: List<Expr>, val bracket: Token) : Expr() {
+    data class Array(val expr: List<Expr>, val bracket: Token, val type: Type) : Expr() {
         override fun <R> accept(visitor: Visitor<R>): R? {
             return visitor.visitArrayExpr(this)
         }
 
         override fun getExprType(): Type {
-            return Type.ofArray(Type.NULLABLE_ANY)
+            return type
         }
 
         override fun getLine(): Int {

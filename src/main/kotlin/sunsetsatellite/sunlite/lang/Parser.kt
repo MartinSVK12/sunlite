@@ -13,6 +13,7 @@ class Parser(
     val including: Boolean = false,
     val includingDepth: Int = 0,
     val importing: String = "",
+    val subparser: Boolean = false
 ) {
     private var current = 0
 
@@ -1293,24 +1294,7 @@ class Parser(
                     error(peek(), "Can't have more than 255 type parameters.")
                 }
                 val typeParamToken = peek()
-                if (!checkTokens(
-                        TYPE_BOOLEAN,
-                        TYPE_STRING, /*TYPE_NUMBER,*/
-                        TYPE_BYTE,
-                        TYPE_SHORT,
-                        TYPE_INT,
-                        TYPE_LONG,
-                        TYPE_FLOAT,
-                        TYPE_DOUBLE,
-                        TYPE_FUNCTION,
-                        TYPE_CLASS,
-                        TYPE_ANY, TYPE_GENERIC,
-                        TYPE_ARRAY,
-                        TYPE_TABLE,
-                        IDENTIFIER,
-                        TYPE_NIL
-                    )
-                ) {
+                if (!checkTypes()) {
                     throw error(typeParamToken, "Expected type for type parameter.")
                 }
                 typeParameters.addAll(getTypeTokens(false))
@@ -1326,24 +1310,7 @@ class Parser(
                     error(peek(), "Can't have more than 255 types in a union.")
                 }
                 val unionMemberToken = peek()
-                if (!checkTokens(
-                        TYPE_BOOLEAN,
-                        TYPE_STRING, /*TYPE_NUMBER,*/
-                        TYPE_BYTE,
-                        TYPE_SHORT,
-                        TYPE_INT,
-                        TYPE_LONG,
-                        TYPE_FLOAT,
-                        TYPE_DOUBLE,
-                        TYPE_FUNCTION,
-                        TYPE_CLASS,
-                        TYPE_ANY, TYPE_GENERIC,
-                        TYPE_ARRAY,
-                        TYPE_TABLE,
-                        IDENTIFIER,
-                        TYPE_NIL
-                    )
-                ) {
+                if (!checkTypes()) {
                     throw error(unionMemberToken, "Expected type after '|'.")
                 }
                 val unionTypeTokens = getTypeTokens(true)
@@ -1874,8 +1841,34 @@ class Parser(
             return Grouping(expr)
         }
 
+        /*if (checkTypes()) {
+            val p = subparser()
+            val type = p.getType(function = false, noColon = true)
+            sunlite.hadError = false
+            if (p.match(LEFT_BRACKET)) {
+                current = p.current
+                val bracket = previous()
+                val list: MutableList<Expr> = ArrayList()
+                if (!checkToken(RIGHT_BRACKET)) {
+                    do {
+                        if (list.size >= 255) {
+                            error(peek(), "Can't have more than 255 elements in an array literal.")
+                        }
+                        list.add(expression())
+                    } while (match(COMMA))
+                }
+                consume(RIGHT_BRACKET, "Expected ']' after array elements.")
+                return Array(list, bracket, type)
+            }
+        }*/
+
         if (match(LEFT_BRACKET)) {
             val bracket = previous()
+            var type: Type = Type.NULLABLE_ANY
+            if(match(LESS) && checkTypes()){
+                type = getType(function = false, noColon = true)
+                consume(GREATER, "Expected '>' after type parameter declaration.")
+            }
             val list: MutableList<Expr> = ArrayList()
             if (!checkToken(RIGHT_BRACKET)) {
                 do {
@@ -1886,7 +1879,7 @@ class Parser(
                 } while (match(COMMA))
             }
             consume(RIGHT_BRACKET, "Expected ']' after array elements.")
-            return Array(list, bracket)
+            return Array(list, bracket, type)
         }
 
         if (match(IDENTIFIER)) {
@@ -1931,6 +1924,12 @@ class Parser(
         throw error(peek(), "Expected expression.")
     }
 
+    private fun subparser(): Parser {
+        val p = Parser(ArrayList(tokens), sunlite, allowIncluding, including, includingDepth, importing, true)
+        p.current = current
+        return p
+    }
+
     private fun consume(type: TokenType, message: String): Token {
         if (checkToken(type)) return advance()
 
@@ -1962,6 +1961,14 @@ class Parser(
         }
 
         return false
+    }
+
+    private fun checkTypes(): Boolean {
+        return checkTokens(
+            TYPE_BOOLEAN, TYPE_STRING,
+            TYPE_BYTE, TYPE_SHORT, TYPE_INT, TYPE_LONG, TYPE_FLOAT, TYPE_DOUBLE,
+            TYPE_FUNCTION, TYPE_CLASS, TYPE_ANY, TYPE_GENERIC, TYPE_ARRAY, TYPE_TABLE, IDENTIFIER, TYPE_NIL
+        )
     }
 
     private fun checkTokens(vararg types: TokenType): Boolean {

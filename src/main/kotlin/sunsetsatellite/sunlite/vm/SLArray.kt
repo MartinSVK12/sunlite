@@ -2,6 +2,7 @@ package sunsetsatellite.sunlite.vm
 
 import sunsetsatellite.sunlite.lang.Sunlite
 import sunsetsatellite.sunlite.lang.Type
+import kotlin.math.abs
 
 class SLArray(var size: Int, val sunlite: Sunlite, val type: Type) {
     private var array: Array<AnySLValue> = VM.arrayOfNils(size)
@@ -16,15 +17,22 @@ class SLArray(var size: Int, val sunlite: Sunlite, val type: Type) {
     }
 
     fun set(index: Int, value: AnySLValue) {
-        if (index >= size) {
+        if (index >= size || index < -size) {
             sunlite.vm.runtimeError("Array index $index is out of bounds for an array of size $size.")
+        }
+        if(index < 0){
+            array[array.size - abs(index)] = value
+            return
         }
         array[index] = value
     }
 
     fun get(index: Int): AnySLValue {
-        if (index >= size) {
+        if (index >= size || index < -size) {
             sunlite.vm.runtimeError("Array index $index is out of bounds for an array of size $size.")
+        }
+        if(index < 0){
+            return array[array.size - abs(index)]
         }
         return array[index]
     }
