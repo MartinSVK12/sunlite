@@ -438,7 +438,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                             val instance = arg.value
                             val name = readString(fr).value
                             //todo: incompatible with class loading
-                            runtimeError("Please use array.method(arr, ...) instead of arr.method(...) for now.")
+                            runtimeError("Please use Arrays.method(arr, ...) instead of arr.method(...) for now.")
                             return
                             /*if (globals.containsKey("array")) {
                                 val clazz = globals["array"]!!.value as SLClass
@@ -633,6 +633,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                         val name = (readConstant(fr) as SLString).value
                         val location = (fr.peek() as SLString).value
                         imports[name] = location
+                        fr.pop()
                     }
                 }
             } else {

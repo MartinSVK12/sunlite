@@ -538,6 +538,10 @@ class Parser(
                     methods.add(function(FunctionType.INITIALIZER, null))
                 }
 
+                match(AT) -> {
+                    annotationDeclaration()
+                }
+
                 else -> {
                     throw error(peek(), "Expected a field or method declaration.")
                 }
@@ -1035,9 +1039,9 @@ class Parser(
         val collection = expression()
         consume(RIGHT_PAREN, "Expected ')' after 'foreach' clauses.")
         val initCall = Call(
-            Get(collection, Token.identifier("getIterator", collection), Type.ofObject("Iterator")),
+            Get(Variable(Token.identifier("Arrays", collection)), Token.identifier("getIterator", collection), Type.ofObject("Iterator")),
             Token.identifier("<synthetic iterator init call>", collection),
-            listOf(),
+            listOf(collection),
             listOf()
         )
         val initializer = Stmt.Var(
@@ -1067,7 +1071,9 @@ class Parser(
             Get(
                 iterVar,
                 Token.identifier("next", collection),
-                Type.ofFunction("next", /*todo*/Type.NULLABLE_ANY, listOf())
+                Type.ofFunction("next",
+                    if (collection.getExprType() is Type.Reference) (collection.getExprType() as Type.Reference).returnType else Type.NULLABLE_ANY,
+                    listOf())
             ),
             Token.identifier("<synthetic iterator next call>", collection),
             listOf(),
@@ -1078,8 +1084,10 @@ class Parser(
             Call(
                 Get(
                     iterVar,
-                    Token.identifier("current", element.name),/*todo*/
-                    Type.ofFunction("current", Type.NULLABLE_ANY, listOf())
+                    Token.identifier("current", element.name),
+                    Type.ofFunction("current",
+                        if (collection.getExprType() is Type.Reference) (collection.getExprType() as Type.Reference).returnType else Type.NULLABLE_ANY,
+                        listOf())
                 ),
                 Token.identifier("<synthetic iterator current call>", element.name),
                 listOf(),
@@ -1240,7 +1248,7 @@ class Parser(
     private fun annotationDeclaration(): Stmt? {
         val name = consume(IDENTIFIER, "Expected variable name.")
         annotations.add(Stmt.Annotation(name))
-        return when {
+        return null/*when {
             match(AT) -> annotationDeclaration()
             //match(VAR) -> varDeclaration()
             //match(VAL) -> varDeclaration(FieldModifier.CONST)
@@ -1248,7 +1256,7 @@ class Parser(
             //match(CLASS) -> classDeclaration(ClassModifier.NORMAL)
             //match(INTERFACE) -> interfaceDeclaration()
             else -> throw error(previous(), "Expected annotatable declaration after annotation.")
-        }
+        }*/
     }
 
     private fun varDeclaration(modifier: FieldModifier = FieldModifier.NORMAL, foreach: Boolean = false): Stmt.Var {
@@ -1895,7 +1903,7 @@ class Parser(
                 } while (match(COMMA))
             }
             consume(RIGHT_BRACKET, "Expected ']' after array elements.")
-            return Array(list, bracket, type)
+            return Array(list, bracket, Type.ofArray(type))
         }
 
         if (match(IDENTIFIER)) {

@@ -39,7 +39,8 @@ class Compiler(val sunlite: Sunlite, val vm: VM?, val enclosing: Compiler?) : Ex
         statements: List<Stmt>,
         path: String? = null,
         name: String = "",
-        arity: Int = 0
+        arity: Int = 0,
+        annotations: List<String> = listOf()
     ): SLFunction {
         localsCount = arity
         currentFile = path
@@ -107,7 +108,8 @@ class Compiler(val sunlite: Sunlite, val vm: VM?, val enclosing: Compiler?) : Ex
             arity,
             upvalues.size,
             localsCount,
-            modifier
+            modifier,
+            annotations
         )
     }
 
@@ -499,6 +501,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM?, val enclosing: Compiler?) : Ex
     }
 
     private fun resolveLocal(expr: Expr.NamedExpr): Int {
+        //if(locals.size != localsCount) throw IllegalStateException("Local counts mismatch!")
         for ((i, local) in locals.withIndex()) {
             if (local.name.lexeme == expr.getNameToken().lexeme) {
                 if (local.depth == -1) {
@@ -789,7 +792,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM?, val enclosing: Compiler?) : Ex
         chunk.debugInfo.locals.add(token.lexeme)
         locals.add(Local(token, -1))
         localsCount++
-        return localsCount - 1
+        return locals.size - 1
     }
 
 
@@ -899,7 +902,8 @@ class Compiler(val sunlite: Sunlite, val vm: VM?, val enclosing: Compiler?) : Ex
             stmt.body,
             stmt.name.file,
             stmt.name.lexeme,
-            stmt.params.size
+            stmt.params.size,
+            stmt.annotation.map { it.name.lexeme }
         )
         emitByte(Opcodes.CLOSURE, stmt)
         emitShort(addConstant(SLFuncObj(function), stmt), stmt)
@@ -1203,6 +1207,6 @@ class Compiler(val sunlite: Sunlite, val vm: VM?, val enclosing: Compiler?) : Ex
     }
 
     override fun visitAnnotationStmt(stmt: Stmt.Annotation) {
-        //todo:
+
     }
 }

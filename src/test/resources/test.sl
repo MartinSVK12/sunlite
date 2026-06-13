@@ -1,11 +1,28 @@
-class A {
-    var x := 0;
+import Reflect from "/sunlite/stdlib/reflect.sl";
 
-    func test(){
-        print(x);
+class A {
+    @Test
+    static func test(){
+
     }
 }
 
-val o: A? = nil;
+val arr: Array<String> = Reflect.getAnnotations(A.test);
 
-o?.test() ?: print("elvis activated");
+//foreach (var annotation: String in arr) {
+//    print(annotation);
+//}
+
+
+{
+    val iter := Arrays.getIterator(arr);
+    while (iter.hasNext() == true) {
+        {
+           var annotation := iter.current();
+           {
+                print(annotation);
+            }
+        }
+        iter.next();
+    }
+}

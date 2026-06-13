@@ -594,6 +594,24 @@ object DefaultNatives : Natives {
                 return SLArrayObj(SLArray(array.size, vm.sunlite, Type.STRING).overwrite(array))
             }
         })
+        natives.defineNative(object : SLNativeFunction("Reflect#getAnnotations", Type.ofArray(Type.STRING), 1) {
+            override fun call(
+                vm: VM,
+                args: Array<AnySLValue>,
+                typeArgs: Array<SLType>,
+                receiver: AnySLValue?
+            ): AnySLValue {
+                val o = args[0]
+                vm.typeChecker.checkType(Type.FUNCTION, Type.fromValue(o.value, vm.sunlite), true)
+                val func: SLFunction = when(o){
+                    is SLClosureObj -> o.value.function
+                    is SLBoundMethodObj -> o.value.method.function
+                    else -> return SLNil
+                }
+                return SLArrayObj(SLArray(func.annotations.size, vm.sunlite, Type.STRING).overwrite(func.annotations.map { SLString(it) }.toTypedArray()))
+            }
+        })
+
         natives.defineNative(object : SLNativeFunction("Field#loadField", Type.NIL, 0) {
             override fun call(vm: VM, args: Array<AnySLValue>, typeArgs: Array<SLType>, receiver: AnySLValue?): AnySLValue {
                 val obj = receiver!!.value as SLClassInstance

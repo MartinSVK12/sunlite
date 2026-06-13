@@ -3,6 +3,7 @@ import Field from "/sunlite/stdlib/reflect.sl";
 class Reflect {
     static native func getMethodNames(c: Class | Object): Array<String>
     static native func getFieldNames(c: Class | Object): Array<String>
+    static native func getAnnotations(f: Function): Array<String>
 
     static func getFields(c: Class | Object): Array<Field> {
         var names: Array<String> = Reflect.getFieldNames(c);

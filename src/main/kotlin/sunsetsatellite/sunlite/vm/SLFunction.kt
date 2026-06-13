@@ -18,7 +18,8 @@ class SLFunction(
     val arity: Int = 0,
     val upvalueCount: Int,
     val localsCount: Int,
-    val modifier: Array<FunctionModifier> = arrayOf(FunctionModifier.NORMAL)
+    val modifier: Array<FunctionModifier> = arrayOf(FunctionModifier.NORMAL),
+    val annotations: List<String> = listOf()
 ) {
 
     companion object {
@@ -51,7 +52,12 @@ class SLFunction(
             for (i in 0 until modCount) {
                 modifier.add(FunctionModifier.entries[s.readInt()])
             }
-            return SLFunction(name, returnType, params, typeParams, chunk, arity, upvalueCount, localsCount, modifier.toTypedArray())
+            val annotationCount = s.readInt()
+            val annotations = mutableListOf<String>()
+            for (i in 0 until annotationCount) {
+                annotations.add(s.readUTF())
+            }
+            return SLFunction(name, returnType, params, typeParams, chunk, arity, upvalueCount, localsCount, modifier.toTypedArray(), annotations)
         }
     }
 
@@ -60,7 +66,7 @@ class SLFunction(
     }
 
     fun copy(): SLFunction {
-        return SLFunction(name, returnType, params, typeParams, chunk, arity, upvalueCount, localsCount, modifier)
+        return SLFunction(name, returnType, params, typeParams, chunk, arity, upvalueCount, localsCount, modifier, annotations)
     }
 
     fun write(s: DataOutputStream){
@@ -84,6 +90,10 @@ class SLFunction(
         s.write(modifier.size)
         for (mod in modifier) {
             s.writeInt(mod.ordinal)
+        }
+        s.write((annotations.size))
+        for (name in annotations) {
+            s.writeUTF(name)
         }
     }
 }
