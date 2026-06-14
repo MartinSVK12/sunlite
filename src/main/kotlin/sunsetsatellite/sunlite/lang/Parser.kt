@@ -35,7 +35,7 @@ class Parser(
             autoImported["Exception"] = "/sunlite/stdlib/exception.sl"
             autoImported["ArrayIterator"] = "/sunlite/stdlib/array.sl"
             autoImported["Arrays"] = "/sunlite/stdlib/array.sl"
-            autoImported["string"] = "/sunlite/stdlib/string.sl"
+            autoImported["Strings"] = "/sunlite/stdlib/string.sl"
         }
     }
 
@@ -1074,9 +1074,9 @@ class Parser(
         val collection = expression()
         consume(RIGHT_PAREN, "Expected ')' after 'foreach' clauses.")
         val initCall = Call(
-            Get(Variable(Token.identifier("Arrays", collection)), Token.identifier("getIterator", collection), Type.ofObject("Iterator")),
+            Get(collection, Token.identifier("getIterator", collection), Type.ofObject("Iterator")),
             Token.identifier("<synthetic iterator init call>", collection),
-            listOf(collection),
+            listOf(),
             listOf()
         )
         val initializer = Stmt.Var(

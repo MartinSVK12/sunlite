@@ -37,7 +37,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
         openUpvalues.clear()
         globalProgramData.clear()
         sunlite.natives.registerNatives(this)
-        primitiveWrappers[SLString::class.java] = "string"
+        primitiveWrappers[SLString::class.java] = "Strings"
     }
 
     companion object {
@@ -112,7 +112,14 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                 val instruction = readByte(fr)
                 when (Opcodes.entries[instruction]) {
                     Opcodes.NOP -> {
-
+                        if(Sunlite.debug){
+                            fr.pc--
+                            sunlite.printWarn("Suspicious instruction at PC: ${String.format("%04d",fr.pc)}.")
+                            sunlite.printWarn("Possible instruction corruption detected!")
+                            sunlite.printWarn("Reason: NOPs are never emitted by the Sunlite compiler.")
+                            sunlite.printWarn(getStacktrace("Stacktrace:"))
+                            fr.pc++
+                        }
                     }
 
                     Opcodes.RETURN -> {
@@ -437,11 +444,8 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                         } else if (arg is SLArrayObj) {
                             val instance = arg.value
                             val name = readString(fr).value
-                            //todo: incompatible with class loading
-                            runtimeError("Please use Arrays.method(arr, ...) instead of arr.method(...) for now.")
-                            return
-                            /*if (globals.containsKey("array")) {
-                                val clazz = globals["array"]!!.value as SLClass
+                            if (globals.containsKey("Arrays")) {
+                                val clazz = globals["Arrays"]!!.value as SLClass
                                 if (!clazz.methods.containsKey(name)) {
                                     runtimeError("Undefined property '$name'.")
                                     return
@@ -451,9 +455,13 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                                 fr.push(closure)
                                 fr.push(SLArrayObj(instance))
                             } else {
-                                runtimeError("InternalError: missing stdlib classes")
+                                if(!findClass("Arrays")){
+                                    runtimeError("InternalError: Cannot find internal stdlib class 'Arrays'.")
+                                    return
+                                }
+                                fr.pc -= 7
                                 return
-                            }*/
+                            }
                         } else if (primitiveWrappers.containsKey(arg.javaClass)) {
                             val wrapperClassName = primitiveWrappers[arg.javaClass]!!
                             val name = readString(fr).value
@@ -1069,7 +1077,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                         .filter { it.contains("init") }
                         .map{ it.replace("init","") }
                         .map{ Descriptor(it).getType() }.joinToString("\n\t")
-                runtimeError("Parameters do not match any defined constructor.\nGot ${type}, expected one of\n\t${availableConstructors}\n")
+                runtimeError("Parameters do not match any defined constructor for class '${callee.name}'.\nGot ${type}, expected one of\n\t${availableConstructors}\n")
                 return null
             }
 

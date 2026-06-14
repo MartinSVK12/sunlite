@@ -1,17 +1,22 @@
-class IntRange {
-    var _begin: Int = 0;
-    var _end: Int = 0;
+import ArrayIterator from "/sunlite/stdlib/array.sl";
+
+class IntRange implements Iterable {
+    
+    var begin: Int;
+    var end: Int;
+    var size: Int;
     
     init(begin: Int, end: Int) {
-        _begin = begin;
-        _end = end;
+        this.begin = begin;
+        this.end = end;
+        size = end - begin;
     }
     
-    func range(): Array<Int> {
-        val arr: Array<Int> = emptyArray(_end);
-        for(var i: Int = _begin; i < _end; i = i + 1){
+    override func getIterator(): Iterator {
+        val arr: Array<Int> = emptyArray(<Int> size);
+        for(var i: Int = this.begin; i < this.end; i++){
             arr[i] = i;
         }
-        return arr;
+        return ArrayIterator(arr);
     }
 }

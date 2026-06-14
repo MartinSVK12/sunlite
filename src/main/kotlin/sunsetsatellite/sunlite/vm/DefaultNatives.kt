@@ -31,17 +31,6 @@ object DefaultNatives : Natives {
         registerString(consumer)
         registerMath(consumer)
         registerReflect(consumer)
-
-        consumer.defineNative(object : SLNativeFunction("A#a", Type.STRING, 0) {
-            override fun call(
-                vm: VM,
-                args: Array<AnySLValue>,
-                typeArgs: Array<SLType>,
-                receiver: AnySLValue?
-            ): AnySLValue {
-                return SLString(receiver.toString())
-            }
-        })
     }
 
     fun registerIO(natives: NativesContainer) {

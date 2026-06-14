@@ -79,7 +79,7 @@ class Chunk(
         val sb = StringBuilder()
         sb.append("==== ${debugInfo.file.toString()}::${debugInfo.name} ====\n")
         for ((index, byte) in code.withIndex()) {
-            sb.append(String.format("%04X: %02X\n", index, byte))
+            sb.append(String.format("%04d: %02X\n", index, byte))
         }
         sb.append("=====${"=".repeat(debugInfo.file?.length?.plus(debugInfo.name.length) ?: 0)}=====\n")
         return sb.toString()
@@ -120,7 +120,7 @@ class MutableChunk(
         val sb = StringBuilder()
         sb.append("==== ${debugInfo.file.toString()}::${debugInfo.name} (mutable) ====\n")
         for ((index, byte) in code.withIndex()) {
-            sb.append(String.format("%04X: %02X\n", index, byte))
+            sb.append(String.format("%04d: %02X\n", index, byte))
         }
         sb.append("=====${"=".repeat(debugInfo.file?.length?.plus(debugInfo.name.length) ?: 0)}=====\n")
         return sb.toString()
