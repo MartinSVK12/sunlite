@@ -1,9 +1,9 @@
-interface Iterator {
-    func next(): Any?
-    func current(): Any?
+interface<T> Iterator {
+    func next(): Generic<T>?
+    func current(): Generic<T>?
     func hasNext(): Boolean
 }
 
-interface Iterable {
-    func getIterator(): Iterator
+interface<T> Iterable {
+    func getIterator(): Iterator<Generic<T>>
 }

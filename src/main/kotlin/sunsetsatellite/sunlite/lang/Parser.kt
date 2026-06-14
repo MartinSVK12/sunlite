@@ -381,7 +381,6 @@ class Parser(
 
         val typeParameters: MutableList<Param> = ArrayList()
         if (match(LESS)) {
-            //throw error(peek(), "Generic classes not supported.")
 			do {
 				if (typeParameters.size >= 255) {
 					error(peek(), "Can't have more than 255 type parameters.")
@@ -406,20 +405,45 @@ class Parser(
             superclass = Variable(Token.identifier("Object", previous()))
         }
 
-        val superinterfaces: MutableList<Variable> = mutableListOf()
+        val superinterfaces: MutableList<Pair<Variable,List<Type>>> = mutableListOf()
         if (match(IMPLEMENTS)) {
             do {
                 if (superinterfaces.size >= 255) {
                     error(peek(), "Can't inherit more than 255 superinterfaces.")
                 }
 
-                superinterfaces.add(
-                    Variable(consume(IDENTIFIER, "Expected superinterface name."))
-                )
+                val name = Variable(consume(IDENTIFIER, "Expected superinterface name."))
+                val specifiedTypeParams: MutableList<Type> = mutableListOf()
+                if (match(LESS)) {
+                    do {
+                        if (typeParameters.size >= 255) {
+                            error(peek(), "Can't have more than 255 type parameters.")
+                        }
+                        val type = getType(false, true)
+                        specifiedTypeParams.add(type)
+                    } while (match(COMMA))
+                    consume(GREATER, "Expected '>' after type parameter declaration.")
+                }
+
+                superinterfaces.add(name to specifiedTypeParams)
+
             } while (match(COMMA))
         }
 
         consume(LEFT_BRACE, "Expected '{' before class body.")
+
+        sunlite.collector?.let { collector ->
+            for (superinterface in superinterfaces) {
+                val prototype = collector.typeHierarchy[superinterface.first.name.lexeme]
+
+                prototype?.let { p ->
+                    typeParameters.addAll(p.typeParameters.mapIndexed { index, it ->
+                        val identifier = Token.identifier(it, superinterface.first)
+                        Param(identifier, superinterface.second.getOrElse(index, { Type.Parameter(identifier) }))
+                    })
+                }
+            }
+        }
 
         if(importing.isEmpty() || (importing.isNotEmpty() && name.lexeme == importing)){
             val types = sunlite.collector?.typeHierarchy
@@ -427,7 +451,7 @@ class Parser(
 	            types[name.lexeme] = TypeCollector.TypePrototype(
                     name.lexeme,
                     superclass?.name?.lexeme ?: "<nil>",
-                    superinterfaces.map { it.name.lexeme },
+                    superinterfaces.map { it.first.name.lexeme },
                     typeParameters.map { it.token.lexeme },
                     modifier,
                     null,
@@ -561,7 +585,7 @@ class Parser(
 
         if(importing.isNotEmpty() && name.lexeme != importing) return null
 
-        return Stmt.Class(name, methods, fields, superclass, superinterfaces, modifier, typeParameters, staticInit)
+        return Stmt.Class(name, methods, fields, superclass, superinterfaces.map { it.first }, modifier, typeParameters, staticInit)
     }
 
     private fun superInitStatement(): Stmt {
@@ -1102,12 +1126,35 @@ class Parser(
             ),
             Literal(true, collection.getLine(), collection.getFile(), Type.BOOLEAN)
         )
+        var type: Type =
+            if (collection.getExprType() is Type.Reference && (collection.getExprType() as Type.Reference).type == PrimitiveType.ARRAY)
+                (collection.getExprType() as Type.Reference).returnType
+            else Type.NULLABLE_ANY
+
+        sunlite.collector?.let {
+            if(collection.getExprType() is Type.Reference && (collection.getExprType() as Type.Reference).type == PrimitiveType.OBJECT) {
+                val prototype = it.typeHierarchy[collection.getExprType().getName()]
+                prototype?.let { prototype ->
+                    prototype.scope?.let { scope ->
+                        val typeParam = scope.contents.mapKeys { it.key.lexeme }["<T>"]
+                        typeParam?.let { typeParam ->
+                            type = typeParam.getElementType()
+                        }
+                    }
+                }
+            }
+        }
+
+        if(element.type == Type.UNKNOWN) {
+            element = Stmt.Var(element.name, type, null, element.modifier)
+        }
+
         val increment = Call(
             Get(
                 iterVar,
                 Token.identifier("next", collection),
                 Type.ofFunction("next",
-                    if (collection.getExprType() is Type.Reference) (collection.getExprType() as Type.Reference).returnType else Type.NULLABLE_ANY,
+                    type,
                     listOf())
             ),
             Token.identifier("<synthetic iterator next call>", collection),
@@ -1121,7 +1168,7 @@ class Parser(
                     iterVar,
                     Token.identifier("current", element.name),
                     Type.ofFunction("current",
-                        if (collection.getExprType() is Type.Reference) (collection.getExprType() as Type.Reference).returnType else Type.NULLABLE_ANY,
+                        type,
                         listOf())
                 ),
                 Token.identifier("<synthetic iterator current call>", element.name),
@@ -1297,16 +1344,19 @@ class Parser(
     private fun varDeclaration(modifier: FieldModifier = FieldModifier.NORMAL, foreach: Boolean = false): Stmt.Var {
         val name = consume(IDENTIFIER, "Expected variable name.")
 
-        var type = getType()
+        var type = getType(foreach = true)
 
         var initializer: Expr? = null
         if (match(EQUAL)) {
+            if(foreach){
+                throw error(peek(), "Foreach element variable cannot have an initializer.")
+            }
             initializer = expression()
         }
 
         if(type == Type.UNKNOWN && initializer != null){
             type = initializer.getExprType()
-        } else if(type == Type.UNKNOWN && initializer == null) {
+        } else if(type == Type.UNKNOWN && initializer == null && !foreach) {
             throw error(peek(), "Can't infer type of variable without an initializer.")
         }
 
@@ -1390,8 +1440,8 @@ class Parser(
         return types
     }
 
-    private fun getType(function: Boolean = false, noColon: Boolean = false): Type {
-        var type: Type = if (function) Type.NIL else Type.ANY
+    private fun getType(function: Boolean = false, noColon: Boolean = false, foreach: Boolean = false): Type {
+        var type: Type = if (function) Type.NIL else if(foreach) Type.UNKNOWN else Type.ANY
         if (match(COLON) || noColon) {
             if(checkToken(EQUAL)){
                 return Type.UNKNOWN

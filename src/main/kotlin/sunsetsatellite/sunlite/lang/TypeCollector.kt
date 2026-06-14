@@ -317,7 +317,7 @@ class TypeCollector(val sunlite: Sunlite, val natives: NativesContainer) : Stmt.
                     "<${it.token.lexeme}>",
                     it.token.line,
                     it.token.file
-                ), Type.Parameter(it.token)
+                ), it.type
             )
         }
         currentClass = null
@@ -351,6 +351,15 @@ class TypeCollector(val sunlite: Sunlite, val natives: NativesContainer) : Stmt.
             addVariable(
                 Token.identifier("<superinterface ${it.name.lexeme}>", it.getLine(), it.getFile()),
                 Type.ofClass(it.name.lexeme)
+            )
+        }
+        stmt.typeParameters.forEach {
+            addVariable(
+                Token.identifier(
+                    "<${it.token.lexeme}>",
+                    it.token.line,
+                    it.token.file
+                ), it.type
             )
         }
         removeScope()

@@ -9,6 +9,7 @@ import kotlin.collections.filter
 import kotlin.io.path.Path
 
 // todo: more runtime checks
+// todo: check that the signature of overriden function has not changed
 class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, NativesContainer {
 
     var ignoreBreakpoints: Boolean = false

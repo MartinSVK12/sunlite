@@ -19,7 +19,7 @@ class Arrays {
     }
 }
 
-class ArrayIterator implements Iterator {
+class ArrayIterator implements Iterator<Any?> {
     
     var _index: Int = 0;
     var _array: Array<Any?>? = nil;
