@@ -3,6 +3,7 @@ program        → declaration* EOF ;
 // DECLARATIONS
 
 declaration    → classDecl
+               | annotationDecl
                | interfaceDecl
                | enumDecl
                | enumValueDecl
@@ -10,11 +11,12 @@ declaration    → classDecl
                | varDecl
                | statement ;
 
+annotationDecl → annotation ( funDecl | annotationDecl ) ;
 classDecl      → ( classModifier* )? "class" ( typeParam )? IDENTIFIER ( "extends" IDENTIFIER )? ( "implements" IDENTIFIER )?
                  "{" varDecl* method* initializer* ( staticInit )? "}" ;
 interfaceDecl  → "interface" ( typeParam )? IDENTIFIER ( "implements" IDENTIFIER ( "," IDENTIFIER )* )?
                  "{" abstractMethod* "}" ;
-funDecl        → "func" ( typeParam )? function ;
+funDecl        → "func" ( typeParam )? ( IDENTIFIER "." )? function ;
 varDecl        → ( "static" )? ( "var" | "val" ) IDENTIFIER ( ":" type )? ( "=" expression )?  ";" ;
 enumDecl       → "enum" IDENTIFIER "{" ( enumValueDecl ( "," enumValueDecl )* )? ";" varDecl* method* initializer* ( staticInit )? "}" ;
 enumValueDecl  → IDENTIFIER ( "(" parameters? ")" )? ;
@@ -79,7 +81,7 @@ ifExpr         → "if" "(" expression ")" expression "else" expression
 
 // UTILITY
 
-method         → ( funcModifier* )? "func" ( typeParam )? methodSignature block? ;
+method         → ( annotation* )? ( funcModifier* )? "func" ( typeParam )? methodSignature block? ;
 abstractMethod → ( "native" )? "func" ( typeParam )? methodSignature ;
 methodSignature→ IDENTIFIER "(" parameters? ")" ( ":" type )? ;
 initializer    → "init" "(" parameters? ")" block? ;
@@ -88,6 +90,7 @@ function       → IDENTIFIER "(" parameters? ")" ( ":" type )? block ;
 parameters     → IDENTIFIER ( ":" type )? ( "," IDENTIFIER ( ":" type )? )* ;
 arguments      → expression ( "," expression )* ;
 caseClause     → (expression | "else") ":" "{" statement "}" ;
+annotation     → "@" IDENTIFIER ;
 type           → ( "Any"
                  | "Nil"
                  | "Byte"

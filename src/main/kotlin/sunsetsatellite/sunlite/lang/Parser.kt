@@ -105,6 +105,12 @@ class Parser(
                 val decl = varDeclaration(FieldModifier.CONST)
                 if(allowedToParse()) decl else null
             }
+            match(STATIC) -> {
+                val modifier = previous()
+                consume(FUN, "Expected 'func' after 'static' modifier.")
+                val decl = function(FunctionType.FUNCTION, modifier)
+                if(allowedToParse()) decl else null
+            }
             match(FUN) -> {
                 val decl = function(FunctionType.FUNCTION, null)
                 if(allowedToParse()) decl else null
@@ -253,7 +259,7 @@ class Parser(
 
         sunlite.imports[id] = includingDepth to statements
 
-        if (Sunlite.showAST) {
+        /*if (Sunlite.showAST) {
             sunlite.printInfo("AST: ${location.literal}")
             sunlite.printInfo("-----")
             statements.forEach {
@@ -261,7 +267,7 @@ class Parser(
             }
             sunlite.printInfo("-----")
             sunlite.printInfo()
-        }
+        }*/
 
         if (Sunlite.debug) {
             sunlite.printInfo("Parsed and imported ${what.lexeme} from ${location.literal}!")
@@ -352,7 +358,7 @@ class Parser(
 
         sunlite.includes[what.literal] = includingDepth to statements
 
-        if (Sunlite.showAST) {
+        /*if (Sunlite.showAST) {
             sunlite.printInfo("AST: ${currentFile}")
             sunlite.printInfo("-----")
             statements.forEach {
@@ -360,7 +366,7 @@ class Parser(
             }
             sunlite.printInfo("-----")
             sunlite.printInfo()
-        }
+        }*/
 
         if (Sunlite.debug) {
             sunlite.printInfo("Parsed and included '${what.literal}'!")
@@ -425,8 +431,9 @@ class Parser(
                     typeParameters.map { it.token.lexeme },
                     modifier,
                     null,
-                    true,
-                    sunlite.compileStep
+		            incomplete = true,
+		            isInterface = false,
+		            id = sunlite.compileStep
                 )
             }
         }
@@ -588,8 +595,9 @@ class Parser(
                     listOf(),
                     ClassModifier.SEALED,
                     null,
-                    true,
-                    sunlite.compileStep
+	                incomplete = true,
+	                isInterface = false,
+	                id = sunlite.compileStep
                 )
             }
         }
@@ -776,8 +784,9 @@ class Parser(
                     typeParameters.map { it.token.lexeme },
                     ClassModifier.ABSTRACT,
                     null,
-                    true,
-                    sunlite.compileStep
+	                incomplete = true,
+	                isInterface = false,
+	                id = sunlite.compileStep
                 )
             }
         }
@@ -794,11 +803,28 @@ class Parser(
         return Stmt.Interface(name, methods, superinterfaces, typeParameters)
     }
 
-    private fun funcSignature(kind: FunctionType): Triple<Token, List<Param>, Type> {
+    data class FuncSignature(val name: Token, val parameters: List<Param>, val type: Type, val receiver: Token? = null)
+
+    private fun funcSignature(kind: FunctionType): FuncSignature {
         var name = if (kind == FunctionType.INITIALIZER) Token.identifier("init", -1, currentFile) else consume(
             IDENTIFIER,
             "Expected ${kind.toString().lowercase()} name."
         )
+
+        var receiver: Token? = null
+        if(match(DOT)){
+            if(kind != FunctionType.FUNCTION){
+                throw error(peek(), "Only top level functions can be extensions.")
+            }
+            receiver = name
+            sunlite.collector!!.typeHierarchy[receiver.lexeme]?.let {
+	            if (it.isInterface) {
+		            throw error(peek(), "Can't add extensions to interfaces.")
+	            }
+            }
+            name = consume(IDENTIFIER, "Expected ${kind.toString().lowercase()} name after extension receiver.")
+
+        }
 
         consume(LEFT_PAREN, "Expected '(' after ${kind.toString().lowercase()} name.")
         val parameters: MutableList<Param> = ArrayList()
@@ -824,7 +850,7 @@ class Parser(
         }
 
         currentFunction = name
-        return Triple(name, parameters, type)
+        return FuncSignature(name, parameters, type, receiver)
     }
 
     private fun abstractMethod(): Stmt.Function {
@@ -849,12 +875,12 @@ class Parser(
         parsingConstructor = false
 
         return Stmt.Function(
-            signature.first,
+            signature.name,
             FunctionType.METHOD,
-            signature.second,
+            signature.parameters,
             listOf(),
             arrayOf(FunctionModifier.ABSTRACT),
-            signature.third,
+            signature.type,
             typeParameters
         )
     }
@@ -881,6 +907,14 @@ class Parser(
         val funcModifier = FunctionModifier.get(modifier, modifier2)
         val signature = funcSignature(kind)
 
+        if(!funcModifier.contains(FunctionModifier.NORMAL) && !funcModifier.contains(FunctionModifier.STATIC) && signature.receiver != null){
+            throw error(signature.receiver, "Extension ${kind.toString().lowercase()} can only have 'static' or no modifier.")
+        }
+
+        if(kind == FunctionType.FUNCTION && funcModifier.contains(FunctionModifier.STATIC) && signature.receiver == null){
+            throw error(peek(), "Only extension ${kind.toString().lowercase()}s can have the 'static' modifier at top level.")
+        }
+
         var body: List<Stmt> = listOf()
         if (!funcModifier.contains(FunctionModifier.NATIVE)) {
             consume(LEFT_BRACE, "Expected '{' before ${kind.toString().lowercase()} body.")
@@ -896,14 +930,15 @@ class Parser(
         annotations.clear()
 
         return Stmt.Function(
-            signature.first,
+            signature.name,
             kind,
-            signature.second,
+            signature.parameters,
             body,
             funcModifier,
-            signature.third,
+            signature.type,
             typeParameters,
-            ann
+            ann,
+            signature.receiver
         )
     }
 

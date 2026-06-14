@@ -19,6 +19,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM?, val enclosing: Compiler?) : Ex
 
     var currentFile: String? = null
     var currentFunctionType: FunctionType = FunctionType.FUNCTION
+    var isCurrentFunctionExtension: Boolean = false
     val chunk = MutableChunk()
     val locals: MutableList<Local> = mutableListOf()
     var maxLocals = 0
@@ -40,7 +41,8 @@ class Compiler(val sunlite: Sunlite, val vm: VM?, val enclosing: Compiler?) : Ex
         path: String? = null,
         name: String = "",
         arity: Int = 0,
-        annotations: List<String> = listOf()
+        annotations: List<String> = listOf(),
+        receiver: Token? = null
     ): SLFunction {
         maxLocals = arity
         currentFile = path
@@ -48,7 +50,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM?, val enclosing: Compiler?) : Ex
         currentFunctionType = type
         currentReturn = null
 
-        if (type == FunctionType.METHOD || type == FunctionType.INITIALIZER) {
+        if (type == FunctionType.METHOD || type == FunctionType.INITIALIZER || (receiver != null && !modifier.contains(FunctionModifier.STATIC))) {
             addIdentifier("this", Expr.This(Token.identifier("this")))
             chunk.debugInfo.locals.add(0,"this")
             locals.add(0, Local(Token.identifier("this", -1, currentFile), 0))
@@ -83,7 +85,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM?, val enclosing: Compiler?) : Ex
             emitByte(Opcodes.RETURN, statements.lastOrNull())
         }
 
-        if (Sunlite.showDisassembly) {
+        if (Sunlite.showDisassembly && currentFile == sunlite.args[0]) {
             sunlite.printInfo(Disassembler.disassembleChunk(chunk.toImmutable()))
         }
 
@@ -653,7 +655,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM?, val enclosing: Compiler?) : Ex
     override fun visitThisExpr(expr: Expr.This) {
         var compiler: Compiler? = this
         while (compiler != null) {
-            if (compiler.currentClass != null) break
+            if (compiler.currentClass != null || compiler.isCurrentFunctionExtension) break
             compiler = compiler.enclosing
         }
 
@@ -879,9 +881,19 @@ class Compiler(val sunlite: Sunlite, val vm: VM?, val enclosing: Compiler?) : Ex
     override fun visitFunctionStmt(stmt: Stmt.Function) {
         val constantIndex: Int = addIdentifier(stmt.name.lexeme, stmt)
         markInitialized()
-        makeFunction(stmt)
-        if (stmt.type == FunctionType.FUNCTION) {
+        if (stmt.type == FunctionType.FUNCTION && stmt.receiver == null) {
+            makeFunction(stmt)
             defineVariable(constantIndex, stmt)
+        } else if(stmt.type == FunctionType.FUNCTION && stmt.receiver != null) {
+            isCurrentFunctionExtension = true
+            compile(Expr.Variable(stmt.receiver))
+            makeFunction(stmt)
+            emitByte(Opcodes.METHOD, stmt)
+            emitShort(constantIndex, stmt)
+            emitByte(Opcodes.POP, stmt)
+            isCurrentFunctionExtension = false
+        } else {
+            makeFunction(stmt)
         }
     }
 
@@ -903,7 +915,8 @@ class Compiler(val sunlite: Sunlite, val vm: VM?, val enclosing: Compiler?) : Ex
             stmt.name.file,
             stmt.name.lexeme,
             stmt.params.size,
-            stmt.annotation.map { it.name.lexeme }
+            stmt.annotation.map { it.name.lexeme },
+            stmt.receiver
         )
         emitByte(Opcodes.CLOSURE, stmt)
         emitShort(addConstant(SLFuncObj(function), stmt), stmt)

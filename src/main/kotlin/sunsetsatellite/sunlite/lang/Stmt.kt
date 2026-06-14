@@ -132,7 +132,8 @@ abstract class Stmt : Element {
         var modifier: Array<FunctionModifier>,
         val returnType: Type,
         val typeParameters: List<Param>,
-        val annotation: List<Annotation> = listOf()
+        val annotation: List<Annotation> = listOf(),
+        val receiver: Token? = null
     ) : Stmt(), Annotatable, NamedStmt, GenericStmt {
         override fun <R> accept(visitor: Visitor<R>): R {
             return visitor.visitFunctionStmt(this)

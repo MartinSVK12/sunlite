@@ -74,6 +74,7 @@ class TypeCollector(val sunlite: Sunlite, val natives: NativesContainer) : Stmt.
         val modifier: ClassModifier,
         val scope: Scope?,
         val incomplete: Boolean = false,
+        val isInterface: Boolean = false,
         val id: Int
     )
 
@@ -295,8 +296,9 @@ class TypeCollector(val sunlite: Sunlite, val natives: NativesContainer) : Stmt.
                 stmt.typeParameters.map { it.token.lexeme },
                 stmt.modifier,
                 currentScope!!,
-                false,
-                currentId
+	            incomplete = false,
+	            isInterface = false,
+	            id = currentId
             )
         stmt.superclass?.let {
             addVariable(Token.identifier("<superclass>", it.getLine(), it.getFile()), Type.ofClass(it.name.lexeme))
@@ -340,8 +342,9 @@ class TypeCollector(val sunlite: Sunlite, val natives: NativesContainer) : Stmt.
                 stmt.typeParameters.map { it.token.lexeme },
                 ClassModifier.ABSTRACT,
                 currentScope!!,
-                false,
-                currentId
+                incomplete = false,
+	            isInterface = true,
+	            id = currentId
             )
         stmt.methods.forEach { it.accept(this) }
         stmt.superinterfaces.forEach {
