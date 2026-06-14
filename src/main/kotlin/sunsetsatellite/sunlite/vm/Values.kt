@@ -164,7 +164,7 @@ class SLDouble(value: Double) : SLNumber<Double>(value, 2) {
     }
 
     override fun times(other: SLNumber<*>): SLValue<*> {
-        return SLDouble(value * other.value.toDouble())
+        return SLDouble((value * other.value.toDouble()))
     }
 
     override fun div(other: SLNumber<*>): SLValue<*> {

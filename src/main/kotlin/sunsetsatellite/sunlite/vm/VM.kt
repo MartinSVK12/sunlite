@@ -666,7 +666,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
 
         while (fr.pc < fr.closure.function.chunk.code.size) {
             val currentLine = fr.closure.function.chunk.debugInfo.lines[fr.pc]
-            val currentFile = fr.closure.function.chunk.debugInfo.lineData[currentLine]?.let { Path(it) }?.fileName.toString()
+            val currentFile = fr.closure.function.chunk.debugInfo.lineData[currentLine] ?: "<unknown>"
 
             if (sunlite.breakpoints[currentFile]?.contains(currentLine) == true && !ignoreBreakpoints) {
                 if (lastBreakpointLine != currentLine) {
@@ -1118,6 +1118,21 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
         if (frameStack.size == MAX_FRAMES) {
             runtimeError("Stack overflow.")
             return false
+        }
+
+        if(callee.value.function.annotations.contains("TailRec")){
+            val fr = frameStack.peek()
+	        if (fr.closure == callee.value) {
+                if(Opcodes.entries[fr.closure.function.chunk.code[fr.pc].toInt()] == Opcodes.RETURN){
+                    fr.pc = 0
+                    fr.stack.removeAt(0)
+                    for (i in 0 until argCount) {
+                        fr.locals[i] = fr.stack[i]
+                    }
+                    fr.stack.clear()
+                    return true
+                }
+	        }
         }
 
         val locals = mutableListOf<AnySLValue>()

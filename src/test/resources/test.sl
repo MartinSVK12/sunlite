@@ -1,15 +1,16 @@
-enum Test {
-    ONE(1),
-    TWO(2),
-    THREE(3);
+func fact(n: Double): Double {
+    return factIter(1.0,n);
+}
 
-    var value: Int;
-
-    init(v: Int) {
-        value = v;
+@TailRec
+func factIter(p: Double, n: Double): Double {
+    if(n <= 0){
+        return p;
     }
+    return factIter(p*n,n-1);
 }
 
-foreach(var entry: Enum in Test.entries()){
-    print(entry.name);
-}
+var before: Double = clock();
+print(fact(170.0));
+var after: Double = clock();
+print(after - before);
