@@ -85,7 +85,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM?, val enclosing: Compiler?) : Ex
             emitByte(Opcodes.RETURN, statements.lastOrNull())
         }
 
-        if (Sunlite.showDisassembly && currentFile == sunlite.args[0]) {
+        if (Sunlite.showDisassembly /*&& currentFile == sunlite.args[0]*/) {
             sunlite.printInfo(Disassembler.disassembleChunk(chunk.toImmutable()))
         }
 

@@ -150,6 +150,7 @@ object Disassembler {
             sb.append("<error reading constant>")
         } else {
             sb.append(chunk.constants[constant].toString())
+            //sb.append(": ").append(chunk.constants[constant].javaClass.simpleName.replace("SL",""))
         }
         sb.append("\n")
         return offset + 3

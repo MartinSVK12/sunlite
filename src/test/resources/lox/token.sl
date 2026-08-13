@@ -14,7 +14,7 @@ class Token {
     }
     
     func toString(): String {
-        return "<token '" + TokenType.toStr(this.type) + " '" + string.trim(this.lexeme) + "' " + str(this.literal) + "'>";
+        return "<token '" + TokenType.toStr(this.type) + " '" + this.lexeme.trim() + "' " + str(this.literal) + "'>";
     }
 
 }

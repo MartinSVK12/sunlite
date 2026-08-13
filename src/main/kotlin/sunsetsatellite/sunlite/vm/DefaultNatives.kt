@@ -315,21 +315,21 @@ object DefaultNatives : Natives {
     }
 
     fun registerString(natives: NativesContainer) {
-        natives.defineNative(object : SLNativeFunction("string#len", Type.INT, 1) {
+        natives.defineNative(object : SLNativeFunction("Strings#len", Type.INT, 1) {
             override fun call(vm: VM, args: Array<AnySLValue>, typeArgs: Array<SLType>, receiver: AnySLValue?): AnySLValue {
                 val s = (args[0] as SLString).value
                 return SLInt(s.length)
             }
         })
 
-        natives.defineNative(object : SLNativeFunction("string#reverse", Type.STRING, 1) {
+        natives.defineNative(object : SLNativeFunction("Strings#reverse", Type.STRING, 1) {
             override fun call(vm: VM, args: Array<AnySLValue>, typeArgs: Array<SLType>, receiver: AnySLValue?): AnySLValue {
                 val s = (args[0] as SLString).value
                 return SLString(s.reversed())
             }
         })
 
-        natives.defineNative(object : SLNativeFunction("string#sub", Type.STRING, 3) {
+        natives.defineNative(object : SLNativeFunction("Strings#sub", Type.STRING, 3) {
             override fun call(vm: VM, args: Array<AnySLValue>, typeArgs: Array<SLType>, receiver: AnySLValue?): AnySLValue {
                 val s = (args[0] as SLString).value
                 val from = (args[1] as SLNumber).value.toInt()
@@ -338,7 +338,7 @@ object DefaultNatives : Natives {
             }
         })
 
-        natives.defineNative(object : SLNativeFunction("string#repeat", Type.STRING, 3) {
+        natives.defineNative(object : SLNativeFunction("Strings#repeat", Type.STRING, 3) {
             override fun call(vm: VM, args: Array<AnySLValue>, typeArgs: Array<SLType>, receiver: AnySLValue?): AnySLValue {
                 val s = (args[0] as SLString).value
                 val n = (args[1] as SLNumber).value.toInt()
@@ -347,7 +347,7 @@ object DefaultNatives : Natives {
             }
         })
 
-        natives.defineNative(object : SLNativeFunction("string#format", Type.STRING, 2) {
+        natives.defineNative(object : SLNativeFunction("Strings#format", Type.STRING, 2) {
             override fun call(vm: VM, args: Array<AnySLValue>, typeArgs: Array<SLType>, receiver: AnySLValue?): AnySLValue {
                 val s = (args[0] as SLString).value
                 val fmt = (args[1] as SLArrayObj).value.internal()
@@ -355,7 +355,7 @@ object DefaultNatives : Natives {
             }
         })
 
-        natives.defineNative(object : SLNativeFunction("string#replace", Type.STRING, 3) {
+        natives.defineNative(object : SLNativeFunction("Strings#replace", Type.STRING, 3) {
             override fun call(vm: VM, args: Array<AnySLValue>, typeArgs: Array<SLType>, receiver: AnySLValue?): AnySLValue {
                 val s = (args[0] as SLString).value
                 val replace = (args[0] as SLString).value
@@ -364,14 +364,14 @@ object DefaultNatives : Natives {
             }
         })
 
-        natives.defineNative(object : SLNativeFunction("string#trim", Type.STRING, 1) {
+        natives.defineNative(object : SLNativeFunction("Strings#trim", Type.STRING, 1) {
             override fun call(vm: VM, args: Array<AnySLValue>, typeArgs: Array<SLType>, receiver: AnySLValue?): AnySLValue {
                 val s = (args[0] as SLString).value
                 return SLString(s.filterNot { it.isWhitespace() })
             }
         })
 
-        natives.defineNative(object : SLNativeFunction("string#contains", Type.BOOLEAN, 2) {
+        natives.defineNative(object : SLNativeFunction("Strings#contains", Type.BOOLEAN, 2) {
             override fun call(vm: VM, args: Array<AnySLValue>, typeArgs: Array<SLType>, receiver: AnySLValue?): AnySLValue {
                 val s = (args[0] as SLString).value
                 val s2 = (args[1] as SLString).value
@@ -379,7 +379,7 @@ object DefaultNatives : Natives {
             }
         })
 
-        natives.defineNative(object : SLNativeFunction("string#at", Type.STRING, 2) {
+        natives.defineNative(object : SLNativeFunction("Strings#at", Type.STRING, 2) {
             override fun call(vm: VM, args: Array<AnySLValue>, typeArgs: Array<SLType>, receiver: AnySLValue?): AnySLValue {
                 val s = (args[0] as SLString).value
                 val index = (args[1] as SLInt).value

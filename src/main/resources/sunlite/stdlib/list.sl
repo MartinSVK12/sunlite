@@ -48,10 +48,14 @@ class ListIterator implements Iterator {
     }
 }
 
-class<T> ArrayList implements List {
+class ArrayList implements List {
 
     var _l: Int = 0;
     var _a: Array<Generic<T>> = arrayOf(<Generic<T>>10);
+
+    init() {
+
+    }
 
     init(arr: Array) {
         _a = arrayOf(<Generic<T>> sizeOf(arr));

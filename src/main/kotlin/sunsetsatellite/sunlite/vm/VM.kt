@@ -1006,7 +1006,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
         stack[stack.size - argCount - 1 - typeArgCount] = instance
 
         // reify type parameters
-        val typeArgs = listOf(*Array(typeArgCount) { _ -> (frameStack.peek().pop() as SLType).value })
+        val typeArgs = listOf(*Array(typeArgCount) { _ -> (frameStack.peek().peek() as SLType).value })
         typeArgs.forEachIndexed { i, it ->
             instance.value.typeParams[callee.value.typeParams.keys.toList()[i]] = it
         }
