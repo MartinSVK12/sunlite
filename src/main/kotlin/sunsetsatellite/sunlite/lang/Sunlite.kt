@@ -12,6 +12,8 @@ import java.util.zip.GZIPInputStream
 import kotlin.io.path.Path
 import kotlin.io.path.extension
 import kotlin.system.exitProcess
+import kotlin.time.DurationUnit
+import kotlin.time.measureTime
 
 class Sunlite(val args: Array<String>) {
 
@@ -50,6 +52,7 @@ class Sunlite(val args: Array<String>) {
         noTypeChecks = false
         compileOnly = false
         showDisassembly = false
+        showOtherDisassembly = false
         showAST = false
         showTypeCollection = false
         showTokens = false
@@ -80,6 +83,7 @@ class Sunlite(val args: Array<String>) {
                         "noTypes" -> noTypeChecks = true
                         "compile" -> compileOnly = true
                         "asm" -> showDisassembly = true
+                        "otherAsm" -> showOtherDisassembly = true
                         "ast" -> showAST = true
                         "types" -> showTypeCollection = true
                         "tokens" -> showTokens = true
@@ -101,6 +105,7 @@ class Sunlite(val args: Array<String>) {
                         "noTypes" -> noTypeChecks = true
                         "compile" -> compileOnly = true
                         "asm" -> showDisassembly = true
+                        "otherAsm" -> showOtherDisassembly = true
                         "ast" -> showAST = true
                         "types" -> showTypeCollection = true
                         "tokens" -> showTokens = true
@@ -233,12 +238,14 @@ class Sunlite(val args: Array<String>) {
         }
 
 	    if(Path(path).extension == "slc") {
-            DataInputStream(GZIPInputStream(File(path).inputStream().buffered())).use { input ->
+            printErr("Running compiled files is not supported yet!")
+            /*DataInputStream(GZIPInputStream(File(path).inputStream().buffered())).use { input ->
                 vm = VM(this, if (args.size == 4) args[3].split(";").toTypedArray() else arrayOf())
                 uninitialized = false
                 val program: SLFunction = SLFunction.read(input)
                 return run(program)
-            }
+            }*/
+            return null
 	    }
 
         val VM = runString(readFunction.apply(path), path)
@@ -277,190 +284,205 @@ class Sunlite(val args: Array<String>) {
             printInfo()
         }
 
-        compileStep = 0
+        val program: SLFunction
+        var run: Boolean = true
+        val duration = measureTime {
+            compileStep = 0
 
-        val shortPath = path?.split("/")?.last()
+            val shortPath = path?.split("/")?.last()
 
-        val scanner = Scanner(source, this)
-        val tokens: List<Token> = scanner.scanTokens(shortPath)
+            val scanner = Scanner(source, this)
+            val tokens: List<Token> = scanner.scanTokens(shortPath)
 
-        if (showTokens) {
-            printInfo("Tokens: ")
-            printInfo("-----")
-            tokens.forEach { printInfo("${it.lexeme} ${it.type}") }
-            printInfo("-----")
-            printInfo()
-        }
-
-        vm = VM(this, if (args.size == 4) args[3].split(";").toTypedArray() else arrayOf())
-        uninitialized = false
-
-        collector = TypeCollector(this, vm)
-
-        var parser = Parser(tokens, this, true)
-        var statements: MutableList<Stmt> = parser.parse(shortPath).toMutableList()
-
-        //compileStep++
-
-        // Stop if there was a syntax error.
-        if (hadError) return null
-
-        collector?.collect(statements, shortPath, compileStep)
-
-        compileStep++
-        imports.clear()
-
-        // Stop if there was a type collection error.
-        if (hadError) return null
-
-        parser = Parser(tokens, this, true)
-        statements = parser.parse(shortPath).toMutableList()
-
-        //compileStep++
-
-        // Stop if there was a syntax error.
-        if (hadError) return null
-
-        collector?.collect(statements, shortPath, compileStep)
-
-        compileStep++
-        imports.clear()
-
-        parser = Parser(tokens, this, true)
-        statements = parser.parse(shortPath).toMutableList()
-
-        compileStep++
-
-        // Stop if there was a type collection error.
-        if (hadError) return null
-
-        val allStatements: MutableList<Stmt> = mutableListOf()
-        includes.values.sortedBy { it.first }.reversed().forEach { allStatements.addAll(it.second) }
-        allStatements.addAll(statements)
-
-        //collector = TypeCollector(this, vm)
-        //collector?.collect(allStatements, shortPath)
-
-       // compileStep++
-
-        // Stop if there was a type collection error.
-        if (hadError) return null
-
-        if (showAST) {
-            printInfo("AST: ${path}")
-            printInfo("-----")
-            statements.forEach {
-                printInfo(AstPrinter.print(it))
+            if (showTokens) {
+                printInfo("Tokens: ")
+                printInfo("-----")
+                tokens.forEach { printInfo("${it.lexeme} ${it.type}") }
+                printInfo("-----")
+                printInfo()
             }
-            printInfo("-----")
-            printInfo()
-        }
 
-        if (showTypeCollection) {
-            printInfo("Type Collection: ")
-            printInfo("--------")
-            collector?.typeScopes?.forEach { printTypeScopes(it, 0) }
-            printInfo("--------")
-            printInfo()
-            printInfo("Type Hierarchy: ")
-            printInfo("--------")
-            collector?.typeHierarchy?.forEach { printInfo("${it.key}<${it.value.typeParameters.joinToString()}> extends ${it.value.superclass} implements ${if (it.value.superinterfaces.isNotEmpty()) it.value.superinterfaces.joinToString() else "<nil>"}") }
-            printInfo("--------")
-            printInfo("--------")
-            printInfo()
+            vm = VM(this, if (args.size == 4) args[3].split(";").toTypedArray() else arrayOf())
+            uninitialized = false
 
-        }
+            collector = TypeCollector(this, vm)
 
-        if (!noTypeChecks) {
-            val checker = TypeChecker(this, vm)
-            checker.check(statements)
-        }
+            var parser = Parser(tokens, this, true)
+            var statements: MutableList<Stmt> = parser.parse(shortPath).toMutableList()
 
-        compileStep++
+            //compileStep++
 
-        // Stop if there was a type error.
-        if (hadError) return null
+            // Stop if there was a syntax error.
+            if (hadError) return null
 
-        val compiler = Compiler(this, vm, null)
+            collector?.collect(statements, shortPath, compileStep)
 
-        imports.forEach {
-            vm.importedClasses[it.key.split("::")[1]] =
-                Compiler(this, vm, null).compile(
-                    FunctionType.CHUNK,
-                    arrayOf(FunctionModifier.CHUNK),
-                    Type.NIL,
-                    listOf(),
-                    listOf(),
-                    it.value.second!!,
-                    it.key.split("::").first()
-                )
-        }
+            compileStep++
+            imports.clear()
 
-        if(debug){
-            printInfo("Imported Classes Cache: ")
-            printInfo("--------")
-            vm.importedClasses.keys.forEach {
-                printInfo(it)
-            }
-            printInfo("--------")
-        }
+            // Stop if there was a type collection error.
+            if (hadError) return null
 
-        val program: SLFunction = compiler.compile(
-            FunctionType.CHUNK,
-            arrayOf(FunctionModifier.CHUNK),
-            Type.NIL,
-            listOf(),
-            listOf(),
-            allStatements,
-            shortPath
-        )
+            parser = Parser(tokens, this, true)
+            statements = parser.parse(shortPath).toMutableList()
 
-        compileStep++
+            //compileStep++
 
-        // Stop if there was a compilation error.
-        if (hadError) return null
+            // Stop if there was a syntax error.
+            if (hadError) return null
 
-        if(compileOnly){
-            if(path != null) {
-                if(Path(path).extension == "sl"){
-                    val compiledPath = path.replace(".sl",".raw")
-                    val file = File(compiledPath)
-                    file.createNewFile()
-                    val stream = DataOutputStream(file.outputStream())
-                    stream.use { program.write(it) }
-                    CompressUtils.compress(Path(compiledPath), Path(compiledPath.replace(".raw", ".slc")))
-                    File(compiledPath).delete()
-                    printInfo("Compiled ${Path(path).fileName}.")
-                    return null
-                } else {
-                    printErr("File already compiled!")
-                    return null
+            collector?.collect(statements, shortPath, compileStep)
+
+            compileStep++
+            imports.clear()
+
+            parser = Parser(tokens, this, true)
+            statements = parser.parse(shortPath).toMutableList()
+
+            compileStep++
+
+            // Stop if there was a type collection error.
+            if (hadError) return null
+
+            val allStatements: MutableList<Stmt> = mutableListOf()
+            includes.values.sortedBy { it.first }.reversed().forEach { allStatements.addAll(it.second) }
+            allStatements.addAll(statements)
+
+            //collector = TypeCollector(this, vm)
+            //collector?.collect(allStatements, shortPath)
+
+            // compileStep++
+
+            // Stop if there was a type collection error.
+            if (hadError) return null
+
+            if (showAST) {
+                printInfo("AST: ${path}")
+                printInfo("-----")
+                statements.forEach {
+                    printInfo(AstPrinter.print(it))
                 }
-            } else {
-                printErr("Path for compilation output must be specified!")
-                return null
+                printInfo("-----")
+                printInfo()
+            }
+
+            if (showTypeCollection) {
+                printInfo("Type Collection: ")
+                printInfo("--------")
+                collector?.typeScopes?.forEach { printTypeScopes(it, 0) }
+                printInfo("--------")
+                printInfo()
+                printInfo("Type Hierarchy: ")
+                printInfo("--------")
+                collector?.typeHierarchy?.forEach { printInfo("${it.key}<${it.value.typeParameters.joinToString()}> extends ${it.value.superclass} implements ${if (it.value.superinterfaces.isNotEmpty()) it.value.superinterfaces.joinToString() else "<nil>"}") }
+                printInfo("--------")
+                printInfo("--------")
+                printInfo()
+
+            }
+
+            if (!noTypeChecks) {
+                val checker = TypeChecker(this, vm)
+                checker.check(statements)
+            }
+
+            compileStep++
+
+            // Stop if there was a type error.
+            if (hadError) return null
+
+            val compiler = Compiler(this, vm, null)
+
+            imports.forEach {
+                vm.importedClasses[it.key.split("::")[1]] =
+                    Compiler(this, vm, null).compile(
+                        FunctionType.CHUNK,
+                        arrayOf(FunctionModifier.CHUNK),
+                        Type.NIL,
+                        listOf(),
+                        listOf(),
+                        it.value.second!!,
+                        it.key.split("::").first()
+                    )
+            }
+
+            if(debug){
+                printInfo("Imported Classes Cache: ")
+                printInfo("--------")
+                vm.importedClasses.keys.forEach {
+                    printInfo(it)
+                }
+                printInfo("--------")
+            }
+
+            program = compiler.compile(
+                FunctionType.CHUNK,
+                arrayOf(FunctionModifier.CHUNK),
+                Type.NIL,
+                listOf(),
+                listOf(),
+                allStatements,
+                shortPath
+            )
+
+            compileStep++
+
+            // Stop if there was a compilation error.
+            if (hadError) return null
+
+            if(compileOnly){
+                if(path != null) {
+                    if(Path(path).extension == "sl"){
+                        val compiledPath = path.replace(".sl",".raw")
+                        val file = File(compiledPath)
+                        file.createNewFile()
+                        val stream = DataOutputStream(file.outputStream())
+                        stream.use { program.write(it) }
+                        CompressUtils.compress(Path(compiledPath), Path(compiledPath.replace(".raw", ".slc")))
+                        File(compiledPath).delete()
+                        printInfo("Compiled ${Path(path).fileName}.")
+                        run = false
+                    } else {
+                        printErr("File already compiled!")
+                        run = false
+                    }
+                } else {
+                    printErr("Path for compilation output must be specified!")
+                    run = false
+                }
             }
         }
-
-        return run(program)
+        if(debug){
+            printInfo("Compilation completed after ${duration}.")
+            printInfo()
+        }
+	    return if (run) run(program) else null
     }
 
     private fun run(program: SLFunction): VM? {
         vm.call(SLClosureObj(SLClosure(program)), 0)
 
         if (!(tickMode)) {
-            try {
-                vm.run()
-            } catch (e: UnhandledException) {
-                if (stacktrace) {
+            val duration = measureTime {
+                try {
+                    vm.run()
+                } catch (e: UnhandledException) {
+                    if (stacktrace) {
+                        e.printStackTrace()
+                    }
+                    vm.printStacktrace(e.e)
+                } catch (e: VMError) {
                     e.printStackTrace()
+                } catch (e: Exception) {
+                    if (stacktrace) {
+                        e.printStackTrace()
+                    }
+                    vm.runtimeError("InternalError: $e")
                 }
-                vm.printStacktrace(e.e)
-            } catch (e: Exception) {
-                if (stacktrace) {
-                    e.printStackTrace()
-                }
-                vm.runtimeError("InternalError: $e")
+            }
+            if(debug){
+                printInfo()
+                printInfo("Execution finished after ${duration}, number of instructions ran: ${vm.instCounter}")
             }
             return null
         }
@@ -606,6 +628,9 @@ class Sunlite(val args: Array<String>) {
 
         @JvmStatic
         var showDisassembly: Boolean = false
+
+        @JvmStatic
+        var showOtherDisassembly: Boolean = false
 
         @JvmStatic
         var bytecodeDebug: Boolean = false

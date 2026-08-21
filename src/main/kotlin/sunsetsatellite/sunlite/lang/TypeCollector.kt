@@ -9,6 +9,12 @@ class TypeCollector(val sunlite: Sunlite, val natives: NativesContainer) : Stmt.
     var currentScopeCandidate: Scope? = null
     var currentId: Int = -1
 
+    val typeHierarchy: MutableMap<String, TypePrototype> = mutableMapOf()
+    var typeScopes: MutableList<Scope> = mutableListOf()
+    var path: String? = null
+    var currentScope: Scope? = Scope(Token.identifier("<global>", -1, "<global>"), mutableMapOf(), id = currentId)
+
+
     abstract class ElementPrototype(val id: Int) {
         abstract fun getElementType(): Type
         abstract fun isConstant(): Boolean
@@ -77,11 +83,6 @@ class TypeCollector(val sunlite: Sunlite, val natives: NativesContainer) : Stmt.
         val isInterface: Boolean = false,
         val id: Int
     )
-
-    val typeHierarchy: MutableMap<String, TypePrototype> = mutableMapOf()
-    var typeScopes: MutableList<Scope> = mutableListOf()
-    var path: String? = null
-    var currentScope: Scope? = Scope(Token.identifier("<global>", -1, "<global>"), mutableMapOf(), id = currentId)
 
     init {
         reset()

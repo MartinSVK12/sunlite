@@ -63,8 +63,10 @@ class Chunk(
                 exceptions[protectedFirst..protectedLast] = handlerFirst..handlerLast
             }
             val constantsSize = s.readInt()
-            val constants = Array(constantsSize) {
-                AnySLValue.read(s)
+            val constants = Array<AnySLValue>(constantsSize) { SLNil }
+
+            for (i in 0 until constantsSize) {
+                constants[i] = AnySLValue.read(s)
             }
 
             return Chunk(code, exceptions.toMap(), constants, ChunkDebugInfo.read(s))

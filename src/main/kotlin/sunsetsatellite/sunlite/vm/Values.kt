@@ -341,7 +341,7 @@ class SLShort(value: Short) : SLNumber<Short>(value, 6) {
 
     override fun write(s: DataOutputStream) {
         super.write(s)
-        s.writeInt(value.toInt())
+        s.writeShort(value.toInt())
     }
 }
 
@@ -398,7 +398,7 @@ object SLNil : SLValue<Unit>(Unit, 0) {
     }
 }
 
-object SLUninitialized : SLValue<Unit>(Unit, 1) {
+object SLUninitialized : SLValue<Unit>(Unit, 99) {
     override fun equals(other: Any?): Boolean {
         return other is SLUninitialized
     }

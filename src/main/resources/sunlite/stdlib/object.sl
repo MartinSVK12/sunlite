@@ -1,5 +1,5 @@
 class Object {    
     func toString(): String {
-        return str(this) as String;
+        return str(this);
     }
 }

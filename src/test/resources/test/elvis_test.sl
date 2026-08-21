@@ -1,11 +1,12 @@
 class A {
     var x := 0;
 
-    func test(){
+    func test(): Int {
         print(x);
+        return x;
     }
 }
 
-val o: A? = nil;
+val o: A? = A();
 
 o?.test() ?: print("elvis activated");

@@ -6,7 +6,6 @@ import sunsetsatellite.sunlite.lang.Sunlite.Companion.stacktrace
 import java.io.IOException
 import java.util.*
 import kotlin.collections.filter
-import kotlin.io.path.Path
 
 // todo: more runtime checks
 // todo: check that the signature of overriden function has not changed
@@ -32,6 +31,8 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
     val globalProgramData: MutableMap<String, MutableList<Int>> = mutableMapOf()
 
     var noExceptions: Boolean = false
+
+    var instCounter: Long = 0
 
     init {
         globals.clear()
@@ -110,6 +111,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                     sunlite.printInfo(sb.toString())
                 }
 
+                instCounter++
                 val instruction = readByte(fr)
                 when (Opcodes.entries[instruction]) {
                     Opcodes.NOP -> {
@@ -247,7 +249,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                     Opcodes.SET_GLOBAL -> {
                         val constant = readConstant(fr) as SLString
                         if (!globals.containsKey(constant.value)) {
-                            runtimeError("Undefined variable '${constant.value}'.")
+                            runtimeError("Undefined global variable '${constant.value}'.")
                             return
                         }
                         globals[constant.value] = fr.peek()
@@ -257,7 +259,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                         val constant = readConstant(fr) as SLString
                         if (!globals.containsKey(constant.value)) {
                             if(!findClass(constant.value)){
-                                runtimeError("Undefined variable '${constant.value}'.")
+                                runtimeError("Undefined global variable '${constant.value}'.")
                                 return
                             }
                             fr.pc -= 3
@@ -670,6 +672,10 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
     }
 
     override fun run() {
+        if(frameStack.empty()){
+            runtimeError("VM uninitialized.")
+            return
+        }
         var fr = frameStack.peek()
         currentFrame = fr
 
@@ -1194,10 +1200,14 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
             if(Sunlite.debug){
                 sunlite.printInfo("Loading class from file: '$name'.")
             }
-	        val chunk = loadFile(it) ?: return false
-	        call(chunk,0)
-            currentFrame = frameStack.peek()
-            return true
+            try {
+                val chunk = loadFile(it) ?: return false
+                call(chunk,0)
+                currentFrame = frameStack.peek()
+                return true
+            } catch (e: VMError){
+                throw VMError("Could not find class '$name'", e)
+            }
         }
         return false
     }
@@ -1216,7 +1226,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
         }
 
         if(data == null){
-            return null
+            throw VMError("Could not find '$file'.")
         }
 
         return load(data, file)
@@ -1291,8 +1301,11 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
             subVM.imports.putAll(imports)
             subVM.importedClasses.putAll(importedClasses)
             subVM.globals.putAll(globals)
-            subVM.findClass(name)
-            subVM.run()
+	        if (subVM.findClass(name)) {
+                subVM.run()
+	        } else {
+                throw VMError("Class '$name' not found.")
+            }
             return subVM.globals[name] as SLClassObj
         } catch (e: VMError){
             throw VMError("Internal class loading of '$name' failed.",e);
@@ -1304,7 +1317,8 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
         try {
             globals["Exception"] = internalLoadClass("Exception")
         } catch (e: VMError){
-            throw VMError(message, e)
+            printStacktrace(message)
+            throw VMError("Failed to create exception object.", e)
         }
 
         val clazz = globals["Exception"] as SLClassObj
@@ -1397,10 +1411,10 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
         return sb.toString()
     }
 
-    fun getStacktrace(e: String): String {
+    fun getStacktrace(s: String): String {
         val fr = frameStack.lastOrNull()
         val sb = StringBuilder()
-        sb.append(e).append("\n")
+        sb.append(s).append("\n")
         for (frame in frameStack) {
             try {
                 sb.append("\tat ")
@@ -1448,8 +1462,8 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
         return sb.toString()
     }
 
-    fun printStacktrace(e: String) {
-        sunlite.printErr(getStacktrace(e))
+    fun printStacktrace(s: String) {
+        sunlite.printErr(getStacktrace(s))
     }
 
     fun printStacktrace(e: SLClassInstanceObj) {

@@ -88,11 +88,11 @@ class SLFunction(
         s.writeInt(arity)
         s.writeInt(upvalueCount)
         s.writeInt(localsCount)
-        s.write(modifier.size)
+        s.writeInt(modifier.size)
         for (mod in modifier) {
             s.writeInt(mod.ordinal)
         }
-        s.write((annotations.size))
+        s.writeInt((annotations.size))
         for (name in annotations) {
             s.writeUTF(name)
         }

@@ -10,7 +10,7 @@ enum Test {
     }
 }
 
-print(Enum.fromName(Test, "ONE").name);
+print(Test.fromName("ONE").name);
 
 foreach(var entry: Enum in Test.entries()){
     print(entry.name);

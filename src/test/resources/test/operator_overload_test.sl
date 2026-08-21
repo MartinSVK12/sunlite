@@ -1,4 +1,4 @@
-import "/object.sl";
+import Object from "/object.sl";
 
 class Vec2 extends Object {
     var x: Int = 0;
