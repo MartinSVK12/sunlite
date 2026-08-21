@@ -27,20 +27,22 @@ class TypeChecker(val sunlite: Sunlite, val vm: VM?) : Expr.Visitor<Unit>, Stmt.
         actual: Type,
         runtime: Boolean = false,
         token: Token? = null
-    ) {
+    ): Boolean {
         if (Sunlite.debug) {
             //sunlite.printInfo("Checking if type '$expected' matches '$actual' at '${token?.lexeme ?: "<runtime>"}'")
         }
         val valid = Type.contains(actual, expected, sunlite)
-        if(expected is Type.Parameter && actual != Type.UNKNOWN && runtime) return
+        if(expected is Type.Parameter && actual != Type.UNKNOWN && runtime) return true
         if (!valid) {
             if (runtime && vm != null) {
                 vm.throwException("TypeError: Expected '$expected' but got '$actual'.")
+                return false
             } else {
                 sunlite.error(token!!, "Expected '$expected' but got '$actual'.")
+                return false
             }
-            return
         }
+        return true
     }
 
     override fun visitBinaryExpr(expr: Expr.Binary) {

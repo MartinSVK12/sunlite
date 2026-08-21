@@ -4,6 +4,7 @@ class Reflect {
     static native func getMethodNames(c: Class | Object): Array<String>
     static native func getFieldNames(c: Class | Object): Array<String>
     static native func getAnnotations(f: Function): Array<String>
+    static native func getMethod(c: Class | Object, name: String): Function?
 
     static func getFields(c: Class | Object): Array<Field> {
         var names: Array<String> = Reflect.getFieldNames(c);
@@ -13,10 +14,19 @@ class Reflect {
         }
         return arr;
     }
+
+    static func getMethods(c: Class | Object): Array<Function> {
+        var names: Array<String> = Reflect.getMethodNames(c);
+        var arr: Array<Function> = emptyArray(<Function>sizeOf(names));
+        for (var i: Int = 0; i < sizeOf(names); i++) {
+            arr[i] = Reflect.getMethod(c,names[i]);
+        }
+        return arr;
+    }
+
 }
 
 class Field {
-
     var clazz: Class | Object;
     var name: String;
 

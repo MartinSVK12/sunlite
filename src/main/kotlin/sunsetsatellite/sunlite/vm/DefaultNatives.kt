@@ -612,6 +612,36 @@ object DefaultNatives : Natives {
             }
         })
 
+        natives.defineNative(object : SLNativeFunction("Reflect#getMethod", Type.Union(listOf(Type.FUNCTION, Type.NIL)), 2) {
+            override fun call(
+                vm: VM,
+                args: Array<AnySLValue>,
+                typeArgs: Array<SLType>,
+                receiver: AnySLValue?
+            ): AnySLValue {
+                val clazz = args[0]
+                val arg1 = args[1]
+	            if (!vm.typeChecker.checkType(Type.STRING, Type.fromValue(arg1, vm.sunlite), true)) {
+		            return SLNil
+	            }
+                val name = arg1.value as String
+	            when (clazz) {
+		            is SLClassObj -> {
+			            return clazz.value.methods[name] ?: SLNil
+		            }
+
+		            is SLClassInstanceObj -> {
+			            return clazz.value.clazz.methods[name] ?: SLNil
+		            }
+
+		            else -> {
+			            vm.throwException("Only classes and class instances can have methods.")
+			            return SLNil
+		            }
+	            }
+            }
+        })
+
         natives.defineNative(object : SLNativeFunction("Field#loadField", Type.NIL, 0) {
             override fun call(vm: VM, args: Array<AnySLValue>, typeArgs: Array<SLType>, receiver: AnySLValue?): AnySLValue {
                 val obj = receiver!!.value as SLClassInstance
