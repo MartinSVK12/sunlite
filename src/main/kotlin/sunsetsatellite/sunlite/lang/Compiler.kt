@@ -130,8 +130,10 @@ class Compiler(val sunlite: Sunlite, val vm: VM?, val enclosing: Compiler?) : Ex
     }
 
     private fun recordOriginalFile(expr: Element) {
-        chunk.debugInfo.lineData[expr.getLine()] = expr.getFile()
-        vm?.globalProgramData?.getOrPut(expr.getFile()!!) { mutableListOf() }?.add(expr.getLine())
+	    expr.getFile()?.let {
+		    chunk.debugInfo.lineData[expr.getLine()] = it
+		    vm?.globalProgramData?.getOrPut(it) { mutableListOf() }?.add(expr.getLine())
+	    }
     }
 
     private fun emitBytes(byte: Int, byte2: Int, expr: Element) {

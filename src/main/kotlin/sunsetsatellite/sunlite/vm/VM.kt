@@ -686,7 +686,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
             if (sunlite.breakpoints[currentFile]?.contains(currentLine) == true && !ignoreBreakpoints) {
                 if (lastBreakpointLine != currentLine) {
                     if (!breakpointHit) {
-                        sunlite.breakpointListeners.forEach { it.breakpointHit(currentLine, currentFile, sunlite) }
+                        sunlite.breakpointListeners.forEach { it.breakpointHit(currentLine, currentFile, this) }
                         lastBreakpointLine = currentLine
                     }
 

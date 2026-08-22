@@ -1,18 +1,14 @@
 package sunsetsatellite.sunlite.lang
 
-import sun.misc.Unsafe
 import sunsetsatellite.sunlite.vm.*
 import java.io.*
-import java.lang.reflect.Field
 import java.nio.charset.Charset
 import java.nio.file.Files
 import java.nio.file.Paths
 import java.util.function.Function
-import java.util.zip.GZIPInputStream
 import kotlin.io.path.Path
 import kotlin.io.path.extension
 import kotlin.system.exitProcess
-import kotlin.time.DurationUnit
 import kotlin.time.measureTime
 
 class Sunlite(val args: Array<String>) {
@@ -26,7 +22,7 @@ class Sunlite(val args: Array<String>) {
     val imports: MutableMap<String, Pair<Int, List<Stmt>?>> = mutableMapOf()
 
     val logEntryReceivers: MutableList<LogEntryReceiver> = mutableListOf()
-    val dataReceiver: MutableList<CompilerDataReceiver> = mutableListOf()
+    val compilerDataReceivers: MutableList<CompilerDataReceiver> = mutableListOf()
     val breakpointListeners: MutableList<BreakpointListener> = mutableListOf()
 
     var breakpoints: MutableMap<String, IntArray> = mutableMapOf()
@@ -56,6 +52,14 @@ class Sunlite(val args: Array<String>) {
         showAST = false
         showTypeCollection = false
         showTokens = false
+	    hadError = false
+	    hadRuntimeError = false
+	    compileStep = 0
+	    path.clear()
+	    includes.clear()
+	    imports.clear()
+	    uninitialized = true
+	    collector = null
         when {
             args.size > 4 -> {
                 println("Usage: sunlite [script] (path) (options) (args)")
@@ -131,10 +135,8 @@ class Sunlite(val args: Array<String>) {
 
         val data: String = code ?: readFunction.apply(filePath)
 
-        val shortPath = filePath.split("/").last()
-
         val scanner = Scanner(data, this)
-        val tokens: List<Token> = scanner.scanTokens(shortPath)
+        val tokens: List<Token> = scanner.scanTokens(filePath)
 
         val nativesObj = BasicNativesContainer()
         natives.registerNatives(nativesObj)
@@ -142,12 +144,12 @@ class Sunlite(val args: Array<String>) {
         collector = TypeCollector(this, nativesObj)
 
         var parser = Parser(tokens, this, true)
-        var statements: MutableList<Stmt> = parser.parse(shortPath).toMutableList()
+        var statements: MutableList<Stmt> = parser.parse(filePath).toMutableList()
 
         // Stop if there was a syntax error.
         //if (hadError) return null
 
-        collector?.collect(statements, shortPath, compileStep)
+        collector?.collect(statements, filePath, compileStep)
 
         compileStep++
 
@@ -155,19 +157,19 @@ class Sunlite(val args: Array<String>) {
         //if (hadError) return null
 
         parser = Parser(tokens, this, true)
-        statements = parser.parse(shortPath).toMutableList()
+        statements = parser.parse(filePath).toMutableList()
 
         //compileStep++
 
         // Stop if there was a syntax error.
         //if (hadError) return null
 
-        collector?.collect(statements, shortPath, compileStep)
+        collector?.collect(statements, filePath, compileStep)
 
         compileStep++
 
         parser = Parser(tokens, this, true)
-        statements = parser.parse(shortPath).toMutableList()
+        statements = parser.parse(filePath).toMutableList()
 
         compileStep++
 
@@ -201,7 +203,7 @@ class Sunlite(val args: Array<String>) {
             listOf(),
             listOf(),
             allStatements,
-            shortPath
+	        filePath
         )
 
         compileStep++
@@ -215,7 +217,6 @@ class Sunlite(val args: Array<String>) {
     fun compile(statements: List<Stmt>): SLFunction {
         val filePath = args[0]
         path.addAll(args[1].split(";"))
-        val shortPath = filePath.split("/").last()
 
         val compiler = Compiler(this, vm, null)
         return compiler.compile(
@@ -225,7 +226,7 @@ class Sunlite(val args: Array<String>) {
             listOf(),
             listOf(),
             statements,
-            shortPath
+            filePath
         )
     }
 
@@ -289,10 +290,8 @@ class Sunlite(val args: Array<String>) {
         val duration = measureTime {
             compileStep = 0
 
-            val shortPath = path?.split("/")?.last()
-
             val scanner = Scanner(source, this)
-            val tokens: List<Token> = scanner.scanTokens(shortPath)
+            val tokens: List<Token> = scanner.scanTokens(path)
 
             if (showTokens) {
                 printInfo("Tokens: ")
@@ -308,14 +307,14 @@ class Sunlite(val args: Array<String>) {
             collector = TypeCollector(this, vm)
 
             var parser = Parser(tokens, this, true)
-            var statements: MutableList<Stmt> = parser.parse(shortPath).toMutableList()
+            var statements: MutableList<Stmt> = parser.parse(path).toMutableList()
 
             //compileStep++
 
             // Stop if there was a syntax error.
             if (hadError) return null
 
-            collector?.collect(statements, shortPath, compileStep)
+            collector?.collect(statements, path, compileStep)
 
             compileStep++
             imports.clear()
@@ -324,20 +323,20 @@ class Sunlite(val args: Array<String>) {
             if (hadError) return null
 
             parser = Parser(tokens, this, true)
-            statements = parser.parse(shortPath).toMutableList()
+            statements = parser.parse(path).toMutableList()
 
             //compileStep++
 
             // Stop if there was a syntax error.
             if (hadError) return null
 
-            collector?.collect(statements, shortPath, compileStep)
+            collector?.collect(statements, path, compileStep)
 
             compileStep++
             imports.clear()
 
             parser = Parser(tokens, this, true)
-            statements = parser.parse(shortPath).toMutableList()
+            statements = parser.parse(path).toMutableList()
 
             compileStep++
 
@@ -422,7 +421,7 @@ class Sunlite(val args: Array<String>) {
                 listOf(),
                 listOf(),
                 allStatements,
-                shortPath
+                path
             )
 
             compileStep++
@@ -514,7 +513,7 @@ class Sunlite(val args: Array<String>) {
     }
 
     fun error(token: Token, message: String) {
-        dataReceiver.forEach { it.error(CompilerError(token, message)) }
+        compilerDataReceivers.forEach { it.error(CompilerError(token, message)) }
         if (token.type == TokenType.EOF) {
             reportError(token.line, " at end", message, token.file, token.pos)
         } else {

@@ -9,6 +9,15 @@ class Token(
     val pos: Position
 ) {
 
+	constructor(map: Map<String, Any?>) : this(
+		type = TokenType.valueOf(map["name"].toString()),
+		lexeme = map["lexeme"].toString(),
+		literal = null,
+		file = map["file"].toString(),
+		line = (map["line"] as Long).toInt(),
+		pos = Position(((map["pos"] as Map<*, *>)["x"] as Long).toInt(), ((map["pos"] as Map<*, *>)["y"] as Long).toInt())
+	)
+
     data class Position(val start: Int, val end: Int) {
         override fun toString(): String {
             return "$start:$end"

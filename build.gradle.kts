@@ -1,6 +1,6 @@
 plugins {
     kotlin("jvm")
-    id("java-library")
+    application
 }
 
 group = "sunsetsatellite"
@@ -12,12 +12,16 @@ repositories {
 }
 
 kotlin {
-    jvmToolchain(8)
+    jvmToolchain(17)
+}
+
+application {
+    mainClass.set("sunsetsatellite.sunlite.lang.Sunlite")
 }
 
 dependencies {
     implementation("com.google.code.gson:gson:2.10.1")
-    implementation(kotlin("stdlib-jdk8"))
+    implementation(kotlin("stdlib"))
 
     // lsp
     implementation("org.eclipse.lsp4j:org.eclipse.lsp4j:1.0.0")
@@ -27,7 +31,7 @@ dependencies {
     implementation("org.apache.commons:commons-compress:1.28.0")
 }
 
-task("lsp", Jar::class) {
+/*task("lsp", Jar::class) {
     duplicatesStrategy = DuplicatesStrategy.INCLUDE
     manifest {
         attributes["Main-Class"] = "sunsetsatellite.sunlite.lsp.LSPLauncher"
@@ -38,14 +42,4 @@ task("lsp", Jar::class) {
     })
     archiveFileName.set("sunlite-lsp.jar")
     with(tasks.jar.get())
-}
-
-tasks.jar {
-    duplicatesStrategy = DuplicatesStrategy.INCLUDE
-    manifest {
-        attributes["Main-Class"] = "sunsetsatellite.sunlite.lang.Sunlite"
-        exclude("META-INF/*.SF", "META-INF/*.DSA", "META-INF/*.RSA")
-    }
-    from(configurations.runtimeClasspath.get().map { if (it.isDirectory) it else zipTree(it) })
-    archiveFileName.set("sunlite.jar")
-}
+}*/

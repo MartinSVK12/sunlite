@@ -15,7 +15,7 @@ class Scanner(private var source: String, val sunlite: Sunlite) {
     var currentFile: String? = null
 
     companion object {
-        private val keywords: MutableMap<String, TokenType> = mutableMapOf()
+        val keywords: MutableMap<String, TokenType> = mutableMapOf()
 
         init {
             keywords["and"] = AND

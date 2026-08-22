@@ -2,7 +2,7 @@ package sunsetsatellite.sunlite.lang
 
 import sunsetsatellite.sunlite.lang.TokenType.TokenGroup.*
 
-enum class TokenType(val group: TokenGroup) {
+enum class TokenType {
     // Single-character tokens
     LEFT_PAREN(SINGLE_CHAR), RIGHT_PAREN(SINGLE_CHAR), LEFT_BRACE(SINGLE_CHAR), RIGHT_BRACE(SINGLE_CHAR),
     LEFT_BRACKET(SINGLE_CHAR), RIGHT_BRACKET(SINGLE_CHAR),
@@ -23,14 +23,20 @@ enum class TokenType(val group: TokenGroup) {
     IDENTIFIER(LITERALS), STRING(LITERALS), BYTE(LITERALS), SHORT(LITERALS), INT(LITERALS), LONG(LITERALS),
     FLOAT(LITERALS), DOUBLE(LITERALS),
 
+    // Control Keywords
+    AND(KEYWORDS, CONTROL), ELSE(KEYWORDS, CONTROL), FOR(KEYWORDS, CONTROL),
+    IF(KEYWORDS, CONTROL), OR(KEYWORDS, CONTROL), RETURN(KEYWORDS, CONTROL),
+    WHILE(KEYWORDS, CONTROL), BREAK(KEYWORDS, CONTROL), CONTINUE(KEYWORDS, CONTROL),
+    IS(KEYWORDS, CONTROL), IS_NOT(KEYWORDS, CONTROL), AS(KEYWORDS, CONTROL),
+    IN(KEYWORDS, CONTROL), FOREACH(KEYWORDS, CONTROL), MATCH(KEYWORDS, CONTROL),
+
     // Keywords
-    AND(KEYWORDS), CLASS(KEYWORDS), ELSE(KEYWORDS), FALSE(KEYWORDS), FUN(KEYWORDS), INIT(KEYWORDS), FOR(KEYWORDS),
-    IF(KEYWORDS), NIL(KEYWORDS), OR(KEYWORDS), RETURN(KEYWORDS), SUPER(KEYWORDS), THIS(KEYWORDS),
-    TRUE(KEYWORDS), VAR(KEYWORDS), VAL(KEYWORDS), WHILE(KEYWORDS),
-    BREAK(KEYWORDS), CONTINUE(KEYWORDS), INTERFACE(KEYWORDS), IS(KEYWORDS), IS_NOT(KEYWORDS),
-    IMPORT(KEYWORDS), AS(KEYWORDS), EXTENDS(KEYWORDS), IMPLEMENTS(KEYWORDS),
-    TRY(KEYWORDS), CATCH(KEYWORDS), THROW(KEYWORDS), IN(KEYWORDS), FOREACH(KEYWORDS),
-    MATCH(KEYWORDS), PACKAGE(KEYWORDS), INCLUDE(KEYWORDS), FROM(KEYWORDS), ENUM(KEYWORDS),
+    CLASS(KEYWORDS), FALSE(KEYWORDS), FUN(KEYWORDS), INIT(KEYWORDS),
+    NIL(KEYWORDS), SUPER(KEYWORDS), THIS(KEYWORDS), TRUE(KEYWORDS),
+    VAR(KEYWORDS), VAL(KEYWORDS), INTERFACE(KEYWORDS), IMPORT(KEYWORDS),
+    EXTENDS(KEYWORDS), IMPLEMENTS(KEYWORDS), TRY(KEYWORDS), CATCH(KEYWORDS),
+    THROW(KEYWORDS), PACKAGE(KEYWORDS), INCLUDE(KEYWORDS), FROM(KEYWORDS),
+    ENUM(KEYWORDS),
 
     // Modifiers
     NATIVE(MODIFIERS), OVERRIDE(MODIFIERS), OPERATOR(MODIFIERS), STATIC(MODIFIERS), REQUIRED(MODIFIERS), ABSTRACT(MODIFIERS),
@@ -43,11 +49,27 @@ enum class TokenType(val group: TokenGroup) {
 
     EOF(END);
 
+    val groups: List<TokenGroup>
+
+    constructor(groups: List<TokenGroup>) {
+        this.groups = groups
+    }
+
+    constructor(vararg groups: TokenGroup){
+        this.groups = groups.asList()
+    }
+
+    constructor(group: TokenGroup){
+        this.groups = listOf(group)
+    }
+
+
     enum class TokenGroup {
         SINGLE_CHAR,
         MULTI_CHAR,
         LITERALS,
         KEYWORDS,
+        CONTROL,
         MODIFIERS,
         TYPES,
         END
@@ -55,7 +77,7 @@ enum class TokenType(val group: TokenGroup) {
 
     companion object {
         fun getGroup(group: TokenGroup): Array<TokenType> {
-            return entries.filter { it.group == group }.toTypedArray()
+            return entries.filter { it.groups.contains(group) }.toTypedArray()
         }
     }
 }
