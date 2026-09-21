@@ -440,8 +440,8 @@ class Sunlite(val args: Array<String>) {
                 }
 
                 if(compileDeps) {
-                    val dir = Path(".", importPath).toFile()
-                    val file = Path(".", importPath, "$importName.slc").toFile()
+                    val dir = Path(".", "out", importPath).toFile()
+                    val file = Path(".", "out", importPath, "$importName.slc").toFile()
                     dir.mkdirs()
                     file.createNewFile()
                     val stream = DataOutputStream(file.outputStream())
@@ -482,8 +482,10 @@ class Sunlite(val args: Array<String>) {
             if(compileOnly){
                 if(path != null) {
                     if(Path(path).extension == "sl"){
-                        val compiledPath = path.replace(".sl",".slc")
-                        val file = File(compiledPath)
+                        val dir = Path(".", "out").toFile()
+                        val file = Path(".", "out", "${Path(path).fileName}c").toFile()
+                        dir.mkdirs()
+                        file.createNewFile()
                         file.createNewFile()
                         val stream = DataOutputStream(file.outputStream())
                         stream.use { program.write(it) }
