@@ -1,4 +1,4 @@
-import ArrayIterator from "/sunlite/stdlib/array.sl";
+import ArrayIterator from "/sunlite/stdlib/array";
 
 class IntRange implements Iterable<Int> {
     

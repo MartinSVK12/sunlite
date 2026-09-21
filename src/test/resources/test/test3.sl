@@ -1,1 +1,1 @@
-import "list.sl";
+import "list";

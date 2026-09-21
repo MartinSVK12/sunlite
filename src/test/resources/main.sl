@@ -1,6 +1,6 @@
-import File from "/sunlite/stdlib/file.sl";
-import Scanner from "/lox/scanner.sl";
-import List from "/sunlite/stdlib/list.sl";
+import File from "/sunlite/stdlib/file";
+import Scanner from "/lox/scanner";
+import List from "/sunlite/stdlib/list";
 
 val file: File = File("test.lox").open();
 val s: String = file.readText();

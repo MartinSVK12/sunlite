@@ -68,6 +68,12 @@ class Descriptor(private val source: String) {
                     advance()
                 }
 
+                PrimitiveType.GENERIC -> {
+                    val s = identifier()
+                    currentType = Type.Parameter(s)
+                    advance()
+                }
+
                 else -> {}
             }
         }

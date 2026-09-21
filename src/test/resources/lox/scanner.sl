@@ -1,8 +1,8 @@
-import TokenType from "/lox/tokenType.sl";
-import Token from "/lox/token.sl";
-import Lox from "/lox/lox.sl";
-import List from "/sunlite/stdlib/list.sl";
-import ArrayList from "/sunlite/stdlib/list.sl";
+import TokenType from "/lox/tokenType";
+import Token from "/lox/token";
+import Lox from "/lox/lox";
+import List from "/sunlite/stdlib/list";
+import ArrayList from "/sunlite/stdlib/list";
 
 class Scanner {
     var source: String = "";
@@ -149,7 +149,7 @@ class Scanner {
             }
         }
         
-        val s: String = string.sub(source, start, current+1);
+        val s: String = source.sub(start, current);
         addTokenWithValue(TokenType.NUMBER, parseDouble(s));
     }
     

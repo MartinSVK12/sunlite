@@ -1,6 +1,5 @@
 package sunsetsatellite.sunlite.lang
 
-import sunsetsatellite.sunlite.vm.SLString
 import sunsetsatellite.sunlite.vm.VM
 import java.util.*
 
@@ -31,7 +30,7 @@ class TypeChecker(val sunlite: Sunlite, val vm: VM?) : Expr.Visitor<Unit>, Stmt.
         if (Sunlite.debug) {
             //sunlite.printInfo("Checking if type '$expected' matches '$actual' at '${token?.lexeme ?: "<runtime>"}'")
         }
-        val valid = Type.contains(actual, expected, sunlite)
+        val valid = Type.contains(actual, expected, if(runtime) vm else null, sunlite)
         if(expected is Type.Parameter && actual != Type.UNKNOWN && runtime) return true
         if (!valid) {
             if (runtime && vm != null) {
@@ -102,7 +101,7 @@ class TypeChecker(val sunlite: Sunlite, val vm: VM?) : Expr.Visitor<Unit>, Stmt.
                         }
                         o.params = o.params.map { refParam ->
 	                        if(refParam.type is Type.Parameter){
-                                typeArgs.find { it.token.lexeme == refParam.type.name.lexeme }?.let {
+                                typeArgs.find { it.token.lexeme == refParam.type.param }?.let {
                                     return@map Param(refParam.token, it.type)
                                 }
                             }
@@ -110,7 +109,7 @@ class TypeChecker(val sunlite: Sunlite, val vm: VM?) : Expr.Visitor<Unit>, Stmt.
                         }
                         o.returnType = o.returnType.let { type ->
                             if(type is Type.Parameter){
-                                val reifiedType = typeArgs.find { it.token.lexeme == type.name.lexeme }?.let {
+                                val reifiedType = typeArgs.find { it.token.lexeme == type.param }?.let {
                                     return@let it.type
                                 }
                                 return@let reifiedType ?: type
@@ -186,7 +185,7 @@ class TypeChecker(val sunlite: Sunlite, val vm: VM?) : Expr.Visitor<Unit>, Stmt.
         var exprType = expr.getExprType()
         if (exprType is Type.Parameter && expr.obj.getExprType() is Type.Reference && (expr.obj.getExprType() as Type.Reference).type == PrimitiveType.OBJECT) {
             val receiverType = expr.obj.getExprType() as Type.Reference
-            receiverType.typeParams.find { it.token.lexeme == exprType.name.lexeme }?.let {
+            receiverType.typeParams.find { it.token.lexeme == exprType.param }?.let {
                 exprType = it.type
             }
         }

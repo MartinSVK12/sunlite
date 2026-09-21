@@ -1,8 +1,8 @@
-import Iterator from "/sunlite/stdlib/iterable.sl";
-import Iterable from "/sunlite/stdlib/iterable.sl";
-import List from "/sunlite/stdlib/list.sl";
-import ArrayList from "/sunlite/stdlib/list.sl";
-import ListIterator from "/sunlite/stdlib/list.sl";
+import Iterator from "/sunlite/stdlib/iterable";
+import Iterable from "/sunlite/stdlib/iterable";
+import List from "/sunlite/stdlib/list";
+import ArrayList from "/sunlite/stdlib/list";
+import ListIterator from "/sunlite/stdlib/list";
 
 interface<T> List implements Iterable {
     func size(): Int

@@ -453,7 +453,7 @@ class SLString(value: String) : SLObj<String>(value, 8) {
 class SLType(value: Type) : SLObj<Type>(value, 9) {
     override fun equals(other: Any?): Boolean {
         if (other !is SLType) return false
-        return Type.contains(other.value, value, Sunlite.instance)
+        return Type.contains(other.value, value, Sunlite.instance.vm, Sunlite.instance)
     }
 
     fun strictEquals(other: Any?): Boolean {

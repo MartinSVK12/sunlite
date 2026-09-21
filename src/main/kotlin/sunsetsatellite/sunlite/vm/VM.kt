@@ -3,7 +3,9 @@ package sunsetsatellite.sunlite.vm
 import sunsetsatellite.sunlite.lang.*
 import sunsetsatellite.sunlite.lang.Scanner
 import sunsetsatellite.sunlite.lang.Sunlite.Companion.stacktrace
+import java.io.DataInputStream
 import java.io.IOException
+import java.io.InputStream
 import java.util.*
 import kotlin.collections.filter
 
@@ -25,6 +27,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
 
     val imports: MutableMap<String, String> = mutableMapOf()
     val importedClasses: MutableMap<String, SLFunction> = mutableMapOf()
+    val classes: MutableMap<String, ClassData> = mutableMapOf()
     val globals: MutableMap<String, AnySLValue> = mutableMapOf()
     val primitiveWrappers: MutableMap<Class<out AnySLValue>, String> = mutableMapOf()
 
@@ -38,6 +41,9 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
         globals.clear()
         openUpvalues.clear()
         globalProgramData.clear()
+        sunlite.autoImported.forEach { (name, path) ->
+            imports[name] = path
+        }
         sunlite.natives.registerNatives(this)
         primitiveWrappers[SLString::class.java] = "Strings"
     }
@@ -618,7 +624,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                         val type = readConstant(fr) as SLType
                         val checking = fr.pop()
                         val checkingType = Type.fromValue(checking.value, sunlite)
-                        fr.push(SLBool.of(Type.contains(type.value, checkingType, sunlite)))
+                        fr.push(SLBool.of(Type.contains(type.value, checkingType, this, this.sunlite)))
                     }
 
                     Opcodes.CAST -> {
@@ -1027,7 +1033,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
             return@filter false
         }.forEach { field ->
             if(field.type is Type.Parameter){
-                val typeParamName = (field.type as Type.Parameter).name.lexeme
+                val typeParamName = (field.type as Type.Parameter).param
                 instance.value.typeParams[typeParamName]?.let { field.type = it }
             } else if(field.type is Type.Union){
                 val types = (field.type as Type.Union).types
@@ -1036,7 +1042,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                     if(it !is Type.Parameter) {
                         newTypes.add(it)
                     } else {
-                        val typeParamName = it.name.lexeme
+                        val typeParamName = it.param
                         val type = instance.value.typeParams[typeParamName]
                         if(type is Type.Singular){
                             newTypes.add(type)
@@ -1072,7 +1078,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                     .filter { it.name.contains("init") }
                     .filter { it.returnType == Type.NIL }
                     .filter { it.params.size == args.size }
-                    .filter { it.params.zip(args).all { (p, a) -> Type.contains(a.type, p.type, sunlite) } }
+                    .filter { it.params.zip(args).all { (p, a) -> Type.contains(a.type, p.type, this, this.sunlite) } }
             if(constructor.size > 1){
                 runtimeError("Multiple identical constructors defined.")
                 return null
@@ -1198,10 +1204,10 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
         }
         imports[name]?.let {
             if(Sunlite.debug){
-                sunlite.printInfo("Loading class from file: '$name'.")
+                sunlite.printInfo("Loading class '$name' from file `$it/$name.slc'.")
             }
             try {
-                val chunk = loadFile(it) ?: return false
+                val chunk = loadCompiled(name, it) ?: return false
                 call(chunk,0)
                 currentFrame = frameStack.peek()
                 return true
@@ -1212,28 +1218,39 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
         return false
     }
 
-    fun loadFile(file: String): SLClosureObj? {
-        var data = Sunlite::class.java.getResourceAsStream(file)?.bufferedReader()?.use { it.readText() }
+    fun loadCompiled(name: String, file: String): SLClosureObj? {
+        var stream: InputStream?
+        val invalidPaths: MutableList<String> = mutableListOf()
 
-        if(data == null){
+        stream = Sunlite::class.java.getResourceAsStream("/$file/$name.slc")
+
+        if(stream == null){
             sunlite.path.forEach {
                 try {
-                    data = sunlite.readFunction.apply(file)
+                    stream = sunlite.readStreamFunction.apply("$it/$file/$name.slc")
+                    return@forEach
                 } catch (_: IOException) {
-
+                    invalidPaths.add(it)
                 }
             }
         }
 
-        if(data == null){
-            throw VMError("Could not find '$file'.")
+        if(stream == null){
+            throw VMError("Could not find '$file::$name'.")
         }
 
-        return load(data, file)
+        DataInputStream(stream.buffered()).use { s ->
+            val program: SLFunction = SLFunction.read(s)
+            importedClasses[name] = program
+            program.chunk.debugInfo.classData.forEach { (string, data) ->
+                classes[string] = data
+            }
+            return SLClosureObj(SLClosure(program))
+        }
     }
 
-    fun load(code: String, path: String = "<loaded chunk>"): SLClosureObj? {
-        if (sunlite.collector == null) return null
+    fun loadString(code: String, path: String = "<loaded chunk>"): SLClosureObj? {
+        //if (sunlite.collector == null) return null //sunlite.collector = TypeCollector(sunlite, this)
         val scanner = Scanner(code, sunlite)
         val tokens = scanner.scanTokens(path)
         if (sunlite.hadError) {
@@ -1247,7 +1264,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
             return null
         }
 
-        sunlite.collector!!.collect(statements, path, sunlite.compileStep)
+        //sunlite.collector!!.collect(statements, path, sunlite.compileStep)
         if (sunlite.hadError) {
             sunlite.hadError = false
             return null
@@ -1300,6 +1317,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
             subVM.noExceptions = true
             subVM.imports.putAll(imports)
             subVM.importedClasses.putAll(importedClasses)
+            subVM.classes.putAll(classes)
             subVM.globals.putAll(globals)
 	        if (subVM.findClass(name)) {
                 subVM.run()

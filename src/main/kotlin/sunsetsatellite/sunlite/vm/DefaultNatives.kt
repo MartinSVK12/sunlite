@@ -239,7 +239,7 @@ object DefaultNatives : Natives {
                 receiver: AnySLValue?
             ): AnySLValue {
                 val code = args[0] as SLString
-                return vm.load(code.value) ?: SLNil
+                return vm.loadString(code.value) ?: SLNil
             }
         })
 
@@ -276,7 +276,7 @@ object DefaultNatives : Natives {
                         }
 	                }
                 val list = mutableListOf<AnySLValue>()
-                clazz.staticFields.filter { Type.contains(it.value.type, Type.ofObject("Enum"), vm.sunlite) }.forEach {
+                clazz.staticFields.filter { Type.contains(it.value.type, Type.ofObject("Enum"), vm, vm.sunlite) }.forEach {
                     list.add(it.value.value)
                 }
                 return SLArrayObj(SLArray(list.size, vm.sunlite, Type.ofObject("Enum")).overwrite(list.toTypedArray()))
@@ -303,7 +303,7 @@ object DefaultNatives : Natives {
                         }
                     }
                 val name: String = (args[0] as SLString).value
-                clazz.staticFields.filter { Type.contains(it.value.type, Type.ofObject("Enum"), vm.sunlite) }.forEach {
+                clazz.staticFields.filter { Type.contains(it.value.type, Type.ofObject("Enum"), vm, vm.sunlite) }.forEach {
                     if(it.key == name){
                         return it.value.value
                     }

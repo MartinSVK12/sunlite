@@ -16,7 +16,7 @@ enum class PrimitiveType(val descriptor: Char, val isReference: Boolean = false)
     OBJECT('O', true),
     ARRAY('[', true),
     TABLE('{', true),
-    GENERIC('G'),
+    GENERIC('G', true),
     NIL('N'),
     UNKNOWN('U'); //static type checker failed to get a more concrete type
 

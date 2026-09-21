@@ -1,4 +1,4 @@
-import Reflect from "/sunlite/stdlib/reflect.sl";
+import Reflect from "/sunlite/stdlib/reflect";
 
 class A {
     @Test

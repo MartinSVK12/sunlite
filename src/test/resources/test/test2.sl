@@ -1,6 +1,6 @@
-import "/reflect.sl";
-import "/object.sl";
-import "/array.sl";
+import "/reflect";
+import "/object";
+import "/array";
 
 class A extends object {
     static fun method(a: Number, b: String){

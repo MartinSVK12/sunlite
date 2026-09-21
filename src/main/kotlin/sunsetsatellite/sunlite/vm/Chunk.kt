@@ -1,5 +1,6 @@
 package sunsetsatellite.sunlite.vm
 
+import sunsetsatellite.sunlite.lang.ClassModifier
 import java.io.DataInputStream
 import java.io.DataOutputStream
 
@@ -8,7 +9,8 @@ class ChunkDebugInfo(
     val file: String?,
     val name: String = "<script>",
     val lineData: Map<Int, String?> = mapOf(),
-    val locals: List<String> = mutableListOf()
+    val locals: List<String> = listOf(),
+    val classData: Map<String, ClassData> = mapOf()
 ) {
 
     companion object {
@@ -17,7 +19,23 @@ class ChunkDebugInfo(
             val lines = IntArray(linesSize) { s.readInt() }
             val file = s.readUTF()
             val name = s.readUTF()
-            return ChunkDebugInfo(lines, file, name)
+            val lineDataSize = s.readInt()
+            val lineData = mutableMapOf<Int, String?>()
+            repeat(lineDataSize) {
+                lineData[s.readInt()] = s.readUTF()
+            }
+            val localsSize = s.readInt()
+            val locals = mutableListOf<String>()
+            repeat(localsSize) {
+                locals.add(s.readUTF())
+            }
+            val classData: MutableMap<String, ClassData> = mutableMapOf()
+            val classDataSize = s.readInt()
+            repeat(classDataSize) {
+                val name = s.readUTF()
+                classData[name] = ClassData.read(s)
+            }
+            return ChunkDebugInfo(lines, file, name, lineData.toMap(), locals, classData.toMap())
         }
     }
 
@@ -26,6 +44,18 @@ class ChunkDebugInfo(
         lines.forEach { s.writeInt(it) }
         s.writeUTF(file ?: "<unknown>")
         s.writeUTF(name)
+        s.writeInt(lineData.size)
+        lineData.forEach { line, data ->
+            s.writeInt(line)
+            s.writeUTF(data ?: "<unknown>")
+        }
+        s.writeInt(locals.size)
+        locals.forEach { s.writeUTF(it) }
+        s.writeInt(classData.size)
+        classData.forEach { (name, data) ->
+            s.writeUTF(name)
+            data.write(s)
+        }
     }
 }
 
@@ -34,10 +64,56 @@ class MutableChunkDebugInfo(
     var file: String? = null,
     var name: String = "<script>",
     val lineData: MutableMap<Int, String?> = mutableMapOf(),
-    val locals: MutableList<String> = mutableListOf()
+    val locals: MutableList<String> = mutableListOf(),
+    var classData: MutableMap<String, MutableClassData> = mutableMapOf()
 ) {
     fun toImmutable(): ChunkDebugInfo {
-        return ChunkDebugInfo(lines.toIntArray(), file, name, lineData, locals)
+        return ChunkDebugInfo(lines.toIntArray(), file, name, lineData, locals, classData.mapValues { it.value.toImmutable() }.toMap())
+    }
+}
+
+class ClassData(
+    val name: String,
+    val superclass: String,
+    val superinterfaces: List<String>,
+    val typeParameters: List<String>,
+    val modifier: ClassModifier
+) {
+    companion object {
+        fun read(s: DataInputStream): ClassData {
+            val name = s.readUTF()
+            val superclass = s.readUTF()
+            val superinterfaceCount = s.readInt()
+            val superinterfaces = mutableListOf<String>()
+            repeat(superinterfaceCount) { superinterfaces.add(s.readUTF()) }
+            val typeParameterCount = s.readInt()
+            val typeParameters = mutableListOf<String>()
+            repeat(typeParameterCount) { typeParameters.add(s.readUTF()) }
+            val modifierOrdinal = s.readInt()
+            return ClassData(name, superclass, superinterfaces, typeParameters, ClassModifier.entries[modifierOrdinal])
+        }
+    }
+
+    fun write(s: DataOutputStream) {
+        s.writeUTF(name)
+        s.writeUTF(superclass)
+        s.writeInt(superinterfaces.size)
+        superinterfaces.forEach { s.writeUTF(it) }
+        s.writeInt(typeParameters.size)
+        typeParameters.forEach { s.writeUTF(it) }
+        s.writeInt(modifier.ordinal)
+    }
+}
+
+class MutableClassData(
+    var name: String,
+    var superclass: String,
+    val superinterfaces: MutableList<String>,
+    val typeParameters: MutableList<String>,
+    var modifier: ClassModifier
+) {
+    fun toImmutable(): ClassData {
+        return ClassData(name, superclass, superinterfaces.toList(), typeParameters.toList(), modifier)
     }
 }
 

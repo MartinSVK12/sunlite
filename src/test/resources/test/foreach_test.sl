@@ -1,5 +1,5 @@
-//import "/array.sl";
-import "/array.sl";
+//import "/array";
+import "/array";
 
 val arr: Array<Int> = arrayOf(0,1,2,3,4,5) as Array<Int>;
 

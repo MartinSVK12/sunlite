@@ -1,5 +1,5 @@
-import Iterator from "/sunlite/stdlib/iterable.sl";
-import Iterable from "/sunlite/stdlib/iterable.sl";
+import Iterator from "/sunlite/stdlib/iterable";
+import Iterable from "/sunlite/stdlib/iterable";
 
 class Arrays {
     static func forEach(arr: Array, block: Function<Any?, Nil>) {

@@ -6,6 +6,7 @@ import java.nio.charset.Charset
 import java.nio.file.Files
 import java.nio.file.Paths
 import java.util.function.Function
+import java.util.zip.GZIPInputStream
 import kotlin.io.path.Path
 import kotlin.io.path.extension
 import kotlin.system.exitProcess
@@ -20,6 +21,7 @@ class Sunlite(val args: Array<String>) {
     val path: MutableList<String> = mutableListOf()
     val includes: MutableMap<String, Pair<Int, List<Stmt>>> = mutableMapOf()
     val imports: MutableMap<String, Pair<Int, List<Stmt>?>> = mutableMapOf()
+    val autoImported: MutableMap<String, String> = mutableMapOf()
 
     val logEntryReceivers: MutableList<LogEntryReceiver> = mutableListOf()
     val compilerDataReceivers: MutableList<CompilerDataReceiver> = mutableListOf()
@@ -32,8 +34,10 @@ class Sunlite(val args: Array<String>) {
     var collector: TypeCollector? = null
 
     var readFunction: Function<String, String> = Function {
-        val bytes = Files.readAllBytes(Paths.get(it))
-        return@Function String(bytes, Charset.defaultCharset())
+        return@Function readStreamFunction.apply(it).use { s -> s.bufferedReader().readText() }
+    }
+    var readStreamFunction: Function<String, InputStream> = Function {
+        return@Function File(it).inputStream()
     }
     var natives: Natives = DefaultNatives
 
@@ -47,6 +51,7 @@ class Sunlite(val args: Array<String>) {
         tickMode = false
         noTypeChecks = false
         compileOnly = false
+        compileDeps = false
         showDisassembly = false
         showOtherDisassembly = false
         showAST = false
@@ -58,8 +63,17 @@ class Sunlite(val args: Array<String>) {
 	    path.clear()
 	    includes.clear()
 	    imports.clear()
+        autoImported.clear()
 	    uninitialized = true
 	    collector = null
+
+        autoImported["Object"] = "/sunlite/stdlib/object"
+        autoImported["Enum"] = "/sunlite/stdlib/enum"
+        autoImported["Exception"] = "/sunlite/stdlib/exception"
+        autoImported["ArrayIterator"] = "/sunlite/stdlib/array"
+        autoImported["Arrays"] = "/sunlite/stdlib/array"
+        autoImported["Strings"] = "/sunlite/stdlib/string"
+
         when {
             args.size > 4 -> {
                 println("Usage: sunlite [script] (path) (options) (args)")
@@ -86,6 +100,7 @@ class Sunlite(val args: Array<String>) {
                         "tick" -> tickMode = true
                         "noTypes" -> noTypeChecks = true
                         "compile" -> compileOnly = true
+                        "compileDeps" -> compileDeps = true
                         "asm" -> showDisassembly = true
                         "otherAsm" -> showOtherDisassembly = true
                         "ast" -> showAST = true
@@ -108,6 +123,7 @@ class Sunlite(val args: Array<String>) {
                         "tick" -> tickMode = true
                         "noTypes" -> noTypeChecks = true
                         "compile" -> compileOnly = true
+                        "compileDeps" -> compileDeps = true
                         "asm" -> showDisassembly = true
                         "otherAsm" -> showOtherDisassembly = true
                         "ast" -> showAST = true
@@ -239,14 +255,15 @@ class Sunlite(val args: Array<String>) {
         }
 
 	    if(Path(path).extension == "slc") {
-            printErr("Running compiled files is not supported yet!")
-            /*DataInputStream(GZIPInputStream(File(path).inputStream().buffered())).use { input ->
+            //printErr("Running compiled files is not supported yet!")
+            DataInputStream(File(path).inputStream().buffered()).use { input ->
                 vm = VM(this, if (args.size == 4) args[3].split(";").toTypedArray() else arrayOf())
                 uninitialized = false
+                collector = TypeCollector(this, vm)
                 val program: SLFunction = SLFunction.read(input)
                 return run(program)
-            }*/
-            return null
+            }
+            //return null
 	    }
 
         val VM = runString(readFunction.apply(path), path)
@@ -277,6 +294,15 @@ class Sunlite(val args: Array<String>) {
     }
 
     private fun runOrCompile(source: String, path: String?): VM? {
+        var run = true
+        if(compileOnly){
+            if(path == null){
+                printErr("Path for compilation output must be specified!")
+                return null
+            }
+            run = false
+        }
+
         if(debug){
             printInfo("Load path: ")
             printInfo("-----")
@@ -286,7 +312,7 @@ class Sunlite(val args: Array<String>) {
         }
 
         val program: SLFunction
-        var run: Boolean = true
+
         val duration = measureTime {
             compileStep = 0
 
@@ -393,19 +419,39 @@ class Sunlite(val args: Array<String>) {
             val compiler = Compiler(this, vm, null)
 
             imports.forEach {
-                vm.importedClasses[it.key.split("::")[1]] =
-                    Compiler(this, vm, null).compile(
-                        FunctionType.CHUNK,
-                        arrayOf(FunctionModifier.CHUNK),
-                        Type.NIL,
-                        listOf(),
-                        listOf(),
-                        it.value.second!!,
-                        it.key.split("::").first()
-                    )
+
+                val importPath = it.key.split("::")[0]
+                val importName = it.key.split("::")[1]
+
+                val importFunc = Compiler(this, vm, null).compile(
+                    FunctionType.COMPILED_CLASS,
+                    arrayOf(FunctionModifier.CHUNK),
+                    Type.NIL,
+                    listOf(),
+                    listOf(),
+                    it.value.second!!,
+                    importPath,
+                    importName
+                )
+
+                vm.importedClasses[importName] = importFunc
+                importFunc.chunk.debugInfo.classData.forEach { (string, data) ->
+                    vm.classes[string] = data
+                }
+
+                if(compileDeps) {
+                    val dir = Path(".", importPath).toFile()
+                    val file = Path(".", importPath, "$importName.slc").toFile()
+                    dir.mkdirs()
+                    file.createNewFile()
+                    val stream = DataOutputStream(file.outputStream())
+                    stream.use { s -> importFunc.write(s) }
+                    printInfo("Exported $file")
+                }
             }
 
             if(debug){
+                printInfo()
                 printInfo("Imported Classes Cache: ")
                 printInfo("--------")
                 vm.importedClasses.keys.forEach {
@@ -424,6 +470,10 @@ class Sunlite(val args: Array<String>) {
                 path
             )
 
+            program.chunk.debugInfo.classData.forEach { (name, data) ->
+                vm.classes[name] = data
+            }
+
             compileStep++
 
             // Stop if there was a compilation error.
@@ -432,22 +482,16 @@ class Sunlite(val args: Array<String>) {
             if(compileOnly){
                 if(path != null) {
                     if(Path(path).extension == "sl"){
-                        val compiledPath = path.replace(".sl",".raw")
+                        val compiledPath = path.replace(".sl",".slc")
                         val file = File(compiledPath)
                         file.createNewFile()
                         val stream = DataOutputStream(file.outputStream())
                         stream.use { program.write(it) }
-                        CompressUtils.compress(Path(compiledPath), Path(compiledPath.replace(".raw", ".slc")))
-                        File(compiledPath).delete()
-                        printInfo("Compiled ${Path(path).fileName}.")
-                        run = false
-                    } else {
-                        printErr("File already compiled!")
+                        //CompressUtils.compress(Path(compiledPath), Path(compiledPath.replace(".slc", ".slcc")))
+                        //File(compiledPath).delete()
+                        printInfo("Exported $file")
                         run = false
                     }
-                } else {
-                    printErr("Path for compilation output must be specified!")
-                    run = false
                 }
             }
         }
@@ -657,6 +701,9 @@ class Sunlite(val args: Array<String>) {
 
         @JvmStatic
         var compileOnly = false
+
+        @JvmStatic
+        var compileDeps = false
 
         lateinit var instance: Sunlite
 

@@ -3,6 +3,11 @@ package sunsetsatellite.sunlite.lang
 import sunsetsatellite.sunlite.lang.Expr.Get
 import sunsetsatellite.sunlite.lang.TokenType.*
 import sunsetsatellite.sunlite.vm.*
+import java.io.DataOutputStream
+import java.io.File
+import kotlin.collections.mutableListOf
+import kotlin.io.path.Path
+import kotlin.io.path.extension
 
 
 class Compiler(val sunlite: Sunlite, val vm: VM?, val enclosing: Compiler?) : Expr.Visitor<Unit>, Stmt.Visitor<Unit> {
@@ -39,11 +44,20 @@ class Compiler(val sunlite: Sunlite, val vm: VM?, val enclosing: Compiler?) : Ex
         typeParams: List<Param>,
         statements: List<Stmt>,
         path: String? = null,
-        name: String = "",
+        name: String = "<script>",
         arity: Int = 0,
         annotations: List<String> = listOf(),
         receiver: Token? = null
     ): SLFunction {
+
+        if (Sunlite.debug || Sunlite.compileOnly) {
+            if (type == FunctionType.COMPILED_CLASS) {
+                sunlite.printInfo("Compiling '$path::$name'...")
+            } else if(type == FunctionType.CHUNK){
+                sunlite.printInfo("Compiling '$path'...")
+            }
+        }
+
         maxLocals = arity
         currentFile = path
         chunk.debugInfo.file = currentFile
@@ -70,7 +84,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM?, val enclosing: Compiler?) : Ex
 
         }
 
-        if (name == "") {
+        if (name == "<script>") {
             topLevel = true
         } else {
             chunk.debugInfo.name = name
@@ -101,7 +115,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM?, val enclosing: Compiler?) : Ex
             sunlite.error(statements.lastOrNull()?.getLine() ?: -1, "Not all code paths of function '${name}' return a value.", chunk.debugInfo.file)
         }
 
-        return SLFunction(
+        val func = SLFunction(
             name,
             returnType,
             params,
@@ -113,6 +127,17 @@ class Compiler(val sunlite: Sunlite, val vm: VM?, val enclosing: Compiler?) : Ex
             modifier,
             annotations
         )
+        path?.let {
+            if (Sunlite.debug || Sunlite.compileOnly) {
+                if (type == FunctionType.COMPILED_CLASS) {
+                    sunlite.printInfo("Compiled '$path::$name'")
+                } else if(type == FunctionType.CHUNK){
+                    sunlite.printInfo("Compiled '$path'")
+                }
+            }
+        }
+
+        return func
     }
 
     private fun compile(stmt: Stmt) {
@@ -1135,6 +1160,17 @@ class Compiler(val sunlite: Sunlite, val vm: VM?, val enclosing: Compiler?) : Ex
             endScope(stmt)
         }
 
+        /*if(currentFunctionType == FunctionType.COMPILED_CLASS){
+            chunk.debugInfo.classData =
+        }*/
+        chunk.debugInfo.classData[stmt.name.lexeme] = MutableClassData(
+            className.lexeme,
+            stmt.superclass?.name?.lexeme ?: "<nil>",
+            stmt.superinterfaces.map { it.name.lexeme }.toMutableList(),
+            stmt.typeParameters.map { it.token.lexeme }.toMutableList(),
+            stmt.modifier
+        )
+
         currentClass = currentClass?.enclosing
     }
 
@@ -1180,6 +1216,14 @@ class Compiler(val sunlite: Sunlite, val vm: VM?, val enclosing: Compiler?) : Ex
         if (currentClass?.hasSuperclass == true) {
             endScope(stmt)
         }
+
+        chunk.debugInfo.classData[stmt.name.lexeme] = MutableClassData(
+            className.lexeme,
+            "<nil>",
+            stmt.superinterfaces.map { it.name.lexeme }.toMutableList(),
+            stmt.typeParameters.map { it.token.lexeme }.toMutableList(),
+            ClassModifier.ABSTRACT
+        )
 
         currentClass = currentClass?.enclosing
     }

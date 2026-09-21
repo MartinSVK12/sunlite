@@ -1,3 +1,3 @@
-﻿import "import1.sl";
+﻿import "import1";
 
 print(importTest("Import test!"));

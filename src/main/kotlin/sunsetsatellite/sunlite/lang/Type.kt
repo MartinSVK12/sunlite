@@ -130,23 +130,23 @@ abstract class Type {
                         val types = params.map { it.type }
                         val otherTypes = other.params.map { it.type }
                         return !types.zip(otherTypes)
-                            .any { !contains(it.second, it.first, currentInterpreter!!) }
+                            .any { !contains(it.second, it.first, currentVM, currentInterpreter) }
                     }
                 }
 
                 PrimitiveType.OBJECT -> {
-                    if (currentInterpreter == null) return false
+                    if (currentVM == null && currentInterpreter == null) return false
                     if (ref == other.ref) return true
                     return traverseTypeHierarchy(other.ref)
                 }
 
                 PrimitiveType.ARRAY -> {
-                    return contains(returnType, other.returnType, currentInterpreter!!)
+                    return contains(returnType, other.returnType, currentVM, currentInterpreter)
                 }
 
                 PrimitiveType.TABLE -> {
-                    if (!contains(typeParams[0].type, other.typeParams[0].type, currentInterpreter!!)) return false
-                    if (!contains(returnType, other.returnType, currentInterpreter!!)) return false
+                    if (!contains(typeParams[0].type, other.typeParams[0].type, currentVM, currentInterpreter)) return false
+                    if (!contains(returnType, other.returnType, currentVM, currentInterpreter)) return false
                     return true
                 }
 
@@ -163,9 +163,17 @@ abstract class Type {
         }
 
         private fun traverseTypeHierarchy(other: String): Boolean {
-            val parents = currentInterpreter?.collector?.typeHierarchy[other]
-            val superclass = parents?.superclass
-            val interfaces = parents?.superinterfaces
+            var superclass: String? = null
+            var interfaces: List<String>? = null
+            if(currentVM != null){
+                val parents = currentVM?.classes[other]
+                superclass = parents?.superclass
+                interfaces = parents?.superinterfaces
+            } else if(currentInterpreter != null){
+                val parents = currentInterpreter?.collector?.typeHierarchy[other]
+                superclass = parents?.superclass
+                interfaces = parents?.superinterfaces
+            }
             if (superclass == this.ref) return true
             if (interfaces != null && interfaces.contains(this.ref)) return true
             if ((superclass == null || superclass == "<nil>" || superclass == "") && (interfaces == null || interfaces.isEmpty())) return false
@@ -204,17 +212,22 @@ abstract class Type {
         }
     }
 
-    class Parameter(val name: Token) : Singular(PrimitiveType.GENERIC, name.lexeme) {
+    class Parameter(var param: String) : Singular(PrimitiveType.GENERIC, param) {
+
+        constructor(name: Token) : this(name.lexeme) {
+            this.param = name.lexeme
+        }
+
         override fun getName(): String {
-            return name.lexeme
+            return param
         }
 
         override fun getDescriptor(): String {
-            return PrimitiveType.GENERIC.descriptor.toString()
+            return PrimitiveType.GENERIC.descriptor + param + ";"
         }
 
         override fun toString(): String {
-            return "generic '${name.lexeme}'"
+            return "generic '${param}'"
         }
 
         override fun equals(other: Any?): Boolean {
@@ -227,7 +240,7 @@ abstract class Type {
         }
 
         override fun hashCode(): Int {
-            return name.hashCode()
+            return param.hashCode()
         }
 
 
@@ -242,6 +255,7 @@ abstract class Type {
             PrimitiveType.BYTE to 0, PrimitiveType.SHORT to 1, PrimitiveType.INT to 2, PrimitiveType.LONG to 3
         )
 
+        var currentVM: VM? = null
         var currentInterpreter: Sunlite? = null
 
         fun ofClass(name: String, params: List<Param> = listOf()): Reference {
@@ -460,7 +474,8 @@ abstract class Type {
             }
         }
 
-        fun contains(type: Type, inType: Type, sunlite: Sunlite): Boolean {
+        fun contains(type: Type, inType: Type, vm: VM?, sunlite: Sunlite?): Boolean {
+            currentVM = vm
             currentInterpreter = sunlite
             if (type == UNKNOWN) return false //can't statically determine the type
             if (inType is Union) {
@@ -537,7 +552,7 @@ abstract class Type {
             }
 
             if(type is Parameter){
-                typeArgs.firstOrNull { it.token.lexeme == type.name.lexeme }?.let {
+                typeArgs.firstOrNull { it.token.lexeme == type.param }?.let {
                     return it.type
                 }
             }

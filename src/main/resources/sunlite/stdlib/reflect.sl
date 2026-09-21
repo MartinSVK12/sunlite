@@ -1,4 +1,4 @@
-import Field from "/sunlite/stdlib/reflect.sl";
+import Field from "/sunlite/stdlib/reflect";
 
 class Reflect {
     static native func getMethodNames(c: Class | Object): Array<String>

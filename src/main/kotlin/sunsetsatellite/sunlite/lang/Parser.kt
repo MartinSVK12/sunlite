@@ -27,18 +27,6 @@ class Parser(
 
     val annotations: MutableList<Stmt.Annotation> = mutableListOf()
 
-    companion object {
-        val autoImported: MutableMap<String, String> = mutableMapOf()
-        init {
-            autoImported["Object"] = "/sunlite/stdlib/object.sl"
-            autoImported["Enum"] = "/sunlite/stdlib/enum.sl"
-            autoImported["Exception"] = "/sunlite/stdlib/exception.sl"
-            autoImported["ArrayIterator"] = "/sunlite/stdlib/array.sl"
-            autoImported["Arrays"] = "/sunlite/stdlib/array.sl"
-            autoImported["Strings"] = "/sunlite/stdlib/string.sl"
-        }
-    }
-
     private class ParseError : RuntimeException()
 
     fun parse(path: String?): List<Stmt> {
@@ -49,8 +37,8 @@ class Parser(
             pckg()?.let { statements.add(it) }
         }
 
-        if(autoImported.values.none { it == path }){
-            autoImported.forEach { (name, path) ->
+        if(sunlite.autoImported.values.none { it == path }){
+            sunlite.autoImported.forEach { (name, path) ->
                 doImport(
 	                location = Token(STRING, "\"$path\"", path, -1, currentFile, Token.Position(-1,-1)),
 	                what = Token.identifier(name, -1, currentFile),
@@ -193,12 +181,12 @@ class Parser(
         var data: String? = null
         val invalidPaths: MutableList<String> = mutableListOf()
 
-        data = Sunlite::class.java.getResourceAsStream(location.literal)?.bufferedReader()?.use { it.readText() }
+        data = Sunlite::class.java.getResourceAsStream("${location.literal}.sl")?.bufferedReader()?.use { it.readText() }
 
         if (data == null) {
             sunlite.path.forEach {
                 try {
-                    data = sunlite.readFunction.apply(it + location.literal)
+                    data = sunlite.readFunction.apply("${it}${location.literal}.sl")
                 } catch (_: IOException) {
                     invalidPaths.add(it)
                 }
@@ -270,8 +258,8 @@ class Parser(
         }*/
 
         if (Sunlite.debug) {
-            sunlite.printInfo("Parsed and imported ${what.lexeme} from ${location.literal}!")
-            sunlite.printInfo()
+            sunlite.printInfo("Parsed and imported ${what.lexeme} from ${location.literal}.")
+            //sunlite.printInfo()
         }
         return Stmt.Import(keyword, what, location, alias)
     }
@@ -303,13 +291,13 @@ class Parser(
         if(!builtin){
             sunlite.path.forEach {
                 try {
-                    data = sunlite.readFunction.apply(it + what.literal)
+                    data = sunlite.readFunction.apply(it + what.literal + ".sl`")
                 } catch (_: IOException) {
                     invalidPaths.add(it)
                 }
             }
         } else {
-            data = Sunlite::class.java.getResourceAsStream(what.literal)?.bufferedReader()?.use { it.readText() }
+            data = Sunlite::class.java.getResourceAsStream(what.literal + ".sl")?.bufferedReader()?.use { it.readText() }
         }
 
 
@@ -369,8 +357,7 @@ class Parser(
         }*/
 
         if (Sunlite.debug) {
-            sunlite.printInfo("Parsed and included '${what.literal}'!")
-            sunlite.printInfo()
+            sunlite.printInfo("Parsed and included '${what.literal}'.")
         }
 
         return Stmt.Include(keyword, what)
@@ -2051,9 +2038,9 @@ class Parser(
         thenBranch: Expr,
         elseBranch: Expr
     ): Type = if (thenBranch.getExprType() is Type.Singular && elseBranch.getExprType() is Type.Singular) {
-        if (Type.contains(thenBranch.getExprType(), elseBranch.getExprType(), sunlite)) {
+        if (Type.contains(thenBranch.getExprType(), elseBranch.getExprType(), null, sunlite)) {
             thenBranch.getExprType()
-        } else if (Type.contains(elseBranch.getExprType(), thenBranch.getExprType(), sunlite)) {
+        } else if (Type.contains(elseBranch.getExprType(), thenBranch.getExprType(), null, sunlite)) {
             elseBranch.getExprType()
         } else {
             Type.Union(listOf(thenBranch.getExprType(), elseBranch.getExprType()) as List<Type.Singular>)

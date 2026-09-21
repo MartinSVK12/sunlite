@@ -21,7 +21,7 @@ application {
 
 dependencies {
     implementation("com.google.code.gson:gson:2.10.1")
-    implementation(kotlin("stdlib"))
+    //implementation(kotlin("stdlib"))
 
     // lsp
     implementation("org.eclipse.lsp4j:org.eclipse.lsp4j:1.0.0")
