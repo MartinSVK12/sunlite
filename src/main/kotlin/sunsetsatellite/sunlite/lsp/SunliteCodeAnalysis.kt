@@ -52,7 +52,7 @@ class SunliteCodeAnalysis(val languageServer: SunliteLanguageServer, val documen
             name = "Sunlite Code Analysis Thread",
         ) {
             val sl = Sunlite(arrayOf(file.toString(), loadPath.joinToString(";")))
-            sl.dataReceiver.add(this)
+            sl.compilerDataReceivers.add(this)
             val result = sl.parse(code)
             if (result == null) {
                 this.analysisFinished()

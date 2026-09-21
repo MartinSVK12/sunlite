@@ -1151,7 +1151,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
         }
 
         val locals = mutableListOf<AnySLValue>()
-        locals.addAll(Array(callee.value.function.localsCount - argCount) { i -> SLNil })
+        locals.addAll(Array(callee.value.function.localsCount - argCount) { i -> SLUninitialized })
         for (i in 0 until argCount) {
             locals.add(frameStack.peek().peek(typeArgCount + i))
         }

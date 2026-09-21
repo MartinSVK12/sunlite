@@ -859,7 +859,7 @@ class Parser(
                 }
 
                 parameters.add(
-                    Param(consume(IDENTIFIER, "Expected parameter name."), getType())
+                    Param(consume(IDENTIFIER, "Expected parameter name."), getType()/*, continueIf(EQUAL){ expression() }*/)
                 )
             } while (match(COMMA))
         }
@@ -2084,6 +2084,12 @@ class Parser(
 
         throw error(peek(), message)
     }
+
+	private fun <T> continueIf(type: TokenType, action: (Token) -> T): T? {
+		if (checkToken(type)) return action(advance())
+
+		return null
+	}
 
     private fun assert(type: TokenType, message: String): Token {
         if (!checkToken(type)) return peek()
