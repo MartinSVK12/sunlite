@@ -93,7 +93,9 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                     if(noExceptions){
                         sb.append("INTERNAL\n")
                     }
-                    sb.append("STACK @ ${fr.closure.function.chunk.debugInfo.file}::${fr.closure.function.name}${Type.fromValue(fr.closure.function, sunlite).getDescriptor()}: ")
+                    sb.append("STACK @ ${fr.closure.function.chunk.debugInfo.file}::${fr.closure.function.name}${Type.fromValue(
+                        fr.closure.function
+                    ).getDescriptor()}: ")
                     for (value in fr.stack) {
                         sb.append("[ ")
                         sb.append(value)
@@ -103,7 +105,9 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                         sb.append("[ ]")
                     }
                     sb.append("\n")
-                    sb.append("LOCALS @ ${fr.closure.function.chunk.debugInfo.file}::${fr.closure.function.name}${Type.fromValue(fr.closure.function, sunlite).getDescriptor()}: ")
+                    sb.append("LOCALS @ ${fr.closure.function.chunk.debugInfo.file}::${fr.closure.function.name}${Type.fromValue(
+                        fr.closure.function
+                    ).getDescriptor()}: ")
                     for (value in fr.locals) {
                         sb.append("[ ")
                         sb.append(value)
@@ -133,7 +137,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
 
                     Opcodes.RETURN -> {
                         val value: AnySLValue = fr.pop()
-                        val type = Type.fromValue(value.value, sunlite)
+                        val type = Type.fromValue(value.value)
                         val retType = frameStack.peek().closure.function.returnType
                         val modifier = frameStack.peek().closure.function.modifier
                         if(!frameStack.peek().closure.function.name.contains("init")){
@@ -381,7 +385,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                             val value = fr.pop()
                             typeChecker.checkType(
                                 clazz.staticFields[name]!!.type,
-                                Type.fromValue(value.value, sunlite),
+                                Type.fromValue(value.value),
                                 true
                             )
                             clazz.staticFields[name]!!.value = value
@@ -393,7 +397,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                             val value = fr.pop()
                             typeChecker.checkType(
                                 instance.fields[name]!!.type,
-                                Type.fromValue(value.value, sunlite),
+                                Type.fromValue(value.value),
                                 true
                             )
                             instance.fields[name]!!.value = value
@@ -486,23 +490,34 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                     }
 
                     Opcodes.ARRAY_GET -> {
-                        if (fr.peek(0) !is SLArrayObj && fr.peek(0) !is SLTableObj && fr.peek(0) !is SLString) {
-                            runtimeError("Only arrays, tables and strings support getting with the indexing operator.")
+                        if (fr.peek(0) !is SLArrayObj &&
+                            fr.peek(0) !is SLTableObj &&
+                            fr.peek(0) !is SLTupleObj &&
+                            fr.peek(0) !is SLString) {
+                            runtimeError("Only arrays, tables, tuples and strings support getting with the indexing operator.")
                             return
                         }
                         if(fr.peek(0) is SLString){
                             val s = (fr.pop() as SLString).value
                             val index = fr.pop()
-                            if (index !is SLNumber) {
-                                runtimeError("String index must be a number.")
+                            if (index !is SLNumber || !index.isInteger()) {
+                                runtimeError("String index must be an integer.")
                                 return
                             }
                             fr.push(SLString(s[index.value.toInt()].toString()))
                         } else if (fr.peek(0) is SLArrayObj) {
                             val arr = (fr.pop() as SLArrayObj).value
                             val index = fr.pop()
-                            if (index !is SLNumber) {
-                                runtimeError("Array index must be a number.")
+                            if (index !is SLNumber || !index.isInteger()) {
+                                runtimeError("Array index must be an integer.")
+                                return
+                            }
+                            fr.push(arr.get(index.value.toInt()))
+                        } else if(fr.peek(0) is SLTupleObj){
+                            val arr = (fr.pop() as SLTupleObj).value
+                            val index = fr.pop()
+                            if (index !is SLNumber || !index.isInteger()) {
+                                runtimeError("Tuple index must be an integer.")
                                 return
                             }
                             fr.push(arr.get(index.value.toInt()))
@@ -515,18 +530,29 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                     }
 
                     Opcodes.ARRAY_SET -> {
-                        if (fr.peek(0) !is SLArrayObj && fr.peek(0) !is SLTableObj) {
-                            runtimeError("Only arrays or tables support setting with the indexing operator.")
+                        if (fr.peek(0) !is SLArrayObj && fr.peek(0) !is SLTableObj && fr.peek(0) !is SLTupleObj) {
+                            runtimeError("Only arrays, tables and tuples support setting with the indexing operator.")
                             return
                         }
                         if (fr.peek(0) is SLArrayObj) {
                             val arr = (fr.pop() as SLArrayObj).value
                             val index = fr.pop()
                             val value = fr.pop()
-                            if (index !is SLNumber) {
-                                runtimeError("Array index must be a number.")
+                            if (index !is SLNumber || !index.isInteger()) {
+                                runtimeError("Array index must be an integer.")
+                                return
                             }
-                            arr.set((index as SLNumber).value.toInt(), value)
+                            arr.set(index.value.toInt(), value)
+                            fr.push(value)
+                        } else if (fr.peek(0) is SLTupleObj) {
+                            val arr = (fr.pop() as SLTupleObj).value
+                            val index = fr.pop()
+                            val value = fr.pop()
+                            if (index !is SLNumber || !index.isInteger()) {
+                                runtimeError("Tuple index must be an integer.")
+                                return
+                            }
+                            arr.set(index.value.toInt(), value)
                             fr.push(value)
                         } else {
                             val arr = (fr.pop() as SLTableObj).value
@@ -623,14 +649,14 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                     Opcodes.CHECK -> {
                         val type = readConstant(fr) as SLType
                         val checking = fr.pop()
-                        val checkingType = Type.fromValue(checking.value, sunlite)
+                        val checkingType = Type.fromValue(checking.value)
                         fr.push(SLBool.of(Type.contains(type.value, checkingType, this, this.sunlite)))
                     }
 
                     Opcodes.CAST -> {
                         val type = readConstant(fr) as SLType
                         val checking = fr.pop()
-                        val checkingType = Type.fromValue(checking.value, sunlite)
+                        val checkingType = Type.fromValue(checking.value)
                         if (checking is SLNumber<*>) {
                             fr.push(checking.cast(type.value))
                         } else {
@@ -986,7 +1012,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                 }
             }
         }
-        runtimeError("Can only call functions but tried to call '${Type.fromValue(callee.value, sunlite)}'.")
+        runtimeError("Can only call functions but tried to call '${Type.fromValue(callee.value)}'.")
         return false
     }
 
@@ -1070,7 +1096,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
 
     fun findConstructor(callee: SLClass, argCount: Int, typeArgCount: Int): SLFunction? {
         if (callee.methods.keys.any { it.contains("init") }) {
-            val args = Array(argCount) { i -> Param(Type.fromValue(frameStack.peek().peek(i).value, sunlite)) }.reversedArray()
+            val args = Array(argCount) { i -> Param(Type.fromValue(frameStack.peek().peek(i).value)) }.reversedArray()
             val type = Type.ofFunction("", Type.NIL, args.toList())
             val constructor =
                 callee.methods
@@ -1345,7 +1371,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
         fields["message"]?.value = SLString(message)
         val trace = getCurrentStacktrace(false)
 
-        fields["stacktrace"]?.value = SLArrayObj(SLArray(trace.size, sunlite, Type.STRING).overwrite(trace as Array<AnySLValue>))
+        fields["stacktrace"]?.value = SLArrayObj(SLArray(trace.size, this, Type.STRING).overwrite(trace as Array<AnySLValue>))
         return SLClassInstanceObj(SLClassInstance(clazz.value, mutableMapOf(), fields))
     }
 

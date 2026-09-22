@@ -331,6 +331,8 @@ abstract class Expr : Element {
                 val ref = obj.getExprType() as Type.Reference
                 if (ref.type == PrimitiveType.TABLE || ref.type == PrimitiveType.ARRAY) {
                     return ref.returnType
+                } else if(ref.type == PrimitiveType.TUPLE){
+                    return ref.typeParams[((what as Literal).value as Number).toInt()].type
                 }
             }
             if(obj.getExprType() == Type.STRING){
@@ -486,7 +488,24 @@ abstract class Expr : Element {
         override fun getFile(): String? {
             return bracket.file
         }
+    }
 
+    data class Tuple(val expr: List<Expr>, val paren: Token) : Expr() {
+        override fun <R> accept(visitor: Visitor<R>): R? {
+            return visitor.visitTupleExpr(this)
+        }
+
+        override fun getExprType(): Type {
+            return Type.ofTuple(expr.map { it.getExprType() })
+        }
+
+        override fun getLine(): Int {
+            return paren.line
+        }
+
+        override fun getFile(): String? {
+            return paren.file
+        }
     }
 
     data class If(val condition: Expr, val thenBranch: Expr, val elseBranch: Expr, val type: Type): Expr(){
@@ -528,6 +547,7 @@ abstract class Expr : Element {
         fun visitCastExpr(expr: Cast): R
         fun visitArrayExpr(expr: Array): R
         fun visitIfExpr(expr: If): R
+        fun visitTupleExpr(expr: Tuple): R
     }
 
     interface NamedExpr : Element {

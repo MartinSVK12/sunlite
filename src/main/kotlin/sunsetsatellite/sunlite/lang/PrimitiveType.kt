@@ -11,11 +11,12 @@ enum class PrimitiveType(val descriptor: Char, val isReference: Boolean = false)
     //NUMBER,
     STRING('t'),
     BOOLEAN('z'),
-    FUNCTION('(', true),
+    FUNCTION('&', true),
     CLASS('C', true),
     OBJECT('O', true),
     ARRAY('[', true),
     TABLE('{', true),
+    TUPLE('(', true),
     GENERIC('G', true),
     NIL('N'),
     UNKNOWN('U'); //static type checker failed to get a more concrete type
@@ -38,6 +39,7 @@ enum class PrimitiveType(val descriptor: Char, val isReference: Boolean = false)
                 TokenType.IDENTIFIER -> OBJECT
                 TokenType.TYPE_ARRAY -> ARRAY
                 TokenType.TYPE_TABLE -> TABLE
+                TokenType.TYPE_TUPLE -> TUPLE
                 TokenType.TYPE_NIL -> NIL
                 TokenType.QUESTION -> NIL
                 TokenType.TYPE_GENERIC -> GENERIC

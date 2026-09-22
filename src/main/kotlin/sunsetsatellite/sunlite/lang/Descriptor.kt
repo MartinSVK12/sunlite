@@ -56,6 +56,7 @@ class Descriptor(private val source: String) {
                 }
 
                 PrimitiveType.FUNCTION -> {
+                    advance()
                     val params: MutableList<Type> = mutableListOf()
                     if(peek() != ')'){
                         do {
@@ -72,6 +73,16 @@ class Descriptor(private val source: String) {
                     val s = identifier()
                     currentType = Type.Parameter(s)
                     advance()
+                }
+
+                PrimitiveType.TUPLE -> {
+                    val params: MutableList<Type> = mutableListOf()
+                    if(peek() != ')'){
+                        do {
+                            params.add(scanInner())
+                        } while (peek() != ')')
+                    }
+                    currentType = Type.ofTuple(params)
                 }
 
                 else -> {}

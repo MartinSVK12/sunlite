@@ -752,6 +752,12 @@ class Compiler(val sunlite: Sunlite, val vm: VM?, val enclosing: Compiler?) : Ex
         patchJump(elseJump, expr)
     }
 
+    override fun visitTupleExpr(expr: Expr.Tuple) {
+        val f = Expr.Variable(Token.identifier("tupleOf", expr.getLine(), expr.getFile()))
+        val call = Expr.Call(f, Token.identifier("<tuple literal>", expr), expr.expr, listOf())
+        visitCallExpr(call)
+    }
+
     override fun visitExprStmt(stmt: Stmt.Expression) {
         compile(stmt.expr)
         emitByte(Opcodes.POP, stmt)

@@ -82,7 +82,10 @@ abstract class Type {
                         return PrimitiveType.TABLE.descriptor+typeParams[0].type.getDescriptor()+"="+returnType.getDescriptor()+";"
                     }
                     PrimitiveType.FUNCTION -> {
-                        return PrimitiveType.FUNCTION.descriptor + params.joinToString("") { it.type.getDescriptor() } +")"+returnType.getDescriptor()+";"
+                        return PrimitiveType.FUNCTION.descriptor+"("+params.joinToString("") { it.type.getDescriptor() } +")"+returnType.getDescriptor()+";"
+                    }
+                    PrimitiveType.TUPLE -> {
+                        return PrimitiveType.TUPLE.descriptor+typeParams.joinToString("") { it.type.getDescriptor() }+");"
                     }
                     else -> super.getDescriptor()
                 }
@@ -112,6 +115,10 @@ abstract class Type {
 
                 PrimitiveType.OBJECT -> {
                     return "${type.name.lowercase()}${if (typeParams.isNotEmpty()) "<${typeParams.joinToString()}>" else ""}${if (ref != "") " '${ref}'" else ""}"
+                }
+
+                PrimitiveType.TUPLE -> {
+                    return "${type.name.lowercase()} '${typeParams.map { it.type }.joinToString()}'"
                 }
 
                 else -> {
@@ -147,6 +154,13 @@ abstract class Type {
                 PrimitiveType.TABLE -> {
                     if (!contains(typeParams[0].type, other.typeParams[0].type, currentVM, currentInterpreter)) return false
                     if (!contains(returnType, other.returnType, currentVM, currentInterpreter)) return false
+                    return true
+                }
+
+                PrimitiveType.TUPLE -> {
+                    typeParams.forEachIndexed { index, param ->
+                        if (!contains(param.type, other.typeParams[index].type, currentVM, currentInterpreter)) return false
+                    }
                     return true
                 }
 
@@ -276,6 +290,13 @@ abstract class Type {
             )
         }
 
+        fun ofTuple(types: List<Type>): Reference {
+            val ref = Reference(
+                PrimitiveType.TUPLE, "<tuple>", TUPLE, listOf(),
+                types.mapIndexed { index, type -> Param(Token.identifier("<$index>"), type) })
+            return Reference(PrimitiveType.TUPLE, "<tuple>", ref, listOf(), ref.typeParams)
+        }
+
         fun ofFunction(name: String, returnType: Type, params: List<Param>): Reference {
             return Reference(PrimitiveType.FUNCTION, name, returnType, params)
         }
@@ -346,6 +367,10 @@ abstract class Type {
                                     ), sunlite, false
                                 )
                                 return ofTable(keyType, valueType)
+                            }
+
+                            TokenType.TYPE_TUPLE -> {
+                                return ofTuple(if (topmostType.typeParameters.isEmpty()) listOf() else topmostType.typeParameters.map { of(listOf(it), sunlite, false) })
                             }
 
                             TokenType.TYPE_CLASS -> {
@@ -427,6 +452,10 @@ abstract class Type {
                                     return ofTable(keyType, valueType)
                                 }
 
+                                TokenType.TYPE_TUPLE -> {
+                                    return ofTuple(if (singleType.typeParameters.isEmpty()) listOf() else singleType.typeParameters.map { of(listOf(it), sunlite, false) })
+                                }
+
                                 TokenType.TYPE_CLASS -> {
                                     if (singleType.typeParameters.isEmpty()) {
                                         return ofClass("")
@@ -493,7 +522,7 @@ abstract class Type {
             }
         }
 
-        fun fromValue(value: Any?, sunlite: Sunlite): Type {
+        fun fromValue(value: Any?): Type {
             return when (value) {
                 is Type -> value
                 is Param -> value.type
@@ -517,7 +546,7 @@ abstract class Type {
                 }
 
                 is SLUpvalue -> {
-                    fromValue(value.closedValue, sunlite)
+                    fromValue(value.closedValue)
                 }
 
                 is SLNativeFunction -> ofFunction(value.name, value.returnType, listOf())
@@ -526,6 +555,9 @@ abstract class Type {
                 is SLClassInstance -> ofObject(value.clazz.name)
                 is SLArray -> {
                     ofArray(value.type)
+                }
+                is SLTuple -> {
+                    ofTuple(value.types)
                 }
                 is SLTable -> ofTable(value.types.first, value.types.second)
                 is SLType -> value.value
@@ -568,6 +600,7 @@ abstract class Type {
         val OBJECT = Singular(PrimitiveType.OBJECT)
         val ARRAY = Singular(PrimitiveType.ARRAY)
         val TABLE = Singular(PrimitiveType.TABLE)
+        val TUPLE = Singular(PrimitiveType.TUPLE)
         val NULLABLE_ANY = Union(listOf(ANY, NIL))
         val BYTE = Singular(PrimitiveType.BYTE)
         val SHORT = Singular(PrimitiveType.SHORT)

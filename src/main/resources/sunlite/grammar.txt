@@ -75,9 +75,11 @@ unary          → ( "!" | "-" ) unary | lambda ;
 lambda         → ( "func" ( typeParam )? "(" parameters? ")" ( ":" type )? block ) | call ;
 call           → primary ( "(" ( typeParam* )? arguments? ")" | "." IDENTIFIER )* ;
 primary        → "true" | "false" | "nil" | "this"
-               | NUMBER | STRING | IDENTIFIER | "(" expression ")" | ifExpr |
+               | NUMBER | STRING | IDENTIFIER | arrayLiteral | tupleLiteral | "(" expression ")" | ifExpr |
                | "super" "." IDENTIFIER ;
 ifExpr         → "if" "(" expression ")" expression "else" expression
+arrayLiteral   → "[" ( typeParam )? ( expression ( "," expression )* )? "]"
+tupleLiteral   → "(" ( expression ( "," expression )* )? ")"
 
 // UTILITY
 

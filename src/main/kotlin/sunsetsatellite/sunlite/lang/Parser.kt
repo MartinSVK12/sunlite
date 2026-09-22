@@ -1354,7 +1354,7 @@ class Parser(
     private fun getTypeTokens(insideUnion: Boolean = false): List<TypeToken> {
         val mainToken = peek()
         if (!match(
-                TYPE_BOOLEAN, TYPE_STRING, /*TYPE_NUMBER,*/
+                TYPE_BOOLEAN, TYPE_STRING, TYPE_TUPLE,/*TYPE_NUMBER,*/
                 TYPE_BYTE, TYPE_SHORT, TYPE_INT, TYPE_LONG, TYPE_FLOAT, TYPE_DOUBLE,
                 TYPE_FUNCTION, TYPE_CLASS, TYPE_ANY, TYPE_GENERIC, TYPE_ARRAY, TYPE_TABLE, IDENTIFIER, TYPE_NIL
             )
@@ -1785,7 +1785,24 @@ class Parser(
                     expr = Unary(operator, expr)
                 }
             } else if (match(LEFT_BRACKET)) {
-                val name = expression()
+                var name: Expr
+                val type = expr.getExprType()
+                if(type is Type.Reference && type.type == PrimitiveType.TUPLE){
+                    name = run {
+                        return@run if (match(BYTE, SHORT, INT)) {
+                            when (previous().type) {
+                                BYTE -> Literal(previous().literal as Byte, previous().line, previous().file, Type.BYTE)
+                                SHORT -> Literal(previous().literal as Short, previous().line, previous().file, Type.SHORT)
+                                INT -> Literal(previous().literal as Int, previous().line, previous().file, Type.INT)
+                                else -> throw error(previous(), "Tuple index can only be a constant integer.")
+                            }
+                        } else {
+                            throw error(previous(), "Expected constant integer as tuple index.")
+                        }
+                    }
+                } else {
+                    name = expression()
+                }
                 consume(RIGHT_BRACKET, "Expected ']' after expression.")
                 expr = ArrayGet(expr, name, previous())
             } else {
@@ -1932,9 +1949,26 @@ class Parser(
         }
 
         if (match(LEFT_PAREN)) {
+            val paren = previous()
             val expr = expression()
-            consume(RIGHT_PAREN, "Expected ')' after expression.")
-            return Grouping(expr)
+            if(checkToken(RIGHT_PAREN)) {
+                consume(RIGHT_PAREN, "Expected ')' after grouping expression.")
+                return Grouping(expr)
+            } else if(checkToken(COMMA)){
+                advance()
+                val list: MutableList<Expr> = ArrayList()
+                list.add(expr)
+                if (!checkToken(RIGHT_PAREN)) {
+                    do {
+                        if (list.size >= 255) {
+                            error(peek(), "Can't have more than 255 elements in an tuple literal.")
+                        }
+                        list.add(expression())
+                    } while (match(COMMA))
+                }
+                consume(RIGHT_PAREN, "Expected ')' after tuple elements.")
+                return Tuple(list, paren)
+            }
         }
 
         /*if (checkTypes()) {
@@ -1960,7 +1994,7 @@ class Parser(
 
         if (match(LEFT_BRACKET)) {
             val bracket = previous()
-            var type: Type = Type.NULLABLE_ANY
+            var type: Type = Type.UNKNOWN
             if(match(LESS) && checkTypes()){
                 type = getType(function = false, noColon = true)
                 consume(GREATER, "Expected '>' after type parameter declaration.")
@@ -1975,6 +2009,9 @@ class Parser(
                 } while (match(COMMA))
             }
             consume(RIGHT_BRACKET, "Expected ']' after array elements.")
+            if(type == Type.UNKNOWN){
+                type = list.first().getExprType()
+            }
             return Array(list, bracket, Type.ofArray(type))
         }
 
@@ -2107,7 +2144,7 @@ class Parser(
 
     private fun checkTypes(): Boolean {
         return checkTokens(
-            TYPE_BOOLEAN, TYPE_STRING,
+            TYPE_BOOLEAN, TYPE_STRING, TYPE_TUPLE,
             TYPE_BYTE, TYPE_SHORT, TYPE_INT, TYPE_LONG, TYPE_FLOAT, TYPE_DOUBLE,
             TYPE_FUNCTION, TYPE_CLASS, TYPE_ANY, TYPE_GENERIC, TYPE_ARRAY, TYPE_TABLE, IDENTIFIER, TYPE_NIL
         )

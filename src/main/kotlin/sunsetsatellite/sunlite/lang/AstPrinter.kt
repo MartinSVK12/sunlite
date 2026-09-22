@@ -89,11 +89,11 @@ object AstPrinter : Expr.Visitor<String>, Stmt.Visitor<String> {
     }
 
     override fun visitCheckExpr(expr: Expr.Check): String {
-        return "(check ${print(expr.left)} ${expr.operator.lexeme} ${expr.right.getName()})"
+        return "(check ${print(expr.left)} ${expr.operator.lexeme} ${expr.right})"
     }
 
     override fun visitCastExpr(expr: Expr.Cast): String {
-        return "(cast ${print(expr.left)} ${expr.operator.lexeme} ${expr.right.getName()})"
+        return "(cast ${print(expr.left)} ${expr.operator.lexeme} ${expr.right})"
     }
 
     override fun visitArrayExpr(expr: Expr.Array): String {
@@ -103,6 +103,10 @@ object AstPrinter : Expr.Visitor<String>, Stmt.Visitor<String> {
     override fun visitIfExpr(expr: Expr.If): String {
         val thenBranch = parenthesize("if expr", expr.condition, expr.thenBranch)
         return thenBranch + parenthesize("else\n",expr.elseBranch)
+    }
+
+    override fun visitTupleExpr(expr: Expr.Tuple): String {
+        return "(tuple literal ${parenthesizeList("elements", expr.expr)})"
     }
 
     override fun visitUnaryExpr(expr: Expr.Unary): String {

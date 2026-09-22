@@ -50,7 +50,7 @@ object DefaultNatives : Natives {
                 receiver: AnySLValue?
             ): AnySLValue {
                 val slFile = receiver!!.value as SLClassInstance
-                vm.typeChecker.checkType(Type.ofObject("File"), Type.fromValue(slFile, vm.sunlite), true)
+                vm.typeChecker.checkType(Type.ofObject("File"), Type.fromValue(slFile), true)
                 val filename = (slFile.fields["filename"]?.value as SLString).value
                 val file = File(filename)
                 try {
@@ -72,7 +72,7 @@ object DefaultNatives : Natives {
                 receiver: AnySLValue?
             ): AnySLValue {
                 val file = ((receiver!! as SLClassInstanceObj).value.fields["<foreign>fileHandle"]?.value as SLForeignObject).value as File
-                file.readBytes().let { return SLArrayObj(SLArray(it.size, vm.sunlite, Type.BYTE).overwrite(it.map { SLByte(it) }.toTypedArray())) }
+                file.readBytes().let { return SLArrayObj(SLArray(it.size, vm, Type.BYTE).overwrite(it.map { SLByte(it) }.toTypedArray())) }
             }
         })
 
@@ -149,7 +149,7 @@ object DefaultNatives : Natives {
                 typeArgs: Array<SLType>,
                 receiver: AnySLValue?
             ): AnySLValue {
-                return SLArrayObj(SLArray((args[0] as SLNumber).value.toInt(), vm.sunlite, typeArgs[0].value))
+                return SLArrayObj(SLArray((args[0] as SLNumber).value.toInt(), vm, typeArgs[0].value))
             }
         })
 
@@ -160,7 +160,7 @@ object DefaultNatives : Natives {
                 typeArgs: Array<SLType>,
                 receiver: AnySLValue?
             ): AnySLValue {
-                return SLTableObj(SLTable(vm.sunlite, typeArgs[0].value to typeArgs[1].value))
+                return SLTableObj(SLTable(vm, typeArgs[0].value to typeArgs[1].value))
             }
         })
 
@@ -171,7 +171,18 @@ object DefaultNatives : Natives {
                 typeArgs: Array<SLType>,
                 receiver: AnySLValue?
             ): AnySLValue {
-                return SLArrayObj(SLArray(args.size, vm.sunlite, typeArgs[0].value).overwrite(args))
+                return SLArrayObj(SLArray(args.size, vm, typeArgs[0].value).overwrite(args))
+            }
+        })
+
+        natives.defineNative(object : SLNativeFunction("tupleOf", Type.TUPLE, -1) {
+            override fun call(
+                vm: VM,
+                args: Array<AnySLValue>,
+                typeArgs: Array<SLType>,
+                receiver: AnySLValue?
+            ): AnySLValue {
+                return SLTupleObj(SLTuple(vm, args.map { Type.fromValue(it.value) }).overwrite(args))
             }
         })
 
@@ -213,7 +224,7 @@ object DefaultNatives : Natives {
                 typeArgs: Array<SLType>,
                 receiver: AnySLValue?
             ): AnySLValue {
-                val type = Type.fromValue(args[0].value, vm.sunlite)
+                val type = Type.fromValue(args[0].value)
                 return SLString(type.toString())
             }
         })
@@ -225,7 +236,7 @@ object DefaultNatives : Natives {
                 typeArgs: Array<SLType>,
                 receiver: AnySLValue?
             ): AnySLValue {
-                return SLArrayObj(SLArray(vm.launchArgs.size, vm.sunlite, Type.STRING).overwrite(vm.launchArgs.map { SLString(it) }
+                return SLArrayObj(SLArray(vm.launchArgs.size, vm, Type.STRING).overwrite(vm.launchArgs.map { SLString(it) }
                     .toTypedArray()))
             }
         })
@@ -262,7 +273,7 @@ object DefaultNatives : Natives {
                 receiver: AnySLValue?
             ): AnySLValue {
                 val trace = vm.getCurrentStacktrace((args[0] as SLBool).value)
-                return SLArrayObj(SLArray(trace.size, vm.sunlite, Type.STRING).overwrite(trace as Array<AnySLValue>))
+                return SLArrayObj(SLArray(trace.size, vm, Type.STRING).overwrite(trace as Array<AnySLValue>))
             }
         })
 
@@ -290,7 +301,7 @@ object DefaultNatives : Natives {
                 clazz.staticFields.filter { Type.contains(it.value.type, Type.ofObject("Enum"), vm, vm.sunlite) }.forEach {
                     list.add(it.value.value)
                 }
-                return SLArrayObj(SLArray(list.size, vm.sunlite, Type.ofObject("Enum")).overwrite(list.toTypedArray()))
+                return SLArrayObj(SLArray(list.size, vm, Type.ofObject("Enum")).overwrite(list.toTypedArray()))
             }
         })
         natives.defineNative(object : SLNativeFunction("Enum#fromName", Type.ofObject("Enum"), 1) {
@@ -587,7 +598,7 @@ object DefaultNatives : Natives {
                     vm.throwException("Only classes and class instances can have methods.")
                     return SLNil
                 }
-                return SLArrayObj(SLArray(array.size, vm.sunlite, Type.STRING).overwrite(array))
+                return SLArrayObj(SLArray(array.size, vm, Type.STRING).overwrite(array))
             }
         })
         natives.defineNative(object : SLNativeFunction("Reflect#getFieldNames", Type.ofArray(Type.STRING), 1) {
@@ -602,7 +613,7 @@ object DefaultNatives : Natives {
                     vm.throwException("Only classes and class instances can have fields.")
                     return SLNil
                 }
-                return SLArrayObj(SLArray(array.size, vm.sunlite, Type.STRING).overwrite(array))
+                return SLArrayObj(SLArray(array.size, vm, Type.STRING).overwrite(array))
             }
         })
         natives.defineNative(object : SLNativeFunction("Reflect#getAnnotations", Type.ofArray(Type.STRING), 1) {
@@ -613,13 +624,13 @@ object DefaultNatives : Natives {
                 receiver: AnySLValue?
             ): AnySLValue {
                 val o = args[0]
-                vm.typeChecker.checkType(Type.FUNCTION, Type.fromValue(o.value, vm.sunlite), true)
+                vm.typeChecker.checkType(Type.FUNCTION, Type.fromValue(o.value), true)
                 val func: SLFunction = when(o){
                     is SLClosureObj -> o.value.function
                     is SLBoundMethodObj -> o.value.method.function
                     else -> return SLNil
                 }
-                return SLArrayObj(SLArray(func.annotations.size, vm.sunlite, Type.STRING).overwrite(func.annotations.map { SLString(it) }.toTypedArray()))
+                return SLArrayObj(SLArray(func.annotations.size, vm, Type.STRING).overwrite(func.annotations.map { SLString(it) }.toTypedArray()))
             }
         })
 
@@ -632,7 +643,7 @@ object DefaultNatives : Natives {
             ): AnySLValue {
                 val clazz = args[0]
                 val arg1 = args[1]
-	            if (!vm.typeChecker.checkType(Type.STRING, Type.fromValue(arg1, vm.sunlite), true)) {
+	            if (!vm.typeChecker.checkType(Type.STRING, Type.fromValue(arg1), true)) {
 		            return SLNil
 	            }
                 val name = arg1.value as String
@@ -656,7 +667,7 @@ object DefaultNatives : Natives {
         natives.defineNative(object : SLNativeFunction("Field#loadField", Type.NIL, 0) {
             override fun call(vm: VM, args: Array<AnySLValue>, typeArgs: Array<SLType>, receiver: AnySLValue?): AnySLValue {
                 val obj = receiver!!.value as SLClassInstance
-                vm.typeChecker.checkType(Type.ofObject("Field"), Type.fromValue(obj, vm.sunlite), true)
+                vm.typeChecker.checkType(Type.ofObject("Field"), Type.fromValue(obj), true)
                 val c = obj.fields["clazz"]!!.value.value
                 val name = obj.fields["name"]!!.value.value as String
                 val field: SLField
@@ -693,7 +704,7 @@ object DefaultNatives : Natives {
                 receiver: AnySLValue?
             ): AnySLValue {
                 val field = receiver!!.value as SLClassInstance
-                vm.typeChecker.checkType(Type.ofObject("Field"), Type.fromValue(field, vm.sunlite), true)
+                vm.typeChecker.checkType(Type.ofObject("Field"), Type.fromValue(field), true)
                 field.fields["<foreign>field"]?.let {
                     return it.value
                 }
@@ -710,9 +721,9 @@ object DefaultNatives : Natives {
             ): AnySLValue {
                 val field = receiver!!.value as SLClassInstance
                 val value = args[0]
-                vm.typeChecker.checkType(Type.ofObject("Field"), Type.fromValue(field, vm.sunlite), true)
+                vm.typeChecker.checkType(Type.ofObject("Field"), Type.fromValue(field), true)
                 field.fields["<foreign>field"]?.let {
-                    vm.typeChecker.checkType(it.type, Type.fromValue(value.value, vm.sunlite), true)
+                    vm.typeChecker.checkType(it.type, Type.fromValue(value.value), true)
                     it.value = value
                     return SLNil
                 }

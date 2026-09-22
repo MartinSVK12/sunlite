@@ -485,4 +485,8 @@ class TypeCollector(val sunlite: Sunlite, val natives: NativesContainer) : Stmt.
         expr.elseBranch.accept(this)
     }
 
+    override fun visitTupleExpr(expr: Expr.Tuple) {
+        expr.expr.forEach { it.accept(this) }
+    }
+
 }

@@ -58,6 +58,7 @@ class Scanner(private var source: String, val sunlite: Sunlite) {
             keywords["Function"] = TYPE_FUNCTION
             keywords["Array"] = TYPE_ARRAY
             keywords["Table"] = TYPE_TABLE
+            keywords["Tuple"] = TYPE_TUPLE
             keywords["Generic"] = TYPE_GENERIC
             keywords["Class"] = TYPE_CLASS
             keywords["Nil"] = TYPE_NIL

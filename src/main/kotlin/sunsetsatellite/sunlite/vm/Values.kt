@@ -112,6 +112,8 @@ abstract class SLNumber<T : Number>(value: T, id: Int) : SLValue<T>(value, id) {
         return value.hashCode()
     }
 
+    fun isInteger(): Boolean = value is Byte || value is Short || value is Int || value is Long
+
     abstract operator fun compareTo(other: SLNumber<*>): Int
     fun cast(type: Type): SLNumber<*> {
         if (type is Type.Singular) {
@@ -644,5 +646,20 @@ class SLForeignObject(value: Any) : SLObj<Any>(value, 19) {
 
     override fun copy(): SLValue<Any> {
         return SLForeignObject(value)
+    }
+}
+
+class SLTupleObj(value: SLTuple) : SLObj<SLTuple>(value, 20) {
+    override fun equals(other: Any?): Boolean {
+        if (other !is SLTupleObj) return false
+        return other.value == value
+    }
+
+    override fun hashCode(): Int {
+        return value.hashCode()
+    }
+
+    override fun copy(): SLValue<SLTuple> {
+        return SLTupleObj(value.copy())
     }
 }
