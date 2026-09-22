@@ -2,11 +2,12 @@
   <configuration default="false" name="Sunlite Compiled Script" type="JetRunConfigurationType">
     <option name="MAIN_CLASS_NAME" value="sunsetsatellite.sunlite.lang.Sunlite" />
     <module name="sunsetsatellite.sunlite.main" />
-    <option name="PROGRAM_PARAMETERS" value="&quot;./out/main.slc&quot; &quot;E:\Stuff\Godot\JVM\vm\src\main\resources;E:\Stuff\Godot\JVM\vm\src\test\resources;E:\Stuff\Godot\JVM\vm\src\test\resources\out&quot; &quot;debug;stacktrace;asm&quot; &quot;&quot;" />
+    <option name="PROGRAM_PARAMETERS" value="&quot;./out/test.slc&quot; &quot;E:\Stuff\Godot\JVM\vm\src\main\resources;E:\Stuff\Godot\JVM\vm\src\test\resources;E:\Stuff\Godot\JVM\vm\src\test\resources\out&quot; &quot;debug;stacktrace&quot; &quot;&quot;" />
     <shortenClasspath name="NONE" />
     <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/src/test/resources" />
     <method v="2">
       <option name="Make" enabled="true" />
+      <option name="RunConfigurationTask" enabled="true" run_configuration_name="Sunlite Compile" run_configuration_type="JetRunConfigurationType" />
     </method>
   </configuration>
 </component>

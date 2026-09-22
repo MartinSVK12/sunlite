@@ -68,11 +68,11 @@ class Sunlite(val args: Array<String>) {
 	    collector = null
 
         autoImported["Object"] = "/sunlite/stdlib/object"
-        autoImported["Enum"] = "/sunlite/stdlib/enum"
         autoImported["Exception"] = "/sunlite/stdlib/exception"
-        autoImported["ArrayIterator"] = "/sunlite/stdlib/array"
-        autoImported["Arrays"] = "/sunlite/stdlib/array"
         autoImported["Strings"] = "/sunlite/stdlib/string"
+        autoImported["Enum"] = "/sunlite/stdlib/enum"
+        autoImported["Arrays"] = "/sunlite/stdlib/array"
+        autoImported["ArrayIterator"] = "/sunlite/stdlib/array"
 
         when {
             args.size > 4 -> {
@@ -405,7 +405,7 @@ class Sunlite(val args: Array<String>) {
 
             if(debug){
                 printInfo()
-                printInfo("Imported Classes Cache: ")
+                printInfo("Imported Modules: ")
                 printInfo("--------")
                 vm.importedClasses.keys.forEach {
                     printInfo(it)

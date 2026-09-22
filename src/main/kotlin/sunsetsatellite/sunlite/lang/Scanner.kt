@@ -73,7 +73,7 @@ class Scanner(private var source: String, val sunlite: Sunlite) {
             keywords["operator"] = OPERATOR
             keywords["override"] = OVERRIDE
             keywords["match"] = MATCH
-            keywords["package"] = PACKAGE
+            keywords["module"] = MODULE
             keywords["import"] = IMPORT
             keywords["from"] = FROM
             keywords["required"] = REQUIRED

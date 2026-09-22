@@ -1,5 +1,6 @@
 package sunsetsatellite.sunlite.vm
 
+import sunsetsatellite.sunlite.lang.Sunlite
 import sunsetsatellite.sunlite.lang.Type
 import java.io.File
 import java.io.IOException
@@ -90,6 +91,54 @@ object DefaultNatives : Natives {
     }
 
     fun registerCore(natives: NativesContainer) {
+        natives.defineNative(object : SLNativeFunction("setModuleLoader", Type.NIL, 1) {
+            override fun call(
+                vm: VM,
+                args: Array<AnySLValue>,
+                typeArgs: Array<SLType>,
+                receiver: AnySLValue?
+            ): AnySLValue {
+                var arg = args[0]
+                if(arg is SLNil){
+                    vm.moduleLoader = null
+                    vm.sunlite.printInfo("Module loader set to null from '${vm.frameStack.peek()}'!")
+                    return SLNil
+                }
+                val obj = arg.value
+                vm.typeChecker.checkType(Type.ofObject("ModuleLoader"), Type.fromValue(obj), true)
+                vm.moduleLoader = obj as SLClassInstance
+                if(Sunlite.debug) {
+                    vm.sunlite.printInfo("Module loader set to '${Type.fromValue(obj)}' from '${vm.frameStack.peek()}'!")
+                }
+                return SLNil
+            }
+        })
+
+        natives.defineNative(object : SLNativeFunction("getModuleLoader", Type.Union(listOf(Type.ofObject("ModuleLoader"), Type.NIL)), 0) {
+            override fun call(
+                vm: VM,
+                args: Array<AnySLValue>,
+                typeArgs: Array<SLType>,
+                receiver: AnySLValue?
+            ): AnySLValue {
+                return vm.moduleLoader?.let { SLClassInstanceObj(it) } ?: SLNil
+            }
+        })
+
+        natives.defineNative(object : SLNativeFunction("BaseModuleLoader#loadNative", Type.ofFunction("", Type.NIL, listOf()), 2) {
+            override fun call(
+                vm: VM,
+                args: Array<AnySLValue>,
+                typeArgs: Array<SLType>,
+                receiver: AnySLValue?
+            ): AnySLValue {
+                val name = (args[0] as SLString).value
+                val path = (args[1] as SLString).value
+
+                return vm.loadModuleNative(name, path)
+            }
+        })
+
         natives.defineNative(object : SLNativeFunction("clock", Type.DOUBLE, 0) {
             override fun call(vm: VM, args: Array<AnySLValue>, typeArgs: Array<SLType>, receiver: AnySLValue?): AnySLValue {
                 return SLDouble(System.currentTimeMillis().toDouble() / 1000)
@@ -269,7 +318,7 @@ object DefaultNatives : Natives {
             }
         })
 
-        natives.defineNative(object : SLNativeFunction("load", Type.ofFunction("", Type.NIL, listOf()), 1) {
+        /*natives.defineNative(object : SLNativeFunction("load", Type.ofFunction("", Type.NIL, listOf()), 1) {
             override fun call(
                 vm: VM,
                 args: Array<AnySLValue>,
@@ -279,7 +328,7 @@ object DefaultNatives : Natives {
                 val code = args[0] as SLString
                 return vm.loadString(code.value) ?: SLNil
             }
-        })
+        })*/
 
         natives.defineNative(object : SLNativeFunction("getStacktrace", Type.ofArray(Type.STRING), 1) {
             override fun call(

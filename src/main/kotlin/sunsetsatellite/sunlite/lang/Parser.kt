@@ -33,15 +33,15 @@ class Parser(
         currentFile = path
         val statements: MutableList<Stmt> = ArrayList()
 
-        if(!isAtEnd()){
-            pckg()?.let {
+        /*if(!isAtEnd()){
+            module()?.let {
                 if(it is Stmt.VirtualStmt){
                     statements.addAll(it.decompose())
                 } else {
                     statements.add(it)
                 }
             }
-        }
+        }*/
 
         if(sunlite.autoImported.values.none { it == path }){
             sunlite.autoImported.forEach { (name, path) ->
@@ -55,7 +55,7 @@ class Parser(
         }
 
         while (!isAtEnd()) {
-            annotation()?.let {
+            module()?.let {
                 if(it is Stmt.VirtualStmt){
                     statements.addAll(it.decompose())
                 } else {
@@ -67,10 +67,10 @@ class Parser(
         return statements
     }
 
-    private fun pckg(): Stmt? {
+    private fun module(): Stmt? {
         try {
             return when {
-                match(PACKAGE) -> packageDeclaration()
+                //match(module) -> packageDeclaration()
                 else -> annotation()
             }
         } catch (error: ParseError) {
@@ -157,14 +157,14 @@ class Parser(
         }
     }
 
-    private fun packageDeclaration(): Stmt {
+    /*private fun packageDeclaration(): Stmt {
         val keyword = previous()
         var what: Token
         what = consume(STRING, "Expected package name.")
         consume(SEMICOLON, "Expected ';' after package statement.")
         currentPackage = what.literal as String
         return Stmt.Package(keyword, what)
-    }
+    }*/
 
     private fun importStatement(): Stmt? {
         val keyword = previous()
@@ -187,10 +187,10 @@ class Parser(
     ): Stmt.Import? {
         val id = (location.literal as String) + "::" + what.lexeme
         if (sunlite.imports.contains(id)) {
-            if (sunlite.imports[id]?.second == null) {
+            /*if (sunlite.imports[id]?.second == null) {
                 //sunlite.error(keyword, "ImportError: Circular import detected.")
-                return null
-            }
+                return Stmt.Import(keyword, what, location, alias)
+            }*/
             return Stmt.Import(keyword, what, location, alias)
         }
 
