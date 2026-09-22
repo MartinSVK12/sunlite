@@ -143,6 +143,11 @@ abstract class Type {
 
                 PrimitiveType.OBJECT -> {
                     if (currentVM == null && currentInterpreter == null) return false
+                    if(other.typeParams.size == typeParams.size) {
+                        typeParams.forEachIndexed { index, it ->
+                            if(!contains(it.type, other.typeParams[index].type, currentVM, currentInterpreter)) return false
+                        }
+                    }
                     if (ref == other.ref) return true
                     return traverseTypeHierarchy(other.ref)
                 }
@@ -566,6 +571,10 @@ abstract class Type {
         }
 
         fun reify(type: Type, typeArgs: List<Param>): Type {
+
+            if(type is Union){
+                return Union(type.types.map { reify(it, typeArgs) } as List<Singular>)
+            }
 
             if(type is Reference){
                 val o = object  {

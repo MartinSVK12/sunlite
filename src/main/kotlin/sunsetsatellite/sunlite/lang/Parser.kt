@@ -34,7 +34,13 @@ class Parser(
         val statements: MutableList<Stmt> = ArrayList()
 
         if(!isAtEnd()){
-            pckg()?.let { statements.add(it) }
+            pckg()?.let {
+                if(it is Stmt.VirtualStmt){
+                    statements.addAll(it.decompose())
+                } else {
+                    statements.add(it)
+                }
+            }
         }
 
         if(sunlite.autoImported.values.none { it == path }){
@@ -49,7 +55,13 @@ class Parser(
         }
 
         while (!isAtEnd()) {
-            annotation()?.let { statements.add(it) }
+            annotation()?.let {
+                if(it is Stmt.VirtualStmt){
+                    statements.addAll(it.decompose())
+                } else {
+                    statements.add(it)
+                }
+            }
         }
 
         return statements
@@ -86,12 +98,22 @@ class Parser(
             match(INCLUDE) -> includeStatement()
             match(IMPORT) -> importStatement()
             match(VAR) -> {
-                val decl = varDeclaration()
-                if(allowedToParse()) decl else null
+                if(match(LEFT_PAREN)){
+                    val decl = destructDeclaration()
+                    if(allowedToParse()) decl else null
+                } else {
+                    val decl = varDeclaration()
+                    if(allowedToParse()) decl else null
+                }
             }
             match(VAL) -> {
-                val decl = varDeclaration(FieldModifier.CONST)
-                if(allowedToParse()) decl else null
+                if(match(LEFT_PAREN)){
+                    val decl = destructDeclaration(FieldModifier.CONST)
+                    if(allowedToParse()) decl else null
+                } else {
+                    val decl = varDeclaration(FieldModifier.CONST)
+                    if (allowedToParse()) decl else null
+                }
             }
             match(STATIC) -> {
                 val modifier = previous()
@@ -247,7 +269,7 @@ class Parser(
 
         sunlite.imports[id] = includingDepth to statements
 
-        /*if (Sunlite.showAST) {
+        if (Sunlite.showOtherAST) {
             sunlite.printInfo("AST: ${location.literal}")
             sunlite.printInfo("-----")
             statements.forEach {
@@ -255,9 +277,9 @@ class Parser(
             }
             sunlite.printInfo("-----")
             sunlite.printInfo()
-        }*/
+        }
 
-        if (Sunlite.debug) {
+        if (Sunlite.debug && sunlite.compileStep == 0) {
             sunlite.printInfo("Parsed and imported ${what.lexeme} from ${location.literal}.")
             //sunlite.printInfo()
         }
@@ -1080,21 +1102,44 @@ class Parser(
     private fun foreachStatement(): Stmt {
         consume(LEFT_PAREN, "Expected '(' after 'foreach'.")
         consume(VAR, "Expected variable declaration for 'foreach' loop.")
-        var element = varDeclaration(FieldModifier.NORMAL, true)
+        var element: Stmt
+        var destructing = false
+        if(match(LEFT_PAREN)){
+            destructing = true
+            element = destructDeclaration(FieldModifier.NORMAL, true)
+        } else {
+            element = varDeclaration(FieldModifier.NORMAL, true)
+        }
+        //var element = varDeclaration(FieldModifier.NORMAL, true)
         consume(IN, "Expected 'in' after variable declaration for 'foreach' loop.")
         val collection = expression()
         consume(RIGHT_PAREN, "Expected ')' after 'foreach' clauses.")
+        val iterType: Type.Reference = let {
+            val prototype = sunlite.collector?.typeHierarchy[collection.getExprType().getName()] ?: return@let Type.ofObject("Iterator")
+            val element = prototype.scope?.contents?.firstNotNullOfOrNull { if(it.key.lexeme == "getIterator") it.value else null } as? TypeCollector.FunctionPrototype ?: return@let Type.ofObject("Iterator")
+            val rawType = element.returnType
+            if (collection.getExprType() !is Type.Reference) {
+                return@let Type.ofObject("Iterator")
+            }
+            val reference = collection.getExprType() as Type.Reference
+            when {
+                reference.type == PrimitiveType.OBJECT -> {
+                    return@let Type.reify(rawType, reference.typeParams) as Type.Reference
+                }
+            }
+            return@let Type.ofObject("Iterator")
+        }
         val initCall = Call(
-            Get(collection, Token.identifier("getIterator", collection), Type.ofObject("Iterator")),
+            Get(collection, Token.identifier("getIterator", collection), iterType),
             Token.identifier("<synthetic iterator init call>", collection),
             listOf(),
             listOf()
         )
         val initializer = Stmt.Var(
             Token.identifier("<iter>", collection),
-            Type.ofObject("Iterator"), initCall, FieldModifier.NORMAL
+            iterType, initCall, FieldModifier.NORMAL
         )
-        val iterVar = Variable(Token.identifier("<iter>", collection), Type.ofObject("Iterator"))
+        val iterVar = Variable(Token.identifier("<iter>", collection), iterType)
         val nextCall = Call(
             Get(iterVar, Token.identifier("hasNext", collection), Type.ofFunction("hasNext", Type.BOOLEAN, listOf())),
             Token.identifier("<synthetic iterator hasNext call>", collection),
@@ -1113,14 +1158,32 @@ class Parser(
             ),
             Literal(true, collection.getLine(), collection.getFile(), Type.BOOLEAN)
         )
-        var type: Type =
-            if (collection.getExprType() is Type.Reference && (collection.getExprType() as Type.Reference).type == PrimitiveType.ARRAY)
-                (collection.getExprType() as Type.Reference).returnType
-            else Type.NULLABLE_ANY
+        var type: Type
+        val exprType = collection.getExprType()
+        if(exprType is Type.Reference){
+            val cType = exprType
+            when {
+                cType.type == PrimitiveType.ARRAY -> {
+                    type = cType.returnType
+                }
+                cType.type == PrimitiveType.OBJECT -> {
+                    if(iterType.typeParams.size >= 1){
+                        type = iterType.typeParams[0].type
+                    } else {
+                        type = Type.UNKNOWN
+                    }
+                }
+                else -> {
+                    type = Type.UNKNOWN
+                }
+            }
+        } else {
+            type = Type.UNKNOWN
+        }
 
-        sunlite.collector?.let {
-            if(collection.getExprType() is Type.Reference && (collection.getExprType() as Type.Reference).type == PrimitiveType.OBJECT) {
-                val prototype = it.typeHierarchy[collection.getExprType().getName()]
+        /*sunlite.collector?.let {
+            if(collectionType is Type.Reference && collectionType.type == PrimitiveType.OBJECT) {
+                val prototype = it.typeHierarchy[collectionType.getName()]
                 prototype?.let { prototype ->
                     prototype.scope?.let { scope ->
                         val typeParam = scope.contents.mapKeys { it.key.lexeme }["<T>"]
@@ -1130,10 +1193,13 @@ class Parser(
                     }
                 }
             }
-        }
+        }*/
 
-        if(element.type == Type.UNKNOWN) {
-            element = Stmt.Var(element.name, type, null, element.modifier)
+        if(!destructing) {
+            val e = element as Stmt.Var
+            if(e.type == Type.UNKNOWN){
+                element = Stmt.Var(e.name, type, null, e.modifier)
+            }
         }
 
         val increment = Call(
@@ -1148,25 +1214,40 @@ class Parser(
             listOf(),
             listOf()
         )
-        element = Stmt.Var(
-            element.name, element.type,
-            Call(
-                Get(
-                    iterVar,
-                    Token.identifier("current", element.name),
-                    Type.ofFunction("current",
-                        type,
-                        listOf())
-                ),
-                Token.identifier("<synthetic iterator current call>", element.name),
-                listOf(),
-                listOf(),
-            ), FieldModifier.NORMAL
+        val currentCall = Call(
+            Get(
+                iterVar,
+                Token.identifier("current", Token.unknown()),
+                Type.ofFunction(
+                    "current",
+                    type,
+                    listOf()
+                )
+            ),
+            Token.identifier("<synthetic iterator current call>", Token.unknown()),
+            listOf(),
+            listOf(),
         )
+        if(!destructing){
+            val e = element as Stmt.Var
+            element = Stmt.Var(
+                e.name, e.type,
+                currentCall, FieldModifier.NORMAL
+            )
+        } else {
+            (element as Stmt.Destruct).collection = currentCall
+        }
 
         var body = statement()
+        val stmts: MutableList<Stmt> = mutableListOf()
+        if(destructing){
+            stmts.addAll((element as Stmt.Destruct).decompose())
+        } else {
+            stmts.add(element)
+        }
+        stmts.add(body)
 
-        body = Stmt.Block(listOf(element, body), peek().line, peek().file)
+        body = Stmt.Block(stmts, peek().line, peek().file)
         body = Stmt.Block(listOf(body, Stmt.Expression(increment)), peek().line, peek().file)
         body = Stmt.While(condition, body)
         body = Stmt.Block(listOf(initializer, body), peek().line, peek().file)
@@ -1326,6 +1407,32 @@ class Parser(
             //match(INTERFACE) -> interfaceDeclaration()
             else -> throw error(previous(), "Expected annotatable declaration after annotation.")
         }*/
+    }
+
+    private fun destructDeclaration(modifier: FieldModifier = FieldModifier.NORMAL, foreach: Boolean = false): Stmt.Destruct {
+        val vars: MutableList<Param> = mutableListOf()
+
+        if (!checkToken(RIGHT_PAREN)) {
+            do {
+                if (vars.size >= 255) {
+                    error(peek(), "Can't destruct into more than 255 variables.")
+                }
+
+                vars.add(
+                    Param(consume(IDENTIFIER, "Expected variable name."), getType(foreach = true))
+                )
+            } while (match(COMMA))
+        }
+        consume(RIGHT_PAREN, "Expected ')' after variable names.")
+
+        var collection: Expr? = null
+        if(!foreach){
+            consume(EQUAL, "Expected '=' after ')'.")
+            collection = expression()
+            consume(SEMICOLON, "Expected ';' after destructing declaration.")
+        }
+
+        return Stmt.Destruct(vars, collection, modifier)
     }
 
     private fun varDeclaration(modifier: FieldModifier = FieldModifier.NORMAL, foreach: Boolean = false): Stmt.Var {
@@ -1489,6 +1596,17 @@ class Parser(
 
                     is ArrayGet -> {
                         return ArraySet(expr.obj, expr.what, value, previous(), EQUAL, expr.getExprType())
+                    }
+
+                    is Tuple -> {
+                        var type: Type = Type.UNKNOWN
+                        val valueType = value.getExprType()
+                        if(valueType is Type.Reference){
+                            if(valueType.type == PrimitiveType.TUPLE || valueType.type == PrimitiveType.ARRAY){
+                                type = valueType.returnType
+                            }
+                        }
+                        return MultiSet(expr.expr, value, previous(), type)
                     }
 
                     else -> error(equals, "Invalid assignment target.")

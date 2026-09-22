@@ -198,7 +198,7 @@ class ArrayList implements List {
         resize(arr,sizeOf(arr)-1);
     }
 
-    override func getIterator(): Iterator {
-        return ListIterator(this);
+    override func getIterator(): Iterator<Generic<T>> {
+        return ListIterator(<Generic<T>> this);
     }
 }

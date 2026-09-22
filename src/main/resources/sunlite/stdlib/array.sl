@@ -1,5 +1,7 @@
 import Iterator from "/sunlite/stdlib/iterable";
 import Iterable from "/sunlite/stdlib/iterable";
+import List from "/sunlite/stdlib/list";
+import ArrayList from "/sunlite/stdlib/list";
 
 class Arrays {
     static func forEach(arr: Array, block: Function<Any?, Nil>) {
@@ -16,6 +18,10 @@ class Arrays {
         for (var i: Int = 0; i < sizeOf(arr); i = i + 1){
             print(arr[i]);
         }
+    }
+
+    static func<T> toList(arr: Array): List<Generic<T>> {
+        return ArrayList(<Generic<T>>arr);
     }
 }
 

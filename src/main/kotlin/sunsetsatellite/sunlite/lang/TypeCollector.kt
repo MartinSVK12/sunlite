@@ -123,10 +123,12 @@ class TypeCollector(val sunlite: Sunlite, val natives: NativesContainer) : Stmt.
         returnType: Type,
         typeParams: List<Param> = listOf()
     ) {
-        if (typeScopes[0].contents.mapKeys { it.key.lexeme }.containsKey(name.lexeme)) sunlite.error(
-            name,
-            "Cannot overwrite global function '${name.lexeme}'."
-        )
+        if (currentScope?.outer?.equals(typeScopes[0]) == true && typeScopes[0].contents.mapKeys { it.key.lexeme }.containsKey(name.lexeme)) {
+            sunlite.error(
+                name,
+                "Cannot overwrite global function '${name.lexeme}'."
+            )
+        }
         if (currentScope?.contents?.mapKeys { it.key.lexeme }?.containsKey(name.lexeme) == true) {
             if(currentScope?.contents?.get(name)?.id == currentId){
                 sunlite.error(
@@ -487,6 +489,11 @@ class TypeCollector(val sunlite: Sunlite, val natives: NativesContainer) : Stmt.
 
     override fun visitTupleExpr(expr: Expr.Tuple) {
         expr.expr.forEach { it.accept(this) }
+    }
+
+    override fun visitMultiSetExpr(expr: Expr.MultiSet) {
+        expr.objs.forEach { it.accept(this) }
+        expr.collection.accept(this)
     }
 
 }

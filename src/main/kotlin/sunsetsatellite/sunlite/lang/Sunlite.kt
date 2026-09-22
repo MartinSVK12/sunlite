@@ -104,6 +104,7 @@ class Sunlite(val args: Array<String>) {
                         "asm" -> showDisassembly = true
                         "otherAsm" -> showOtherDisassembly = true
                         "ast" -> showAST = true
+                        "otherAst" -> showOtherAST = true
                         "types" -> showTypeCollection = true
                         "tokens" -> showTokens = true
                     }
@@ -127,6 +128,7 @@ class Sunlite(val args: Array<String>) {
                         "asm" -> showDisassembly = true
                         "otherAsm" -> showOtherDisassembly = true
                         "ast" -> showAST = true
+                        "otherAst" -> showOtherAST = true
                         "types" -> showTypeCollection = true
                         "tokens" -> showTokens = true
                     }
@@ -162,35 +164,14 @@ class Sunlite(val args: Array<String>) {
         var parser = Parser(tokens, this, true)
         var statements: MutableList<Stmt> = parser.parse(filePath).toMutableList()
 
-        // Stop if there was a syntax error.
-        //if (hadError) return null
+        repeat(10) {
+            collector?.collect(statements, filePath, compileStep)
+            compileStep++
+            imports.clear()
 
-        collector?.collect(statements, filePath, compileStep)
-
-        compileStep++
-
-        // Stop if there was a type collection error.
-        //if (hadError) return null
-
-        parser = Parser(tokens, this, true)
-        statements = parser.parse(filePath).toMutableList()
-
-        //compileStep++
-
-        // Stop if there was a syntax error.
-        //if (hadError) return null
-
-        collector?.collect(statements, filePath, compileStep)
-
-        compileStep++
-
-        parser = Parser(tokens, this, true)
-        statements = parser.parse(filePath).toMutableList()
-
-        compileStep++
-
-        // Stop if there was a type collection error.
-        //if (hadError) return null
+            parser = Parser(tokens, this, true)
+            statements = parser.parse(filePath).toMutableList()
+        }
 
         val allStatements: MutableList<Stmt> = mutableListOf()
         includes.values.sortedBy { it.first }.reversed().forEach { allStatements.addAll(it.second) }
@@ -335,61 +316,24 @@ class Sunlite(val args: Array<String>) {
             var parser = Parser(tokens, this, true)
             var statements: MutableList<Stmt> = parser.parse(path).toMutableList()
 
-            //compileStep++
-
             // Stop if there was a syntax error.
             if (hadError) return null
 
-            collector?.collect(statements, path, compileStep)
+            repeat(10) {
+                collector?.collect(statements, path, compileStep)
+                compileStep++
+                imports.clear()
 
-            compileStep++
-            imports.clear()
+                parser = Parser(tokens, this, true)
+                statements = parser.parse(path).toMutableList()
 
-            // Stop if there was a type collection error.
-            if (hadError) return null
-
-            parser = Parser(tokens, this, true)
-            statements = parser.parse(path).toMutableList()
-
-            //compileStep++
-
-            // Stop if there was a syntax error.
-            if (hadError) return null
-
-            collector?.collect(statements, path, compileStep)
-
-            compileStep++
-            imports.clear()
-
-            parser = Parser(tokens, this, true)
-            statements = parser.parse(path).toMutableList()
-
-            compileStep++
-
-            // Stop if there was a type collection error.
-            if (hadError) return null
+                // Stop if there was a syntax error.
+                if (hadError) return null
+            }
 
             val allStatements: MutableList<Stmt> = mutableListOf()
             includes.values.sortedBy { it.first }.reversed().forEach { allStatements.addAll(it.second) }
             allStatements.addAll(statements)
-
-            //collector = TypeCollector(this, vm)
-            //collector?.collect(allStatements, shortPath)
-
-            // compileStep++
-
-            // Stop if there was a type collection error.
-            if (hadError) return null
-
-            if (showAST) {
-                printInfo("AST: ${path}")
-                printInfo("-----")
-                statements.forEach {
-                    printInfo(AstPrinter.print(it))
-                }
-                printInfo("-----")
-                printInfo()
-            }
 
             if (showTypeCollection) {
                 printInfo("Type Collection: ")
@@ -403,7 +347,16 @@ class Sunlite(val args: Array<String>) {
                 printInfo("--------")
                 printInfo("--------")
                 printInfo()
+            }
 
+            if (showAST) {
+                printInfo("AST: ${path}")
+                printInfo("-----")
+                statements.forEach {
+                    printInfo(AstPrinter.print(it))
+                }
+                printInfo("-----")
+                printInfo()
             }
 
             if (!noTypeChecks) {
@@ -676,6 +629,9 @@ class Sunlite(val args: Array<String>) {
 
         @JvmStatic
         var showOtherDisassembly: Boolean = false
+
+        @JvmStatic
+        var showOtherAST: Boolean = false
 
         @JvmStatic
         var bytecodeDebug: Boolean = false

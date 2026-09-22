@@ -109,6 +109,10 @@ object AstPrinter : Expr.Visitor<String>, Stmt.Visitor<String> {
         return "(tuple literal ${parenthesizeList("elements", expr.expr)})"
     }
 
+    override fun visitMultiSetExpr(expr: Expr.MultiSet): String {
+        return "(multiset ${parenthesize("vars", *(expr.objs.toTypedArray()))} with ${print(expr.collection)})"
+    }
+
     override fun visitUnaryExpr(expr: Expr.Unary): String {
         return parenthesize(expr.operator.lexeme, expr.right)
     }
@@ -208,7 +212,7 @@ object AstPrinter : Expr.Visitor<String>, Stmt.Visitor<String> {
                 it
             )
         } ?: "(${stmt.modifier.name.lowercase()} var '${stmt.name.lexeme}' (type '${
-            stmt.type.getName().lowercase()
+            stmt.type
         }') nil)"
     }
 

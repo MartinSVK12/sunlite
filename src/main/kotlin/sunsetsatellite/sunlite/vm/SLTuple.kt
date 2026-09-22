@@ -46,7 +46,7 @@ class SLTuple(val vm: VM, val types: List<Type>) {
     }
 
     override fun toString(): String {
-        return "<tuple '${types.joinToString(", ")}'>"
+        return "(${array.joinToString()})"
     }
 
 }

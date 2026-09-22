@@ -186,6 +186,22 @@ object DefaultNatives : Natives {
             }
         })
 
+        natives.defineNative(object : SLNativeFunction("tableEntries", Type.ofArray(Type.ofTuple(listOf(Type.Parameter("K"), Type.Parameter("V")))), 1, 2) {
+            override fun call(
+                vm: VM,
+                args: Array<AnySLValue>,
+                typeArgs: Array<SLType>,
+                receiver: AnySLValue?
+            ): AnySLValue {
+                val table = (args[0] as SLTableObj).value
+                val list: MutableList<SLTupleObj> = mutableListOf()
+                table.internal().forEach { (k, v) ->
+                    list.add(SLTupleObj(SLTuple(vm, listOf(table.types.first, table.types.second)).overwrite(arrayOf(k, v))))
+                }
+                return SLArrayObj(SLArray(list.size, vm, Type.ofTuple(listOf(table.types.first, table.types.second))).overwrite(list.toTypedArray()))
+            }
+        })
+
         natives.defineNative(object : SLNativeFunction("resize", Type.NIL, 2) {
             override fun call(
                 vm: VM,

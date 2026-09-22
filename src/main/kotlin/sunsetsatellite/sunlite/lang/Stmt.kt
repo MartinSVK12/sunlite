@@ -49,6 +49,34 @@ abstract class Stmt : Element {
         }
     }
 
+    data class Destruct(val vars: List<Param>, var collection: Expr?, val modifier: FieldModifier) : Stmt(), VirtualStmt {
+        override fun <R> accept(visitor: Visitor<R>): R {
+            throw IllegalStateException("Stmt.Destruct is a VirtualStmt and cannot be visited.")
+        }
+
+        override fun getLine(): Int {
+            return vars.first().token.line
+        }
+
+        override fun getFile(): String? {
+            return vars.first().token.file
+        }
+
+        override fun decompose(): List<Stmt> {
+           val stmts = mutableListOf<Stmt>()
+            vars.forEachIndexed { index, it ->
+                val initializer = Expr.ArrayGet(collection!!, Expr.Literal(index, getLine(), getFile(), Type.INT), it.token)
+                var type = it.type
+                if(type == Type.UNKNOWN){
+                    type = initializer.getExprType()
+                }
+                stmts.add(Var(it.token, type, initializer, modifier))
+            }
+           return stmts
+        }
+
+    }
+
     data class Block(val statements: List<Stmt>, val lineNumber: Int, val currentFile: String?) : Stmt(), NamedStmt {
         override fun <R> accept(visitor: Visitor<R>): R {
             return visitor.visitBlockStmt(this)
@@ -374,6 +402,10 @@ abstract class Stmt : Element {
 
     interface GenericStmt {
         fun getTypeParams(): List<Param>
+    }
+
+    interface VirtualStmt {
+        fun decompose(): List<Stmt>
     }
 
     abstract fun <R> accept(visitor: Visitor<R>): R

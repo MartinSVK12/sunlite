@@ -224,6 +224,17 @@ class TypeChecker(val sunlite: Sunlite, val vm: VM?) : Expr.Visitor<Unit>, Stmt.
         expr.expr.forEach { check(it) }
     }
 
+    override fun visitMultiSetExpr(expr: Expr.MultiSet) {
+        val cType = expr.collection.getExprType()
+        expr.objs.forEachIndexed { index, obj ->
+            if(cType is Type.Reference && cType.type == PrimitiveType.TUPLE){
+                checkType(cType.typeParams[index].type, obj.getExprType(), false, expr.token)
+            } else {
+                checkType(cType, obj.getExprType(), false, expr.token)
+            }
+        }
+    }
+
     override fun visitExprStmt(stmt: Stmt.Expression) {
         check(stmt.expr)
     }

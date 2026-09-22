@@ -329,10 +329,14 @@ abstract class Expr : Element {
         override fun getExprType(): Type {
             if (obj.getExprType() is Type.Reference) {
                 val ref = obj.getExprType() as Type.Reference
-                if (ref.type == PrimitiveType.TABLE || ref.type == PrimitiveType.ARRAY) {
-                    return ref.returnType
-                } else if(ref.type == PrimitiveType.TUPLE){
-                    return ref.typeParams[((what as Literal).value as Number).toInt()].type
+                when (ref.type) {
+                    PrimitiveType.TABLE, PrimitiveType.ARRAY -> {
+                        return ref.returnType
+                    }
+                    PrimitiveType.TUPLE -> {
+                        return ref.typeParams[((what as Literal).value as Number).toInt()].type
+                    }
+                    else -> {}
                 }
             }
             if(obj.getExprType() == Type.STRING){
@@ -394,6 +398,30 @@ abstract class Expr : Element {
         override fun getExprType(): Type {
             return type
         }
+    }
+
+    data class MultiSet(
+        val objs: List<Expr>,
+        val collection: Expr,
+        val token: Token,
+        val type: Type = Type.UNKNOWN
+    ) : Expr() {
+        override fun <R> accept(visitor: Visitor<R>): R? {
+            return visitor.visitMultiSetExpr(this)
+        }
+
+        override fun getExprType(): Type {
+           return type
+        }
+
+        override fun getLine(): Int {
+            return token.line
+        }
+
+        override fun getFile(): String? {
+            return token.file
+        }
+
     }
 
     data class This(val keyword: Token, val type: Type = Type.UNKNOWN) : Expr() {
@@ -548,6 +576,7 @@ abstract class Expr : Element {
         fun visitArrayExpr(expr: Array): R
         fun visitIfExpr(expr: If): R
         fun visitTupleExpr(expr: Tuple): R
+        fun visitMultiSetExpr(expr: MultiSet): R
     }
 
     interface NamedExpr : Element {

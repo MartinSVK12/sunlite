@@ -15,6 +15,10 @@ class SLTable(val vm: VM, val types: Pair<Type, Type>) {
     }
 
     fun set(index: AnySLValue, value: AnySLValue) {
+        if(value is SLNil) {
+            map.remove(index)
+            return
+        }
         map[index] = value
     }
 
@@ -27,6 +31,6 @@ class SLTable(val vm: VM, val types: Pair<Type, Type>) {
     }
 
     override fun toString(): String {
-        return "<table of size ${map.size}>"
+        return "{${map.map { "${it.key} = ${it.value}" }.joinToString()}}"
     }
 }

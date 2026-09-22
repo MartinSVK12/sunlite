@@ -48,6 +48,6 @@ class SLArray(var size: Int, val vm: VM, val type: Type) {
     }
 
     override fun toString(): String {
-        return "<array of size $size>"
+        return "[${array.joinToString()}]"
     }
 }

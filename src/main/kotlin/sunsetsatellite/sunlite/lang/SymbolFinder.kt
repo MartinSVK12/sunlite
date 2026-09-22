@@ -204,5 +204,10 @@ class SymbolFinder(val name: String?, val line: Int, val column: Int) : Expr.Vis
         expr.expr.forEach { it.accept(this) }
     }
 
+    override fun visitMultiSetExpr(expr: Expr.MultiSet) {
+        expr.objs.forEach { it.accept(this) }
+        expr.collection.accept(this)
+    }
+
 
 }

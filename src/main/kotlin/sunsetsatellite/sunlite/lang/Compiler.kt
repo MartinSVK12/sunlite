@@ -758,6 +758,36 @@ class Compiler(val sunlite: Sunlite, val vm: VM?, val enclosing: Compiler?) : Ex
         visitCallExpr(call)
     }
 
+    override fun visitMultiSetExpr(expr: Expr.MultiSet) {
+        expr.objs.forEachIndexed { i, obj ->
+            var type: Type = expr.type
+            if (expr.type is Type.Reference && expr.type.type == PrimitiveType.TUPLE) {
+                type = expr.type.typeParams[i].type
+            }
+            if(obj is Expr.NamedExpr){
+                when (obj) {
+                    is Expr.Variable -> {
+                        val get = Expr.ArrayGet(expr.collection, Expr.Literal(i, expr.getLine(), expr.getFile(), Type.INT), expr.token)
+                        compile(Stmt.Expression(Expr.Assign((obj as Expr.NamedExpr).getNameToken(), get, EQUAL, type)))
+                    }
+
+                    is Expr.Get -> {
+                        val get = Expr.ArrayGet(expr.collection, Expr.Literal(i, expr.getLine(), expr.getFile(), Type.INT), expr.token)
+                        compile(Stmt.Expression(Expr.Set(obj.obj, obj.name, get, EQUAL, type)))
+                    }
+                }
+            } else {
+                when (obj){
+                    is Expr.ArrayGet -> {
+                        val get = Expr.ArrayGet(expr.collection, Expr.Literal(i, expr.getLine(), expr.getFile(), Type.INT), expr.token)
+                        compile(Stmt.Expression(Expr.ArraySet(obj.obj, obj.what, get, obj.token,EQUAL, type)))
+                    }
+                }
+            }
+        }
+        emitByte(Opcodes.NIL, expr)
+    }
+
     override fun visitExprStmt(stmt: Stmt.Expression) {
         compile(stmt.expr)
         emitByte(Opcodes.POP, stmt)

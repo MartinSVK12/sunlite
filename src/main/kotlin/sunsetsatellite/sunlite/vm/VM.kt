@@ -407,6 +407,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                     }
 
                     Opcodes.GET_PROP -> {
+                        val pc = fr.pc
                         val safe = (fr.pop() as SLBool).value
                         val arg = fr.peek(0)
                         if (arg !is SLClassInstanceObj && arg !is SLClassObj && arg !is SLArrayObj) {
@@ -472,7 +473,8 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
                                     runtimeError("InternalError: Cannot find internal stdlib class 'Arrays'.")
                                     return
                                 }
-                                fr.pc -= 7
+                                fr.push(SLBool.of(safe))
+                                fr.pc = pc - 1
                                 return
                             }
                         } else if (primitiveWrappers.containsKey(arg.javaClass)) {
@@ -1084,9 +1086,15 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
         // returns with true if there was no error and the call returned null
         // (class has only an implicit default no-args constructor),
         // otherwise returns with false
-	    val constructor = findConstructor(callee.value, argCount, typeArgCount) ?: return !sunlite.hadRuntimeError
+	    val constructor = findConstructor(callee.value, argCount, typeArgCount)
+        if (constructor == null) {
+            repeat(typeArgCount) {
+                frameStack.peek().pop()
+            }
+            return !sunlite.hadRuntimeError
+        }
 
-	    // call constructor
+        // call constructor
         val initMethod = callee.value.methods[constructor.name]!!
         val success = call(initMethod, argCount, typeArgCount)
         if (!success) return false
@@ -1096,7 +1104,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : Runnable, Native
 
     fun findConstructor(callee: SLClass, argCount: Int, typeArgCount: Int): SLFunction? {
         if (callee.methods.keys.any { it.contains("init") }) {
-            val args = Array(argCount) { i -> Param(Type.fromValue(frameStack.peek().peek(i).value)) }.reversedArray()
+            val args = Array(argCount) { i -> Param(Type.fromValue(frameStack.peek().peek(typeArgCount+i).value)) }.reversedArray()
             val type = Type.ofFunction("", Type.NIL, args.toList())
             val constructor =
                 callee.methods
