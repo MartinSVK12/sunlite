@@ -102,6 +102,12 @@ object DefaultNatives : Natives {
             }
         })
 
+        natives.defineNative(object : SLNativeFunction("hash", Type.INT, 1) {
+            override fun call(vm: VM, args: Array<AnySLValue>, typeArgs: Array<SLType>, receiver: AnySLValue?): AnySLValue {
+                return SLInt(args[0].hashCode())
+            }
+        })
+
         natives.defineNative(object : SLNativeFunction("parseDouble", Type.DOUBLE, 1) {
             override fun call(vm: VM, args: Array<AnySLValue>, typeArgs: Array<SLType>, receiver: AnySLValue?): AnySLValue {
                 val s = (args[0] as SLString).value
@@ -190,8 +196,13 @@ object DefaultNatives : Natives {
                 typeArgs: Array<SLType>,
                 receiver: AnySLValue?
             ): AnySLValue {
-                val array = args[0] as SLArrayObj
-                return SLInt(array.value.size)
+                val obj = args[0] //as SLArrayObj
+                if(obj is SLArrayObj){
+                    return SLInt(obj.value.size)
+                } else if(obj is SLTableObj){
+                    return SLInt(obj.value.internal().size)
+                }
+                return SLInt(-1)
             }
         })
 

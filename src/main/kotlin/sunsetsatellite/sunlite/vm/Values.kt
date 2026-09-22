@@ -77,7 +77,7 @@ class SLBool : SLValue<Boolean> {
     }
 
     override fun hashCode(): Int {
-        return javaClass.hashCode()
+        return value.hashCode()
     }
 
     override fun copy(): SLValue<Boolean> {
@@ -109,7 +109,7 @@ abstract class SLNumber<T : Number>(value: T, id: Int) : SLValue<T>(value, id) {
     }
 
     override fun hashCode(): Int {
-        return javaClass.hashCode()
+        return value.hashCode()
     }
 
     abstract operator fun compareTo(other: SLNumber<*>): Int
@@ -396,6 +396,10 @@ object SLNil : SLValue<Unit>(Unit, 0) {
     override fun toString(): String {
         return "<nil>"
     }
+
+    override fun hashCode(): Int {
+        return 0
+    }
 }
 
 object SLUninitialized : SLValue<Unit>(Unit, 99) {
@@ -409,6 +413,10 @@ object SLUninitialized : SLValue<Unit>(Unit, 99) {
 
     override fun toString(): String {
         return "<uninitialized>"
+    }
+
+    override fun hashCode(): Int {
+        return 0
     }
 }
 
@@ -429,7 +437,7 @@ class SLString(value: String) : SLObj<String>(value, 8) {
     }
 
     override fun hashCode(): Int {
-        return javaClass.hashCode()
+        return value.hashCode()
     }
 
     operator fun plus(string: SLString): SLValue<*> {
@@ -470,7 +478,7 @@ class SLType(value: Type) : SLObj<Type>(value, 9) {
     }
 
     override fun hashCode(): Int {
-        return javaClass.hashCode()
+        return value.hashCode()
     }
 
     override fun write(s: DataOutputStream) {
@@ -486,7 +494,7 @@ class SLArrayObj(value: SLArray) : SLObj<SLArray>(value, 10) {
     }
 
     override fun hashCode(): Int {
-        return javaClass.hashCode()
+        return value.hashCode()
     }
 
     override fun copy(): SLValue<SLArray> {
@@ -501,7 +509,7 @@ class SLTableObj(value: SLTable) : SLObj<SLTable>(value, 11) {
     }
 
     override fun hashCode(): Int {
-        return javaClass.hashCode()
+        return value.hashCode()
     }
 
     override fun copy(): SLValue<SLTable> {
@@ -516,7 +524,7 @@ class SLFuncObj(value: SLFunction) : SLObj<SLFunction>(value, 12) {
     }
 
     override fun hashCode(): Int {
-        return javaClass.hashCode()
+        return value.hashCode()
     }
 
     override fun copy(): SLValue<SLFunction> {
@@ -536,7 +544,7 @@ class SLClosureObj(value: SLClosure) : SLObj<SLClosure>(value, 13) {
     }
 
     override fun hashCode(): Int {
-        return javaClass.hashCode()
+        return value.hashCode()
     }
 
     override fun copy(): SLValue<SLClosure> {
@@ -551,7 +559,7 @@ class SLUpvalueObj(value: SLUpvalue) : SLObj<SLUpvalue>(value, 14) {
     }
 
     override fun hashCode(): Int {
-        return javaClass.hashCode()
+        return value.hashCode()
     }
 
     override fun copy(): SLValue<SLUpvalue> {
@@ -570,7 +578,7 @@ class SLNativeFuncObj(value: SLNativeFunction) : SLObj<SLNativeFunction>(value, 
     }
 
     override fun hashCode(): Int {
-        return javaClass.hashCode()
+        return value.hashCode()
     }
 
     override fun copy(): SLValue<SLNativeFunction> {
@@ -585,7 +593,7 @@ class SLClassObj(value: SLClass) : SLObj<SLClass>(value, 16) {
     }
 
     override fun hashCode(): Int {
-        return javaClass.hashCode()
+        return value.hashCode()
     }
 
     override fun copy(): SLValue<SLClass> {
@@ -600,7 +608,7 @@ class SLClassInstanceObj(value: SLClassInstance) : SLObj<SLClassInstance>(value,
     }
 
     override fun hashCode(): Int {
-        return javaClass.hashCode()
+        return value.hashCode()
     }
 
     override fun copy(): SLValue<SLClassInstance> {
@@ -615,7 +623,7 @@ class SLBoundMethodObj(value: SLBoundMethod) : SLObj<SLBoundMethod>(value, 18) {
     }
 
     override fun hashCode(): Int {
-        return javaClass.hashCode()
+        return value.hashCode()
     }
 
     override fun copy(): SLValue<SLBoundMethod> {
@@ -631,7 +639,7 @@ class SLForeignObject(value: Any) : SLObj<Any>(value, 19) {
     }
 
     override fun hashCode(): Int {
-        return javaClass.hashCode()
+        return value.hashCode()
     }
 
     override fun copy(): SLValue<Any> {
