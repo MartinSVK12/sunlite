@@ -9,6 +9,8 @@ import java.io.DataInputStream
 import java.io.DataOutputStream
 import java.io.IOException
 
+
+
 class SLFunction(
     val name: String,
     val returnType: Type,
@@ -24,8 +26,10 @@ class SLFunction(
 ) {
 
     companion object {
+        const val MAGIC = 0x534C43 // SLC
+
         fun read(s: DataInputStream): SLFunction {
-	        if (s.readInt() != 0x51C0DE) {
+	        if (s.readInt() != MAGIC) {
                 throw IOException("Invalid data in stream.")
 	        }
             val name = s.readUTF()
@@ -71,7 +75,7 @@ class SLFunction(
     }
 
     fun write(s: DataOutputStream){
-        s.writeInt(0x51C0DE)
+        s.writeInt(MAGIC)
         s.writeUTF(name)
         s.writeUTF(returnType.getDescriptor())
         s.writeInt(params.size)

@@ -16,14 +16,14 @@ class ChunkDebugInfo(
     companion object {
         fun read(s: DataInputStream): ChunkDebugInfo{
             val linesSize = s.readInt()
-            val lines = IntArray(linesSize) { s.readInt() }
+            //val lines = IntArray(linesSize) { s.readInt() }
             val file = s.readUTF()
             val name = s.readUTF()
-            val lineDataSize = s.readInt()
+            /*val lineDataSize = s.readInt()
             val lineData = mutableMapOf<Int, String?>()
             repeat(lineDataSize) {
                 lineData[s.readInt()] = s.readUTF()
-            }
+            }*/
             val localsSize = s.readInt()
             val locals = mutableListOf<String>()
             repeat(localsSize) {
@@ -35,20 +35,20 @@ class ChunkDebugInfo(
                 val name = s.readUTF()
                 classData[name] = ClassData.read(s)
             }
-            return ChunkDebugInfo(lines, file, name, lineData.toMap(), locals, classData.toMap())
+            return ChunkDebugInfo(IntArray(linesSize), file, name, mapOf(), listOf(), classData.toMap())
         }
     }
 
     fun write(s: DataOutputStream){
         s.writeInt(lines.size)
-        lines.forEach { s.writeInt(it) }
+        //lines.forEach { s.writeInt(it) }
         s.writeUTF(file ?: "<unknown>")
         s.writeUTF(name)
-        s.writeInt(lineData.size)
+        /*s.writeInt(lineData.size)
         lineData.forEach { line, data ->
             s.writeInt(line)
             s.writeUTF(data ?: "<unknown>")
-        }
+        }*/
         s.writeInt(locals.size)
         locals.forEach { s.writeUTF(it) }
         s.writeInt(classData.size)

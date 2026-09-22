@@ -1,8 +1,8 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="Sunlite Script" type="JetRunConfigurationType">
+  <configuration default="false" name="Sunlite Compile" type="JetRunConfigurationType">
     <option name="MAIN_CLASS_NAME" value="sunsetsatellite.sunlite.lang.Sunlite" />
     <module name="sunsetsatellite.sunlite.main" />
-    <option name="PROGRAM_PARAMETERS" value="&quot;./main.sl&quot; &quot;E:\Stuff\Godot\JVM\vm\src\main\resources;E:\Stuff\Godot\JVM\vm\src\test\resources;E:\Stuff\Godot\JVM\vm\src\test\resources\out&quot; &quot;debug;stacktrace;asm&quot; &quot;&quot;" />
+    <option name="PROGRAM_PARAMETERS" value="&quot;./main.sl&quot; &quot;E:\Stuff\Godot\JVM\vm\src\main\resources;E:\Stuff\Godot\JVM\vm\src\test\resources;E:\Stuff\Godot\JVM\vm\src\test\resources\out&quot; &quot;compile;compileDeps;debug;stacktrace;asm&quot; &quot;&quot;" />
     <shortenClasspath name="NONE" />
     <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/src/test/resources" />
     <method v="2">
