@@ -3,7 +3,7 @@ class Object {
         return str(this);
     }
 
-    func equals(other: Any?){
+    func equals(other: Any?): Boolean {
         return this == other;
     }
 
