@@ -16,7 +16,7 @@ class SLClass(
 ) {
 
     override fun toString(): String {
-        return "<class '${name}'>"
+        return "<class '${name}'@${Integer.toHexString(this.hashCode())}>"
     }
 
     fun copy(): SLClass {

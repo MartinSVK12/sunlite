@@ -1,3 +1,5 @@
+module sunlite::stdlib::exception;
+
 class Exception {
     var message: String = "";
     var stacktrace: Array<String> = getStacktrace(true);

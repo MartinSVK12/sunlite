@@ -216,7 +216,7 @@ abstract class Stmt : Element {
         }
     }
 
-    data class Import(val keyword: Token, val what: Token, val location: Token, val alias: Token? = null) : Stmt() {
+    data class Import(val keyword: Token, val what: Token, val location: String, val aliases: List<Token> = listOf()) : Stmt() {
         override fun <R> accept(visitor: Visitor<R>): R {
             return visitor.visitImportStmt(this)
         }
@@ -230,9 +230,9 @@ abstract class Stmt : Element {
         }
     }
 
-    data class Package(val keyword: Token, val what: Token) : Stmt() {
+    data class Module(val keyword: Token, val path: Token, var stmts: List<Stmt>) : Stmt(), NamedStmt {
         override fun <R> accept(visitor: Visitor<R>): R {
-            return visitor.visitPackageStmt(this)
+            return visitor.visitModuleStmt(this)
         }
 
         override fun getFile(): String? {
@@ -241,6 +241,11 @@ abstract class Stmt : Element {
 
         override fun getLine(): Int {
             return keyword.line
+        }
+
+
+        override fun getNameToken(): Token {
+            return Token.identifier("<module ${path.lexeme}>", keyword)
         }
     }
 
@@ -385,7 +390,7 @@ abstract class Stmt : Element {
         fun visitInterfaceStmt(stmt: Interface): R
         fun visitIncludeStmt(stmt: Include): R
         fun visitImportStmt(stmt: Import): R
-        fun visitPackageStmt(stmt: Package): R
+        fun visitModuleStmt(stmt: Module): R
         fun visitTryCatchStmt(stmt: TryCatch): R
         fun visitThrowStmt(stmt: Throw): R
         fun visitAnnotationStmt(stmt: Annotation): R

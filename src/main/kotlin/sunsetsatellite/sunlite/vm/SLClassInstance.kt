@@ -9,7 +9,7 @@ class SLClassInstance(
 ) {
 
     override fun toString(): String {
-        return "<object '${clazz.name}<${typeParams.map { "${it.key}: ${it.value}" }.joinToString(", ")}>'>"
+        return "<object '${clazz.name}<${typeParams.map { "${it.key}: ${it.value}" }.joinToString(", ")}>'@${Integer.toHexString(this.hashCode())}>"
     }
 
     fun copy(): SLClassInstance {

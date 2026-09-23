@@ -136,7 +136,7 @@ class Scanner(private var source: String, val sunlite: Sunlite) {
             }
             ';' -> addToken(SEMICOLON)
             '*' -> addToken(STAR)
-            ':' -> addToken(COLON)
+            ':' -> addToken(if (match(':')) COLON_COLON else COLON)
             '|' -> addToken(PIPE)
             '?' -> addToken(if (match('.')) QUESTION_DOT else if(match(':')) QUESTION_COLON else QUESTION)
             '!' -> addToken(if (match('=')) BANG_EQUAL else BANG)
@@ -356,7 +356,15 @@ class Scanner(private var source: String, val sunlite: Sunlite) {
     }
 
     private fun identifier() {
-        while (isAlphaNumeric(peek())) advance()
+        while (isAlphaNumeric(peek())){
+            if(peek() == ':' && peekNext() == ':'){
+                advance()
+            }
+            else if(peek() == ':' && peekNext() != ':') {
+                break
+            }
+            advance()
+        }
 
 
         val text = source.substring(start, current)
@@ -372,7 +380,7 @@ class Scanner(private var source: String, val sunlite: Sunlite) {
     }
 
     private fun isAlphaNumeric(c: Char): Boolean {
-        return isAlpha(c) || c in '0'..'9'
+        return isAlpha(c) || c in '0'..'9' || c == ':'
     }
 
 

@@ -3,11 +3,7 @@ package sunsetsatellite.sunlite.lang
 import sunsetsatellite.sunlite.lang.Expr.Get
 import sunsetsatellite.sunlite.lang.TokenType.*
 import sunsetsatellite.sunlite.vm.*
-import java.io.DataOutputStream
-import java.io.File
 import kotlin.collections.mutableListOf
-import kotlin.io.path.Path
-import kotlin.io.path.extension
 
 
 class Compiler(val sunlite: Sunlite, val vm: VM?, val enclosing: Compiler?) : Expr.Visitor<Unit>, Stmt.Visitor<Unit> {
@@ -21,6 +17,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM?, val enclosing: Compiler?) : Ex
     }
 
     var currentClass: ClassInfo? = null
+    var currentModule: Stmt.Module? = null
 
     var currentFile: String? = null
     var currentFunctionType: FunctionType = FunctionType.FUNCTION
@@ -35,6 +32,23 @@ class Compiler(val sunlite: Sunlite, val vm: VM?, val enclosing: Compiler?) : Ex
     val incompleteBreaks: MutableList<Int> = mutableListOf()
     val incompleteContinues: MutableList<Int> = mutableListOf()
     var currentReturn: Type? = null
+
+    fun compileModule(
+        statements: List<Stmt>,
+        path: String? = null,
+        name: String = "<module>",
+    ): SLFunction {
+        return compile(
+            FunctionType.MODULE,
+            arrayOf(FunctionModifier.CHUNK),
+            Type.NIL,
+            emptyList(),
+            emptyList(),
+            statements,
+            path,
+            name
+        )
+    }
 
     fun compile(
         type: FunctionType,
@@ -51,8 +65,8 @@ class Compiler(val sunlite: Sunlite, val vm: VM?, val enclosing: Compiler?) : Ex
     ): SLFunction {
 
         if (Sunlite.debug || Sunlite.compileOnly) {
-            if (type == FunctionType.COMPILED_CLASS) {
-                sunlite.printInfo("Compiling '$path::$name'...")
+            if (type == FunctionType.MODULE) {
+                sunlite.printInfo("Compiling '$name'...")
             } else if(type == FunctionType.CHUNK){
                 sunlite.printInfo("Compiling '$path'...")
             }
@@ -129,8 +143,8 @@ class Compiler(val sunlite: Sunlite, val vm: VM?, val enclosing: Compiler?) : Ex
         )
         path?.let {
             if (Sunlite.debug || Sunlite.compileOnly) {
-                if (type == FunctionType.COMPILED_CLASS) {
-                    sunlite.printInfo("Compiled '$path::$name'")
+                if (type == FunctionType.MODULE) {
+                    sunlite.printInfo("Compiled '$name'")
                 } else if(type == FunctionType.CHUNK){
                     sunlite.printInfo("Compiled '$path'")
                 }
@@ -388,11 +402,11 @@ class Compiler(val sunlite: Sunlite, val vm: VM?, val enclosing: Compiler?) : Ex
             }
 
             IS -> {
-                TODO("Not yet implemented")
+
             }
 
             IS_NOT -> {
-                TODO("Not yet implemented")
+
             }
 
             else -> return
@@ -1090,10 +1104,11 @@ class Compiler(val sunlite: Sunlite, val vm: VM?, val enclosing: Compiler?) : Ex
 
     override fun visitClassStmt(stmt: Stmt.Class) {
         val className = stmt.name
+        //currentModule?.let { module -> className = Token.identifier("${module.path.joinToString(".") { it.lexeme }}.${className.lexeme}",className) }
         val nameConstant = addIdentifier(className.lexeme, stmt)
         declareVariable(className, stmt)
 
-        if(stmt.superclass?.name?.lexeme == "Enum"){
+        if(stmt.superclass?.name?.lexeme == "sunlite::stdlib::enums::Enum"){
             emitByte(Opcodes.TRUE, stmt)
         } else {
             emitByte(Opcodes.FALSE, stmt)
@@ -1184,7 +1199,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM?, val enclosing: Compiler?) : Ex
             }
         }
 
-        if(stmt.superclass?.name?.lexeme == "Enum"){
+        if(stmt.superclass?.name?.lexeme == "sunlite::stdlib::enums::Enum"){
             emitByte(Opcodes.LOCK, stmt)
         }
 
@@ -1199,7 +1214,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM?, val enclosing: Compiler?) : Ex
         /*if(currentFunctionType == FunctionType.COMPILED_CLASS){
             chunk.debugInfo.classData =
         }*/
-        chunk.debugInfo.classData[stmt.name.lexeme] = MutableClassData(
+        chunk.debugInfo.classData[className.lexeme] = MutableClassData(
             className.lexeme,
             stmt.superclass?.name?.lexeme ?: "<nil>",
             stmt.superinterfaces.map { it.name.lexeme }.toMutableList(),
@@ -1212,6 +1227,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM?, val enclosing: Compiler?) : Ex
 
     override fun visitInterfaceStmt(stmt: Stmt.Interface) {
         val className = stmt.name
+        //currentModule?.let { module -> className = Token.identifier("${module.path.joinToString(".") { it.lexeme }}.${className.lexeme}",className) }
         val nameConstant = addIdentifier(className.lexeme, stmt)
         declareVariable(className, stmt)
 
@@ -1253,7 +1269,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM?, val enclosing: Compiler?) : Ex
             endScope(stmt)
         }
 
-        chunk.debugInfo.classData[stmt.name.lexeme] = MutableClassData(
+        chunk.debugInfo.classData[className.lexeme] = MutableClassData(
             className.lexeme,
             "<nil>",
             stmt.superinterfaces.map { it.name.lexeme }.toMutableList(),
@@ -1270,13 +1286,16 @@ class Compiler(val sunlite: Sunlite, val vm: VM?, val enclosing: Compiler?) : Ex
 
     override fun visitImportStmt(stmt: Stmt.Import) {
         val name = addIdentifier(stmt.what.lexeme, stmt)
-        emitConstant(SLString(stmt.location.literal as String), stmt)
+        emitConstant(SLString(stmt.location), stmt)
         emitByte(Opcodes.IMPORT, stmt)
         emitShort(name, stmt)
     }
 
-    override fun visitPackageStmt(stmt: Stmt.Package) {
-
+    override fun visitModuleStmt(stmt: Stmt.Module) {
+        val previous = currentModule
+        currentModule = stmt
+        stmt.stmts.forEach { compile(it) }
+        currentModule = previous
     }
 
     override fun visitTryCatchStmt(stmt: Stmt.TryCatch) {

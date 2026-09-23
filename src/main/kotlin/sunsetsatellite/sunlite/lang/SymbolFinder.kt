@@ -75,8 +75,8 @@ class SymbolFinder(val name: String?, val line: Int, val column: Int) : Expr.Vis
         // nothing to collect
     }
 
-    override fun visitPackageStmt(stmt: Stmt.Package) {
-        // nothing to collect
+    override fun visitModuleStmt(stmt: Stmt.Module) {
+        stmt.stmts.forEach { it.accept(this) }
     }
 
     override fun visitTryCatchStmt(stmt: Stmt.TryCatch) {

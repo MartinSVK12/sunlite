@@ -313,8 +313,10 @@ class TypeChecker(val sunlite: Sunlite, val vm: VM?) : Expr.Visitor<Unit>, Stmt.
 
     }
 
-    override fun visitPackageStmt(stmt: Stmt.Package) {
-
+    override fun visitModuleStmt(stmt: Stmt.Module) {
+        scopes.push(stmt)
+        check(stmt.stmts)
+        scopes.pop()
     }
 
     override fun visitTryCatchStmt(stmt: Stmt.TryCatch) {

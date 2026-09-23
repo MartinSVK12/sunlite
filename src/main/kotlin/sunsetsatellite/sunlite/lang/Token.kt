@@ -38,7 +38,7 @@ class Token(
         }
 
         fun identifier(name: String, token: Token): Token {
-            return Token(TokenType.IDENTIFIER, name, null, token.line, token.file, Position(-1, -1))
+            return Token(TokenType.IDENTIFIER, name, null, token.line, token.file, token.pos)
         }
     }
 

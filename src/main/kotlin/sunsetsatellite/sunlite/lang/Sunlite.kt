@@ -17,7 +17,7 @@ class Sunlite(val args: Array<String>) {
     val path: MutableList<String> = mutableListOf()
     val includes: MutableMap<String, Pair<Int, List<Stmt>>> = mutableMapOf()
     val imports: MutableMap<String, Pair<Int, List<Stmt>?>> = mutableMapOf()
-    val autoImported: MutableMap<String, String> = mutableMapOf()
+    val autoImported: MutableMap<String, List<String>> = mutableMapOf()
 
     val logEntryReceivers: MutableList<LogEntryReceiver> = mutableListOf()
     val compilerDataReceivers: MutableList<CompilerDataReceiver> = mutableListOf()
@@ -29,12 +29,22 @@ class Sunlite(val args: Array<String>) {
     lateinit var vm: VM
     var collector: TypeCollector? = null
 
+    // file path -> file contents as text
     var readFunction: Function<String, String> = Function {
         return@Function readStreamFunction.apply(it).use { s -> s.bufferedReader().readText() }
     }
+
+    // file path -> input stream
     var readStreamFunction: Function<String, InputStream> = Function {
         return@Function File(it).inputStream()
     }
+
+    // abstract module path -> file path
+    var modulePathReadFunction: Function<String, String> = Function {
+        val path = "/" + it.replace("::","/") + ".sl"
+        return@Function path
+    }
+
     var natives: Natives = DefaultNatives
 
     fun start(): VM? {
@@ -63,12 +73,11 @@ class Sunlite(val args: Array<String>) {
 	    uninitialized = true
 	    collector = null
 
-        autoImported["Object"] = "/sunlite/stdlib/object"
-        autoImported["Exception"] = "/sunlite/stdlib/exception"
-        autoImported["Strings"] = "/sunlite/stdlib/string"
-        autoImported["Enum"] = "/sunlite/stdlib/enum"
-        autoImported["Arrays"] = "/sunlite/stdlib/array"
-        autoImported["ArrayIterator"] = "/sunlite/stdlib/array"
+        autoImported["sunlite::stdlib::object"] = listOf("Object")
+        autoImported["sunlite::stdlib::exception"] = listOf("Exception")
+        autoImported["sunlite::stdlib::string"] = listOf("Strings")
+        autoImported["sunlite::stdlib::enums"] = listOf("Enum")
+        //autoImported["sunlite.stdlib.array"] = "*"
 
         when {
             args.size > 4 -> {
@@ -158,15 +167,15 @@ class Sunlite(val args: Array<String>) {
         collector = TypeCollector(this, nativesObj)
 
         var parser = Parser(tokens, this, true)
-        var statements: MutableList<Stmt> = parser.parse(filePath).toMutableList()
+        var statements: MutableList<Stmt> = parser.start(filePath).toMutableList()
 
-        repeat(10) {
+        repeat(MAX_COMPILE_STEP) {
             collector?.collect(statements, filePath, compileStep)
             compileStep++
             imports.clear()
 
             parser = Parser(tokens, this, true)
-            statements = parser.parse(filePath).toMutableList()
+            statements = parser.start(filePath).toMutableList()
         }
 
         val allStatements: MutableList<Stmt> = mutableListOf()
@@ -310,18 +319,18 @@ class Sunlite(val args: Array<String>) {
             collector = TypeCollector(this, vm)
 
             var parser = Parser(tokens, this, true)
-            var statements: MutableList<Stmt> = parser.parse(path).toMutableList()
+            var statements: MutableList<Stmt> = parser.start(path).toMutableList()
 
             // Stop if there was a syntax error.
             if (hadError) return null
 
-            repeat(10) {
+            repeat(MAX_COMPILE_STEP) {
                 collector?.collect(statements, path, compileStep)
                 compileStep++
                 imports.clear()
 
                 parser = Parser(tokens, this, true)
-                statements = parser.parse(path).toMutableList()
+                statements = parser.start(path).toMutableList()
 
                 // Stop if there was a syntax error.
                 if (hadError) return null
@@ -367,28 +376,64 @@ class Sunlite(val args: Array<String>) {
 
             val compiler = Compiler(this, vm, null)
 
-            imports.forEach {
+            val modules: MutableMap<String, SLModuleObj> = mutableMapOf()
 
-                val importPath = it.key.split("::")[0]
-                val importName = it.key.split("::")[1]
-
-                val importFunc = Compiler(this, vm, null).compile(
-                    FunctionType.COMPILED_CLASS,
-                    arrayOf(FunctionModifier.CHUNK),
-                    Type.NIL,
-                    listOf(),
-                    listOf(),
-                    it.value.second!!,
-                    importPath,
-                    importName
-                )
-
-                vm.moduleCache[importName] = importFunc
-                importFunc.chunk.debugInfo.classData.forEach { (string, data) ->
-                    vm.classes[string] = data
+            imports.forEach { import ->
+                val paths = import.key.split("::").toMutableList()
+                var name = paths.removeLast()
+                if(name == "*"){
+                    name = paths.removeLast()
                 }
-
-                if(compileDeps) {
+                val path = paths.joinToString("::")
+                val func = Compiler(this, vm, null)
+                    .compileModule(
+                        import.value.second!!,
+                        path,
+                        "<module '$path::$name'>"
+                    )
+                if(path.isEmpty()){
+                    modules[name] = SLModuleObj(SLModule(
+                        vm,
+                        name,
+                        Path("."),
+                        false,
+                        initializer = SLClosureObj(SLClosure(func))
+                    ))
+                }
+                if(paths.isNotEmpty()){
+                    val p = mutableListOf<String>()
+                    var current: SLModule = modules.computeIfAbsent(paths.first()) {
+                        SLModuleObj(SLModule(
+                            vm,
+                            paths.first(),
+                            Path("."),
+                            true
+                        ))
+                    }.value
+                    p.add(paths.removeFirst())
+                    paths.forEach {
+                        p.add(it)
+                        current = current.env.computeIfAbsent(it) {
+                            SLModuleObj(SLModule(
+                                vm,
+                                it,
+                                Path(p.joinToString("/")),
+                                true
+                            ))
+                        }.value as SLModule
+                    }
+                    p.add(name)
+                    current.env.computeIfAbsent(name) {
+                        SLModuleObj(SLModule(
+                            vm,
+                            name,
+                            Path(p.joinToString("/")),
+                            false,
+                            initializer = SLClosureObj(SLClosure(func))
+                        ))
+                    }
+                }
+                /*if(compileDeps) {
                     val dir = Path(".", "out", importPath).toFile()
                     val file = Path(".", "out", importPath, "$importName.slc").toFile()
                     dir.mkdirs()
@@ -396,15 +441,17 @@ class Sunlite(val args: Array<String>) {
                     val stream = DataOutputStream(file.outputStream())
                     stream.use { s -> importFunc.write(s) }
                     printInfo("Exported $file")
-                }
+                }*/
             }
+
+            vm.globals.putAll(modules)
 
             if(debug){
                 printInfo()
                 printInfo("Imported Modules: ")
                 printInfo("--------")
-                vm.moduleCache.keys.forEach {
-                    printInfo(it)
+                imports.forEach {
+                    printInfo(it.key)
                 }
                 printInfo("--------")
             }
@@ -658,6 +705,8 @@ class Sunlite(val args: Array<String>) {
 
         @JvmStatic
         var compileDeps = false
+
+        const val MAX_COMPILE_STEP = 10;
 
         lateinit var instance: Sunlite
 

@@ -4,6 +4,7 @@ import sunsetsatellite.sunlite.lang.Expr.*
 import sunsetsatellite.sunlite.lang.Expr.Set
 import sunsetsatellite.sunlite.lang.TokenType.*
 import java.io.IOException
+import kotlin.collections.addAll
 
 
 class Parser(
@@ -13,47 +14,43 @@ class Parser(
     val including: Boolean = false,
     val includingDepth: Int = 0,
     val importing: String = "",
-    val subparser: Boolean = false
+    val importingPath: String = "",
+    //val subparser: Boolean = false
 ) {
     private var current = 0
 
-    var currentPackage: String = "default"
+    var currentModule: Stmt.Module? = null
     var currentFile: String? = null
     var currentClass: Token? = null
     var currentFunction: Token? = null
     var currentBlockDepth: Int = 0
     var lambdaAmount = 0
     var parsingConstructor: Boolean = false
+    val importAliases: MutableMap<Token, Token> = mutableMapOf()
 
     val annotations: MutableList<Stmt.Annotation> = mutableListOf()
 
     private class ParseError : RuntimeException()
 
-    fun parse(path: String?): List<Stmt> {
+    fun start(path: String?): List<Stmt> {
         currentFile = path
-        val statements: MutableList<Stmt> = ArrayList()
 
-        /*if(!isAtEnd()){
-            module()?.let {
-                if(it is Stmt.VirtualStmt){
-                    statements.addAll(it.decompose())
-                } else {
-                    statements.add(it)
-                }
-            }
-        }*/
-
-        if(sunlite.autoImported.values.none { it == path }){
-            sunlite.autoImported.forEach { (name, path) ->
+        if(sunlite.autoImported.keys.none { it == path }){
+            sunlite.autoImported.forEach { (path, aliases) ->
                 doImport(
-	                location = Token(STRING, "\"$path\"", path, -1, currentFile, Token.Position(-1,-1)),
-	                what = Token.identifier(name, -1, currentFile),
+	                location = path,
+	                what = Token.identifier("*"),
 	                keyword = Token.unknown(),
-	                alias = null
+	                aliases = aliases.map { Token.identifier(it) }
                 )
             }
         }
 
+        return parse()
+    }
+
+    fun parse(): List<Stmt> {
+        val statements: MutableList<Stmt> = ArrayList()
         while (!isAtEnd()) {
             module()?.let {
                 if(it is Stmt.VirtualStmt){
@@ -70,6 +67,7 @@ class Parser(
     private fun module(): Stmt? {
         try {
             return when {
+                match(MODULE) -> moduleDeclaration()
                 //match(module) -> packageDeclaration()
                 else -> annotation()
             }
@@ -91,7 +89,13 @@ class Parser(
         }
     }
 
-    private fun allowedToParse(): Boolean = (importing.isEmpty() || importing.isNotEmpty() && importing == currentClass?.lexeme) || currentClass != null
+    private fun allowedToParse(): Boolean {
+        if(importing.isEmpty()) return true
+        if(importing == "*" && importingPath == currentModule?.path?.lexeme) return true
+        if(importing == "*" && importingPath == currentFile) return true
+        if("$importingPath::$importing" == currentModule?.path?.lexeme) return true
+        return false
+    }
 
     private fun declaration(): Stmt? {
         return when {
@@ -157,58 +161,96 @@ class Parser(
         }
     }
 
-    /*private fun packageDeclaration(): Stmt {
+    private fun moduleDeclaration(): Stmt? {
         val keyword = previous()
-        var what: Token
-        what = consume(STRING, "Expected package name.")
-        consume(SEMICOLON, "Expected ';' after package statement.")
-        currentPackage = what.literal as String
-        return Stmt.Package(keyword, what)
-    }*/
+        var path = consume(IDENTIFIER, "Expected module name.")
+        when {
+            match(SEMICOLON) -> {
+                if(currentModule != null){
+                    throw error(previous(), "Cannot have multiple top-level module statements.")
+                }
+                val module = Stmt.Module(keyword, path, listOf())
+                currentModule = module
+                //System.err.println(AstPrinter.print(module))
+                val statements: List<Stmt> = parse()
+                module.stmts = statements
+                if(!allowedToParse()) return null
+                return module
+            }
+            match(LEFT_BRACE) -> {
+                val previous = currentModule
+                if(currentModule != null){
+                    path = Token.identifier("${currentModule!!.path.lexeme}::${path.lexeme}", path)
+                }
+                currentBlockDepth++
+                val statements: MutableList<Stmt> = ArrayList()
+                val module = Stmt.Module(keyword, path, statements)
+                currentModule = module
+                while (!checkToken(RIGHT_BRACE) && !isAtEnd()) {
+                    module()?.let { statements.add(it) } ?: break
+                }
+
+                consume(RIGHT_BRACE, "Expected '}' after module block.")
+                currentBlockDepth--
+                module.stmts = statements
+                //System.err.println(AstPrinter.print(module))
+                currentModule = previous
+                if(!allowedToParse()) return null
+                return module
+            }
+        }
+        return null
+    }
 
     private fun importStatement(): Stmt? {
         val keyword = previous()
-        val what = consume(IDENTIFIER, "Expected class name.")
-        consume(FROM, "Expected 'from' after class name of import statement.")
-        val location: Token = consume(STRING, "Expected import location string.")
-        var alias: Token? = null
-        if(match(AS)){
-            alias = consume(IDENTIFIER, "Expected alias name.")
+        val aliases: MutableList<Token> = mutableListOf()
+        when {
+            match(LEFT_PAREN) -> {
+                do {
+                    aliases.add(consume(IDENTIFIER, "Expected identifier for import alias."))
+                } while (match(COMMA))
+                consume(RIGHT_PAREN, "Expected ')' after import aliases.")
+            }
+            match(IDENTIFIER) -> {
+                aliases.add(previous())
+            }
         }
+        if(aliases.isNotEmpty()) consume(FROM, "Expected 'from' after import aliases.")
+        val path = consume(IDENTIFIER, "Expected module name for import statement.").lexeme
         consume(SEMICOLON, "Expected ';' after import statement.")
-        return doImport(location, what, keyword, alias)
+        val last = path.split("::").last()
+        return doImport(path, Token.identifier(last,keyword), keyword, aliases)
     }
 
     private fun doImport(
-        location: Token,
+        location: String,
         what: Token,
         keyword: Token,
-        alias: Token?
+        aliases: List<Token>
     ): Stmt.Import? {
-        val id = (location.literal as String) + "::" + what.lexeme
+        importAliases.putAll(aliases.map { it to Token.identifier(location+"::"+it.lexeme,it) })
+
+        //if(sunlite.compileStep >= Sunlite.MAX_COMPILE_STEP) System.err.println("$location.${what.lexeme}")
+        val id = location //+ "::" + what.lexeme
         if (sunlite.imports.contains(id)) {
-            /*if (sunlite.imports[id]?.second == null) {
-                //sunlite.error(keyword, "ImportError: Circular import detected.")
-                return Stmt.Import(keyword, what, location, alias)
-            }*/
-            return Stmt.Import(keyword, what, location, alias)
+            return Stmt.Import(keyword, what, location, aliases)
         }
-
         sunlite.imports[id] = includingDepth to null
-
         if (sunlite.collector == null || !allowIncluding) {
-            return Stmt.Import(keyword, what, location, alias)
+            return Stmt.Import(keyword, what, location, aliases)
         }
 
         var data: String? = null
         val invalidPaths: MutableList<String> = mutableListOf()
+        val path = sunlite.modulePathReadFunction.apply(location)
 
-        data = Sunlite::class.java.getResourceAsStream("${location.literal}.sl")?.bufferedReader()?.use { it.readText() }
+        data = Sunlite::class.java.getResourceAsStream(path)?.bufferedReader()?.use { it.readText() }
 
         if (data == null) {
             sunlite.path.forEach {
                 try {
-                    data = sunlite.readFunction.apply("${it}${location.literal}.sl")
+                    data = sunlite.readFunction.apply("${it.replace("\\","/")}${path}.sl")
                 } catch (_: IOException) {
                     invalidPaths.add(it)
                 }
@@ -217,15 +259,15 @@ class Parser(
 
         if (data == null) {
             sunlite.imports.remove(id)
-            sunlite.error(keyword, "ImportError: Couldn't find '${location.literal}' on the load path list.")
+            sunlite.error(keyword, "ImportError: Can't find module '${location}'.")
             return null
         }
 
         val scanner = Scanner(data, sunlite)
-        val tokens: List<Token> = scanner.scanTokens(location.literal)
+        val tokens: List<Token> = scanner.scanTokens(location)
 
-        var parser = Parser(tokens, sunlite, true, true, includingDepth + 1, what.lexeme)
-        var statements = parser.parse(location.literal)
+        var parser = Parser(tokens, sunlite, true, true, includingDepth + 1, what.lexeme, location)
+        var statements = parser.start(location)
 
         // Stop if there was a syntax error.
         if (sunlite.hadError) {
@@ -234,7 +276,7 @@ class Parser(
             return null
         }
 
-        sunlite.collector?.collect(statements, location.literal, sunlite.compileStep)
+        sunlite.collector?.collect(statements, location, sunlite.compileStep)
 
         // Stop if there was a type collection error.
         if (sunlite.hadError) {
@@ -243,8 +285,8 @@ class Parser(
             return null
         }
 
-        parser = Parser(tokens, sunlite, true, true, includingDepth + 1, what.lexeme)
-        statements = parser.parse(location.literal)
+        parser = Parser(tokens, sunlite, true, true, includingDepth + 1, what.lexeme, location)
+        statements = parser.start(location)
 
         // Stop if there was a syntax error.
         if (sunlite.hadError) {
@@ -253,7 +295,7 @@ class Parser(
             return null
         }
 
-        sunlite.collector?.collect(statements, location.literal, sunlite.compileStep + 2)
+        sunlite.collector?.collect(statements, location, sunlite.compileStep + 2)
 
         if(sunlite.compileStep > 0){
             val checker = TypeChecker(sunlite, null)
@@ -270,7 +312,7 @@ class Parser(
         sunlite.imports[id] = includingDepth to statements
 
         if (Sunlite.showOtherAST) {
-            sunlite.printInfo("AST: ${location.literal}")
+            sunlite.printInfo("AST: ${location}")
             sunlite.printInfo("-----")
             statements.forEach {
                 sunlite.printInfo(AstPrinter.print(it))
@@ -279,11 +321,14 @@ class Parser(
             sunlite.printInfo()
         }
 
-        if (Sunlite.debug && sunlite.compileStep == 0) {
-            sunlite.printInfo("Parsed and imported ${what.lexeme} from ${location.literal}.")
+        if (Sunlite.debug && sunlite.compileStep >= Sunlite.MAX_COMPILE_STEP) {
+            sunlite.printInfo("Imported ${what.lexeme} from ${location}.")
             //sunlite.printInfo()
         }
-        return Stmt.Import(keyword, what, location, alias)
+        /*if(currentModule != null){
+            currentModule!!.importAliases.addAll(importAliases)
+        }*/
+        return Stmt.Import(keyword, what, location, aliases)
     }
 
     private fun includeStatement(): Stmt? {
@@ -332,7 +377,7 @@ class Parser(
         val tokens: List<Token> = scanner.scanTokens(what.literal)
 
         var parser = Parser(tokens, sunlite, true, true, includingDepth + 1)
-        var statements = parser.parse(what.literal)
+        var statements = parser.start(what.literal)
 
         // Stop if there was a syntax error.
         if (sunlite.hadError) {
@@ -349,7 +394,7 @@ class Parser(
         }
 
         parser = Parser(tokens, sunlite, false, true, includingDepth + 1)
-        statements = parser.parse(what.literal)
+        statements = parser.start(what.literal)
 
         // Stop if there was a syntax error.
         if (sunlite.hadError) {
@@ -401,17 +446,19 @@ class Parser(
 			consume(GREATER, "Expected '>' after type parameter declaration.")
         }
 
-        val name = consume(IDENTIFIER, "Expected class name.")
-
+        var name = consume(IDENTIFIER, "Expected class name.")
+        val rawName = name
+        currentModule?.let { module -> name = Token.identifier("${module.path.lexeme}::${name.lexeme}",name) }
         currentClass = name
+        importAliases[rawName] = name
 
         var superclass: Variable? = null
         if (match(EXTENDS)) {
             consume(IDENTIFIER, "Expected superclass name.")
             superclass = Variable(previous())
         }
-        if(superclass == null && name.lexeme != "Object"){
-            superclass = Variable(Token.identifier("Object", previous()))
+        if(superclass == null && name.lexeme != "sunlite::stdlib::object::Object"){
+            superclass = Variable(Token.identifier("sunlite::stdlib::object::Object", previous()))
         }
 
         val superinterfaces: MutableList<Pair<Variable,List<Type>>> = mutableListOf()
@@ -454,7 +501,7 @@ class Parser(
             }
         }
 
-        if(importing.isEmpty() || (importing.isNotEmpty() && name.lexeme == importing)){
+        if(allowedToParse()){
             val types = sunlite.collector?.typeHierarchy
             if(types?.containsKey(name.lexeme) == false || (types?.containsKey(name.lexeme) == true && types[name.lexeme]?.incomplete == true)){
 	            types[name.lexeme] = TypeCollector.TypePrototype(
@@ -591,8 +638,9 @@ class Parser(
         consume(RIGHT_BRACE, "Expected '}' after class body.")
 
         currentClass = null
+        importAliases.remove(rawName)
 
-        if(importing.isNotEmpty() && name.lexeme != importing) return null
+        if(!allowedToParse()) return null
 
         return Stmt.Class(name, methods, fields, superclass, superinterfaces.map { it.first }, modifier, typeParameters, staticInit)
     }
@@ -610,15 +658,17 @@ class Parser(
     }
 
     private fun enumDeclaration(): Stmt? {
-        val name = consume(IDENTIFIER, "Expected enum name.")
-
+        var name = consume(IDENTIFIER, "Expected enum name.")
+        val rawName = name
+        currentModule?.let { module -> name = Token.identifier("${module.path.lexeme}::${name.lexeme}",name) }
         currentClass = name
+        importAliases[rawName] = name
 
         val superclass = Variable(Token.identifier("Enum", previous()))
 
         consume(LEFT_BRACE, "Expected '{' before enum body.")
 
-        if(importing.isEmpty() || (importing.isNotEmpty() && name.lexeme == importing)){
+        if(allowedToParse()){
             val types = sunlite.collector?.typeHierarchy
             if(types?.containsKey(name.lexeme) == false || (types?.containsKey(name.lexeme) == true && types[name.lexeme]?.incomplete == true)){
                 types[name.lexeme] = TypeCollector.TypePrototype(
@@ -769,8 +819,9 @@ class Parser(
         consume(RIGHT_BRACE, "Expected '}' after enum body.")
 
         currentClass = null
+        importAliases.remove(rawName)
 
-        if(importing.isNotEmpty() && name.lexeme != importing) return null
+        if(!allowedToParse()) return null
 
         return Stmt.Class(name, methods, fields, superclass, listOf(), ClassModifier.SEALED, listOf(), staticInit)
     }
@@ -790,7 +841,10 @@ class Parser(
 			consume(GREATER, "Expected '>' after type parameter declaration.")
         }
 
-        val name = consume(IDENTIFIER, "Expected interface name.")
+        var name = consume(IDENTIFIER, "Expected interface name.")
+        val rawName = name
+        currentModule?.let { module -> name = Token.identifier("${module.path.lexeme}::${name.lexeme}",name) }
+        importAliases[rawName] = name
 
         val superinterfaces: MutableList<Variable> = mutableListOf()
         if (match(IMPLEMENTS)) {
@@ -807,7 +861,7 @@ class Parser(
 
         consume(LEFT_BRACE, "Expected '{' before interface body.")
 
-        if(importing.isEmpty() || (importing.isNotEmpty() && name.lexeme == importing)){
+        if(allowedToParse()){
             val types = sunlite.collector?.typeHierarchy
             if(types?.containsKey(name.lexeme) == false || (types?.containsKey(name.lexeme) == true && types[name.lexeme]?.incomplete == true)){
                 types[name.lexeme] = TypeCollector.TypePrototype(
@@ -831,7 +885,8 @@ class Parser(
 
         consume(RIGHT_BRACE, "Expected '}' after interface body.")
 
-        if(importing.isNotEmpty() && name.lexeme != importing) return null
+        importAliases.remove(rawName)
+        if(!allowedToParse()) return null
 
         return Stmt.Interface(name, methods, superinterfaces, typeParameters)
     }
@@ -1459,7 +1514,7 @@ class Parser(
     }
 
     private fun getTypeTokens(insideUnion: Boolean = false): List<TypeToken> {
-        val mainToken = peek()
+        var mainToken = peek()
         if (!match(
                 TYPE_BOOLEAN, TYPE_STRING, TYPE_TUPLE,/*TYPE_NUMBER,*/
                 TYPE_BYTE, TYPE_SHORT, TYPE_INT, TYPE_LONG, TYPE_FLOAT, TYPE_DOUBLE,
@@ -1467,6 +1522,12 @@ class Parser(
             )
         ) {
             throw error(mainToken, "Expected type.")
+        }
+
+        if(mainToken.type == IDENTIFIER){
+            importAliases.filter { it.key.lexeme == mainToken.lexeme }.firstNotNullOfOrNull { it.value }?.let {
+                mainToken = Token.identifier(it.lexeme, mainToken)
+            }
         }
 
         //there should be only one top most type (probably)
@@ -2134,7 +2195,12 @@ class Parser(
         }
 
         if (match(IDENTIFIER)) {
-            val varToken = previous()
+            var varToken = previous()
+
+            importAliases.filter { it.key.lexeme == varToken.lexeme }.firstNotNullOfOrNull { it.value }?.let {
+                varToken = Token.identifier(it.lexeme, varToken)
+            }
+
             if (sunlite.collector != null && sunlite.compileStep > 0) {
                 if(currentClass != null){
                     val scope = sunlite.collector?.typeHierarchy[currentClass!!.lexeme]?.scope
@@ -2215,11 +2281,11 @@ class Parser(
         Type.Union(types)
     }
 
-    private fun subparser(): Parser {
+    /*private fun subparser(): Parser {
         val p = Parser(ArrayList(tokens), sunlite, allowIncluding, including, includingDepth, importing, true)
         p.current = current
         return p
-    }
+    }*/
 
     private fun consume(type: TokenType, message: String): Token {
         if (checkToken(type)) return advance()

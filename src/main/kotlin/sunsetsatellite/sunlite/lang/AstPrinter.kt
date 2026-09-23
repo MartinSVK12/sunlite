@@ -295,11 +295,11 @@ object AstPrinter : Expr.Visitor<String>, Stmt.Visitor<String> {
     }
 
     override fun visitImportStmt(stmt: Stmt.Import): String {
-        return "(import ${stmt.what.lexeme} from ${stmt.location.lexeme}${if(stmt.alias != null) " as ${stmt.alias.lexeme}" else ""})"
+        return "(import ${stmt.what.lexeme} from ${stmt.location})"
     }
 
-    override fun visitPackageStmt(stmt: Stmt.Package): String {
-        return "(package ${stmt.what.lexeme})"
+    override fun visitModuleStmt(stmt: Stmt.Module): String {
+        return parenthesize("module ${stmt.path.lexeme}\n",null,stmt.stmts)
     }
 
     override fun visitTryCatchStmt(stmt: Stmt.TryCatch): String {

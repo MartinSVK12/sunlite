@@ -1,3 +1,5 @@
+module sunlite::stdlib::string;
+
 class Strings {
     static native func len(s: String): Int
     static native func format(s: String, fmt: Array<Any?>): String

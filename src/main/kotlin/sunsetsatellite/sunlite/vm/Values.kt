@@ -663,3 +663,18 @@ class SLTupleObj(value: SLTuple) : SLObj<SLTuple>(value, 20) {
         return SLTupleObj(value.copy())
     }
 }
+
+class SLModuleObj(value: SLModule): SLObj<SLModule>(value, 21){
+    override fun equals(other: Any?): Boolean {
+        if (other !is SLModuleObj) return false
+        return other.value == value
+    }
+
+    override fun hashCode(): Int {
+        return value.hashCode()
+    }
+
+    override fun copy(): SLValue<SLModule> {
+        return this
+    }
+}

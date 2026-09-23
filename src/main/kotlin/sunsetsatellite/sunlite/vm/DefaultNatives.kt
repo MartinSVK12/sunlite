@@ -31,7 +31,7 @@ object DefaultNatives : Natives {
         registerIO(consumer)
         registerString(consumer)
         registerMath(consumer)
-        registerReflect(consumer)
+        //registerReflect(consumer)
     }
 
     fun registerIO(natives: NativesContainer) {
@@ -43,7 +43,7 @@ object DefaultNatives : Natives {
             }
         })
 
-        natives.defineNative(object : SLNativeFunction("File#open", Type.ofObject("File"), 0) {
+        /*natives.defineNative(object : SLNativeFunction("File#open", Type.ofObject("File"), 0) {
             override fun call(
                 vm: VM,
                 args: Array<AnySLValue>,
@@ -87,7 +87,7 @@ object DefaultNatives : Natives {
                 val file = ((receiver!! as SLClassInstanceObj).value.fields["<foreign>fileHandle"]?.value as SLForeignObject).value as File
                 return SLString(file.readText())
             }
-        })
+        })*/
     }
 
     fun registerCore(natives: NativesContainer) {
@@ -125,7 +125,7 @@ object DefaultNatives : Natives {
             }
         })
 
-        natives.defineNative(object : SLNativeFunction("BaseModuleLoader#loadNative", Type.ofFunction("", Type.NIL, listOf()), 2) {
+        /*natives.defineNative(object : SLNativeFunction("BaseModuleLoader#loadNative", Type.ofFunction("", Type.NIL, listOf()), 2) {
             override fun call(
                 vm: VM,
                 args: Array<AnySLValue>,
@@ -134,10 +134,25 @@ object DefaultNatives : Natives {
             ): AnySLValue {
                 val name = (args[0] as SLString).value
                 val path = (args[1] as SLString).value
-
-                return vm.loadModuleNative(name, path)
+                TODO()
+                //vm.loadModuleNative(name, path)
             }
         })
+
+        natives.defineNative(object : SLNativeFunction("BaseModuleLoader#getNative", Type.Union(listOf(Type.ofObject("Module"), Type.NIL)), 3) {
+            override fun call(
+                vm: VM,
+                args: Array<AnySLValue>,
+                typeArgs: Array<SLType>,
+                receiver: AnySLValue?
+            ): AnySLValue {
+                val name = (args[0] as SLString).value
+                val path = (args[1] as SLString).value
+                val module = (args[2] as SLClassInstanceObj).value
+                //todo:
+                return SLNil//vm.loadModuleNative(name, path)
+            }
+        })*/
 
         natives.defineNative(object : SLNativeFunction("clock", Type.DOUBLE, 0) {
             override fun call(vm: VM, args: Array<AnySLValue>, typeArgs: Array<SLType>, receiver: AnySLValue?): AnySLValue {
@@ -342,7 +357,7 @@ object DefaultNatives : Natives {
             }
         })
 
-        natives.defineNative(object : SLNativeFunction("Enum#entries", Type.ofArray(Type.ofObject("Enum")), 0) {
+        natives.defineNative(object : SLNativeFunction("sunlite::stdlib::enums::Enum#entries", Type.ofArray(Type.ofObject("sunlite::stdlib::enums::Enum")), 0) {
             override fun call(
                 vm: VM,
                 args: Array<AnySLValue>,
@@ -363,13 +378,13 @@ object DefaultNatives : Natives {
                         }
 	                }
                 val list = mutableListOf<AnySLValue>()
-                clazz.staticFields.filter { Type.contains(it.value.type, Type.ofObject("Enum"), vm, vm.sunlite) }.forEach {
+                clazz.staticFields.filter { Type.contains(it.value.type, Type.ofObject("sunlite::stdlib::enums::Enum"), vm, vm.sunlite) }.forEach {
                     list.add(it.value.value)
                 }
-                return SLArrayObj(SLArray(list.size, vm, Type.ofObject("Enum")).overwrite(list.toTypedArray()))
+                return SLArrayObj(SLArray(list.size, vm, Type.ofObject("sunlite::stdlib::enums::Enum")).overwrite(list.toTypedArray()))
             }
         })
-        natives.defineNative(object : SLNativeFunction("Enum#fromName", Type.ofObject("Enum"), 1) {
+        natives.defineNative(object : SLNativeFunction("sunlite::stdlib::enums::Enum#fromName", Type.ofObject("sunlite::stdlib::enums::Enum"), 1) {
             override fun call(
                 vm: VM,
                 args: Array<AnySLValue>,
@@ -390,7 +405,7 @@ object DefaultNatives : Natives {
                         }
                     }
                 val name: String = (args[0] as SLString).value
-                clazz.staticFields.filter { Type.contains(it.value.type, Type.ofObject("Enum"), vm, vm.sunlite) }.forEach {
+                clazz.staticFields.filter { Type.contains(it.value.type, Type.ofObject("sunlite::stdlib::enums::Enum"), vm, vm.sunlite) }.forEach {
                     if(it.key == name){
                         return it.value.value
                     }
@@ -402,21 +417,21 @@ object DefaultNatives : Natives {
     }
 
     fun registerString(natives: NativesContainer) {
-        natives.defineNative(object : SLNativeFunction("Strings#len", Type.INT, 1) {
+        natives.defineNative(object : SLNativeFunction("sunlite::stdlib::string::Strings#len", Type.INT, 1) {
             override fun call(vm: VM, args: Array<AnySLValue>, typeArgs: Array<SLType>, receiver: AnySLValue?): AnySLValue {
                 val s = (args[0] as SLString).value
                 return SLInt(s.length)
             }
         })
 
-        natives.defineNative(object : SLNativeFunction("Strings#reverse", Type.STRING, 1) {
+        natives.defineNative(object : SLNativeFunction("sunlite::stdlib::string::Strings#reverse", Type.STRING, 1) {
             override fun call(vm: VM, args: Array<AnySLValue>, typeArgs: Array<SLType>, receiver: AnySLValue?): AnySLValue {
                 val s = (args[0] as SLString).value
                 return SLString(s.reversed())
             }
         })
 
-        natives.defineNative(object : SLNativeFunction("Strings#sub", Type.STRING, 3) {
+        natives.defineNative(object : SLNativeFunction("sunlite::stdlib::string::Strings#sub", Type.STRING, 3) {
             override fun call(vm: VM, args: Array<AnySLValue>, typeArgs: Array<SLType>, receiver: AnySLValue?): AnySLValue {
                 val s = (args[0] as SLString).value
                 val from = (args[1] as SLNumber).value.toInt()
@@ -425,7 +440,7 @@ object DefaultNatives : Natives {
             }
         })
 
-        natives.defineNative(object : SLNativeFunction("Strings#repeat", Type.STRING, 3) {
+        natives.defineNative(object : SLNativeFunction("sunlite::stdlib::string::Strings#repeat", Type.STRING, 3) {
             override fun call(vm: VM, args: Array<AnySLValue>, typeArgs: Array<SLType>, receiver: AnySLValue?): AnySLValue {
                 val s = (args[0] as SLString).value
                 val n = (args[1] as SLNumber).value.toInt()
@@ -434,7 +449,7 @@ object DefaultNatives : Natives {
             }
         })
 
-        natives.defineNative(object : SLNativeFunction("Strings#format", Type.STRING, 2) {
+        natives.defineNative(object : SLNativeFunction("sunlite::stdlib::string::Strings#format", Type.STRING, 2) {
             override fun call(vm: VM, args: Array<AnySLValue>, typeArgs: Array<SLType>, receiver: AnySLValue?): AnySLValue {
                 val s = (args[0] as SLString).value
                 val fmt = (args[1] as SLArrayObj).value.internal()
@@ -442,7 +457,7 @@ object DefaultNatives : Natives {
             }
         })
 
-        natives.defineNative(object : SLNativeFunction("Strings#replace", Type.STRING, 3) {
+        natives.defineNative(object : SLNativeFunction("sunlite::stdlib::string::Strings#replace", Type.STRING, 3) {
             override fun call(vm: VM, args: Array<AnySLValue>, typeArgs: Array<SLType>, receiver: AnySLValue?): AnySLValue {
                 val s = (args[0] as SLString).value
                 val replace = (args[0] as SLString).value
@@ -451,14 +466,14 @@ object DefaultNatives : Natives {
             }
         })
 
-        natives.defineNative(object : SLNativeFunction("Strings#trim", Type.STRING, 1) {
+        natives.defineNative(object : SLNativeFunction("sunlite::stdlib::string::Strings#trim", Type.STRING, 1) {
             override fun call(vm: VM, args: Array<AnySLValue>, typeArgs: Array<SLType>, receiver: AnySLValue?): AnySLValue {
                 val s = (args[0] as SLString).value
                 return SLString(s.filterNot { it.isWhitespace() })
             }
         })
 
-        natives.defineNative(object : SLNativeFunction("Strings#contains", Type.BOOLEAN, 2) {
+        natives.defineNative(object : SLNativeFunction("sunlite::stdlib::string::Strings#contains", Type.BOOLEAN, 2) {
             override fun call(vm: VM, args: Array<AnySLValue>, typeArgs: Array<SLType>, receiver: AnySLValue?): AnySLValue {
                 val s = (args[0] as SLString).value
                 val s2 = (args[1] as SLString).value
@@ -466,7 +481,7 @@ object DefaultNatives : Natives {
             }
         })
 
-        natives.defineNative(object : SLNativeFunction("Strings#at", Type.STRING, 2) {
+        natives.defineNative(object : SLNativeFunction("sunlite::stdlib::string::Strings#at", Type.STRING, 2) {
             override fun call(vm: VM, args: Array<AnySLValue>, typeArgs: Array<SLType>, receiver: AnySLValue?): AnySLValue {
                 val s = (args[0] as SLString).value
                 val index = (args[1] as SLInt).value

@@ -376,8 +376,10 @@ class TypeCollector(val sunlite: Sunlite, val natives: NativesContainer) : Stmt.
         // nothing to collect
     }
 
-    override fun visitPackageStmt(stmt: Stmt.Package) {
-        // nothing to collect
+    override fun visitModuleStmt(stmt: Stmt.Module) {
+        addScope(Token.identifier("<module ${stmt.path.lexeme}>", stmt.keyword))
+        stmt.stmts.forEach { it.accept(this) }
+        removeScope()
     }
 
     override fun visitTryCatchStmt(stmt: Stmt.TryCatch) {

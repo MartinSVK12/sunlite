@@ -2,7 +2,7 @@ package sunsetsatellite.sunlite.lang
 
 enum class FunctionType {
     CHUNK,
-    COMPILED_CLASS,
+    MODULE,
     FUNCTION,
     INITIALIZER,
     LAMBDA,

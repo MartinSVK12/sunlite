@@ -1,4 +1,6 @@
-class Object {    
+module sunlite::stdlib::object;
+
+class Object {
     func toString(): String {
         return str(this);
     }

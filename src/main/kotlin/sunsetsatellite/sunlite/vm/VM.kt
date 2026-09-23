@@ -3,11 +3,14 @@ package sunsetsatellite.sunlite.vm
 import sunsetsatellite.sunlite.lang.*
 import sunsetsatellite.sunlite.lang.Sunlite.Companion.debug
 import sunsetsatellite.sunlite.lang.Sunlite.Companion.stacktrace
-import java.io.DataInputStream
 import java.io.IOException
-import java.io.InputStream
+import java.nio.file.Path
 import java.util.*
 import kotlin.collections.filter
+import kotlin.io.path.Path
+import kotlin.io.path.exists
+import kotlin.io.path.isDirectory
+import kotlin.io.path.listDirectoryEntries
 
 // todo: more runtime checks
 // todo: check that the signature of overriden function has not changed
@@ -29,7 +32,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : NativesContainer
     val typeChecker = TypeChecker(sunlite, this)
 
     val imports: MutableMap<String, String> = mutableMapOf()
-    val moduleCache: MutableMap<String, SLFunction> = mutableMapOf()
+    //val moduleCache: MutableMap<String, SLFunction> = mutableMapOf()
     val classes: MutableMap<String, ClassData> = mutableMapOf()
     val globals: MutableMap<String, AnySLValue> = mutableMapOf()
     val primitiveWrappers: MutableMap<Class<out AnySLValue>, String> = mutableMapOf()
@@ -46,10 +49,10 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : NativesContainer
         openUpvalues.clear()
         //globalProgramData.clear()
         sunlite.autoImported.forEach { (name, path) ->
-            imports[name] = path
+            imports[name] = ""
         }
         sunlite.natives.registerNatives(this)
-        primitiveWrappers[SLString::class.java] = "Strings"
+        primitiveWrappers[SLString::class.java] = "sunlite::stdlib::string::Strings"
     }
 
     companion object {
@@ -273,7 +276,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : NativesContainer
                     Opcodes.GET_GLOBAL -> {
                         val constant = readConstant(fr) as SLString
                         if (!globals.containsKey(constant.value)) {
-                            if(!findModule(constant.value)){
+                            if(findClass(constant.value) == null){
                                 runtimeError("Undefined global variable '${constant.value}'.")
                                 return
                             }
@@ -415,7 +418,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : NativesContainer
                         val pc = fr.pc
                         val safe = (fr.pop() as SLBool).value
                         val arg = fr.peek(0)
-                        if (arg !is SLClassInstanceObj && arg !is SLClassObj && arg !is SLArrayObj) {
+                        if (arg !is SLClassInstanceObj && arg !is SLClassObj && arg !is SLArrayObj /*&& arg !is SLModuleObj*/) {
                             if (!(primitiveWrappers.containsKey(arg.javaClass))) {
                                 if(safe && arg is SLNil){
                                     readString(fr).value
@@ -427,6 +430,17 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : NativesContainer
                                 return
                             }
                         }
+                        /*if(arg is SLModuleObj){
+                            val module = arg.value
+                            val name = readString(fr).value
+                            val result = module.findModule(name)
+                            if(result == null){
+                                runtimeError("Undefined property '$name'.")
+                                return
+                            }
+                            fr.pop()
+                            fr.push(result)
+                        }*/
                         if (arg is SLClassObj) {
                             val clazz = arg.value
                             val name = readString(fr).value
@@ -463,8 +477,8 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : NativesContainer
                         } else if (arg is SLArrayObj) {
                             val instance = arg.value
                             val name = readString(fr).value
-                            if (globals.containsKey("Arrays")) {
-                                val clazz = globals["Arrays"]!!.value as SLClass
+                            if (globals.containsKey("sunlite::stdlib::array::Arrays")) {
+                                val clazz = globals["sunlite::stdlib::array::Arrays"]!!.value as SLClass
                                 if (!clazz.methods.containsKey(name)) {
                                     runtimeError("Undefined property '$name'.")
                                     return
@@ -474,7 +488,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : NativesContainer
                                 fr.push(closure)
                                 fr.push(SLArrayObj(instance))
                             } else {
-                                if(!findModule("Arrays")){
+                                if(findClass("sunlite::stdlib::array::Arrays") == null){
                                     runtimeError("InternalError: Cannot find internal stdlib class 'Arrays'.")
                                     return
                                 }
@@ -751,7 +765,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : NativesContainer
             fr = currentFrame!!
             exitingValue?.let {
                 if(debug){
-                    sunlite.printInfo("Exit value: $it")
+                    sunlite.printInfo("${if(internal) "Internal exit" else "Exit"} value: $it")
                 }
                 return it
             }
@@ -1236,18 +1250,48 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : NativesContainer
         return true
     }
 
-    fun findModule(name: String): Boolean {
+    fun findClass(path: String): SLClassObj? {
+        if(debug){
+            sunlite.printInfo("Finding class: '$path'.")
+        }
+        if(globals[path] != null){
+            return globals[path]?.value as? SLClassObj
+        }
+        val paths = path.split("::").toMutableList()
+        if(paths.size <= 1) return null
+        val first = paths.removeFirst()
+        val last = paths.removeLast()
+        var current: SLModule? = findModule(first)?.value ?: return null
+        paths.forEach {
+            current = (current!!.findModule(this,it) as? SLModuleObj)?.value ?: return null
+        }
+        current?.loadModule()
+        current?.runModule()
+        val clazz = globals[path] as? SLClassObj ?: return null
+        if(debug){
+            sunlite.printInfo("Found class: '$path' -> ${clazz}.")
+        }
+        return clazz
+    }
+
+    fun findModule(name: String): SLModuleObj? {
         if(debug){
             sunlite.printInfo("Finding module: '$name'.")
         }
-        moduleCache[name]?.let {
-            if(debug){
-                sunlite.printInfo("Loading module from cache: '$name'.")
-            }
-            call(SLClosureObj(SLClosure(it)),0)
-            currentFrame = frameStack.peek()
-            return true
+        if(globals.containsKey(name)) {
+            return globals[name] as? SLModuleObj
         }
+        /*sunlite.autoImported[name]?.let {
+            moduleCache[name]?.let {
+                if(debug){
+                    sunlite.printInfo("Loading module from cache: '$name'.")
+                }
+                call(SLClosureObj(SLClosure(it)),0)
+                currentFrame = frameStack.peek()
+                return true
+            }
+        }*/
+        /*
         imports[name]?.let {
             try {
                 val chunk = loadModule(name, it) ?: return false
@@ -1257,11 +1301,59 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : NativesContainer
             } catch (e: VMError){
                 throw VMError("Could not find module '$name'", e)
             }
-        }
-        return false
+        }*/
+        return getModule(name)
     }
 
-    fun loadModule(name: String, path: String): SLClosureObj? {
+    fun getModule(name: String): SLModuleObj? {
+        if(moduleLoader != null){
+            //todo:
+            return null
+        } else {
+            val module = getModuleNative(name) ?: return null
+            globals[module.name] = SLModuleObj(module)
+            return SLModuleObj(module)
+        }
+    }
+
+    fun getModuleNative(name: String): SLModule? {
+        val url = Sunlite::class.java.getResource("/$name")
+        var path: Path? = null
+        val invalidPaths: MutableList<String> = mutableListOf()
+        if(url == null){
+            sunlite.path.forEach { p ->
+                try {
+                    Path(p,name).let {
+                        if(it.exists()){
+                            path = it
+                            return@forEach
+                        }
+                    }
+                    return@forEach
+                } catch (_: IOException) {
+                    invalidPaths.add(p)
+                }
+            }
+        } else {
+            url.path.substring(1).let { p ->
+                if(p.isNotEmpty()){
+                    Path(p).let {
+                        if(it.exists()){
+                            path = it
+                        }
+                    }
+                }
+            }
+        }
+        if(path == null){
+            runtimeError("Could not find module '$name'!")
+            return null
+        }
+        val contents = if(path.isDirectory()) path.listDirectoryEntries().map { path.relativize(it) } else listOf<Path>()
+        return SLModule(this, name, path, path.isDirectory(), contents.toMutableList())
+    }
+
+    /*fun loadModule(name: String, path: String): SLClosureObj? {
         if(moduleLoader != null){
             if(debug){
                 sunlite.printInfo("Loading module '$name' with path '$path/$name' using '${moduleLoader!!.clazz.name}'.")
@@ -1308,13 +1400,13 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : NativesContainer
 
         DataInputStream(stream.buffered()).use { s ->
             val program: SLFunction = SLFunction.read(s)
-            moduleCache[name] = program
+            //moduleCache[name] = program
             program.chunk.debugInfo.classData.forEach { (string, data) ->
                 classes[string] = data
             }
             return SLClosureObj(SLClosure(program))
         }
-    }
+    }*/
 
     /*fun loadString(code: String, path: String = "<loaded chunk>"): SLClosureObj? {
         //if (sunlite.collector == null) return null //sunlite.collector = TypeCollector(sunlite, this)
@@ -1378,23 +1470,28 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : NativesContainer
         return ((upperByte.toInt() and 0xFF) shl 8 or (lowerByte.toInt() and 0xFF))
     }
 
-    fun internalCall(func: SLClosureObj, args: List<AnySLValue>): AnySLValue {
+    fun internalCall(func: SLClosureObj, args: List<AnySLValue>? = null): AnySLValue {
         try {
             val subVM = VM(sunlite, arrayOf())
             subVM.internal = true
             subVM.imports.putAll(imports)
-            subVM.moduleCache.putAll(moduleCache)
+            //subVM.moduleCache.putAll(moduleCache)
             subVM.classes.putAll(classes)
             subVM.globals.putAll(globals)
-
+            subVM.moduleLoader = moduleLoader
             subVM.call(func, 0, internal = true)
             subVM.currentFrame = subVM.frameStack.peek()
-            subVM.currentFrame?.locals?.let {
-                it.clear()
-                it.addAll(args)
+            if(args != null){
+                subVM.currentFrame?.locals?.let {
+                    it.clear()
+                    it.addAll(args)
+                }
             }
             val result = subVM.run()
+            classes.putAll(subVM.classes)
+            globals.putAll(subVM.globals)
             imports.putAll(subVM.imports)
+            instCounter += subVM.instCounter
             return result
         } catch (e: VMError){
             throw VMError("Internal method call failed.",e);
@@ -1407,14 +1504,16 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : NativesContainer
             subVM.noExceptions = true
             subVM.internal = true
             subVM.imports.putAll(imports)
-            subVM.moduleCache.putAll(moduleCache)
+            //subVM.moduleCache.putAll(moduleCache)
             subVM.classes.putAll(classes)
             subVM.globals.putAll(globals)
-	        if (subVM.findModule(name)) {
+            subVM.moduleLoader = moduleLoader
+	        if (subVM.findClass(name) != null) {
                 subVM.run()
 	        } else {
                 throw VMError("Class '$name' not found.")
             }
+            instCounter += subVM.instCounter
             return subVM.globals[name] as SLClassObj
         } catch (e: VMError){
             throw VMError("Internal class loading of '$name' failed.",e);
@@ -1424,13 +1523,13 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : NativesContainer
 
     fun makeExceptionObject(message: String): SLClassInstanceObj {
         try {
-            globals["Exception"] = internalLoadClass("Exception")
+            globals["sunlite::stdlib::exception::Exception"] = internalLoadClass("sunlite::stdlib::exception::Exception")
         } catch (e: VMError){
             printStacktrace(message)
             throw VMError("Failed to create exception object.", e)
         }
 
-        val clazz = globals["Exception"] as SLClassObj
+        val clazz = globals["sunlite::stdlib::exception::Exception"] as SLClassObj
         val fields: MutableMap<String, SLField> =
             clazz.value.fieldDefaults.mapValues { it.value.copy() }.toMutableMap()
         fields["message"]?.value = SLString(message)
