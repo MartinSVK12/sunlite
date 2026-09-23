@@ -1,7 +1,6 @@
 package sunsetsatellite.sunlite.vm
 
 import sunsetsatellite.sunlite.lang.*
-import sunsetsatellite.sunlite.lang.Scanner
 import sunsetsatellite.sunlite.lang.Sunlite.Companion.debug
 import sunsetsatellite.sunlite.lang.Sunlite.Companion.stacktrace
 import java.io.DataInputStream
@@ -30,12 +29,12 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : NativesContainer
     val typeChecker = TypeChecker(sunlite, this)
 
     val imports: MutableMap<String, String> = mutableMapOf()
-    val importedClasses: MutableMap<String, SLFunction> = mutableMapOf()
+    val moduleCache: MutableMap<String, SLFunction> = mutableMapOf()
     val classes: MutableMap<String, ClassData> = mutableMapOf()
     val globals: MutableMap<String, AnySLValue> = mutableMapOf()
     val primitiveWrappers: MutableMap<Class<out AnySLValue>, String> = mutableMapOf()
 
-    val globalProgramData: MutableMap<String, MutableList<Int>> = mutableMapOf()
+    //val globalProgramData: MutableMap<String, MutableList<Int>> = mutableMapOf()
 
     var noExceptions: Boolean = false
     var internal: Boolean = false
@@ -45,7 +44,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : NativesContainer
     init {
         globals.clear()
         openUpvalues.clear()
-        globalProgramData.clear()
+        //globalProgramData.clear()
         sunlite.autoImported.forEach { (name, path) ->
             imports[name] = path
         }
@@ -1241,7 +1240,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : NativesContainer
         if(debug){
             sunlite.printInfo("Finding module: '$name'.")
         }
-        importedClasses[name]?.let {
+        moduleCache[name]?.let {
             if(debug){
                 sunlite.printInfo("Loading module from cache: '$name'.")
             }
@@ -1309,7 +1308,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : NativesContainer
 
         DataInputStream(stream.buffered()).use { s ->
             val program: SLFunction = SLFunction.read(s)
-            importedClasses[name] = program
+            moduleCache[name] = program
             program.chunk.debugInfo.classData.forEach { (string, data) ->
                 classes[string] = data
             }
@@ -1384,7 +1383,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : NativesContainer
             val subVM = VM(sunlite, arrayOf())
             subVM.internal = true
             subVM.imports.putAll(imports)
-            subVM.importedClasses.putAll(importedClasses)
+            subVM.moduleCache.putAll(moduleCache)
             subVM.classes.putAll(classes)
             subVM.globals.putAll(globals)
 
@@ -1408,7 +1407,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : NativesContainer
             subVM.noExceptions = true
             subVM.internal = true
             subVM.imports.putAll(imports)
-            subVM.importedClasses.putAll(importedClasses)
+            subVM.moduleCache.putAll(moduleCache)
             subVM.classes.putAll(classes)
             subVM.globals.putAll(globals)
 	        if (subVM.findModule(name)) {

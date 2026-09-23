@@ -157,7 +157,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM?, val enclosing: Compiler?) : Ex
     private fun recordOriginalFile(expr: Element) {
 	    expr.getFile()?.let {
 		    chunk.debugInfo.lineData[expr.getLine()] = it
-		    vm?.globalProgramData?.getOrPut(it) { mutableListOf() }?.add(expr.getLine())
+		    //vm?.globalProgramData?.getOrPut(it) { mutableListOf() }?.add(expr.getLine())
 	    }
     }
 

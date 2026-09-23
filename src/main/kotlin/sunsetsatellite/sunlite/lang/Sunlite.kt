@@ -2,11 +2,7 @@ package sunsetsatellite.sunlite.lang
 
 import sunsetsatellite.sunlite.vm.*
 import java.io.*
-import java.nio.charset.Charset
-import java.nio.file.Files
-import java.nio.file.Paths
 import java.util.function.Function
-import java.util.zip.GZIPInputStream
 import kotlin.io.path.Path
 import kotlin.io.path.extension
 import kotlin.system.exitProcess
@@ -387,7 +383,7 @@ class Sunlite(val args: Array<String>) {
                     importName
                 )
 
-                vm.importedClasses[importName] = importFunc
+                vm.moduleCache[importName] = importFunc
                 importFunc.chunk.debugInfo.classData.forEach { (string, data) ->
                     vm.classes[string] = data
                 }
@@ -407,7 +403,7 @@ class Sunlite(val args: Array<String>) {
                 printInfo()
                 printInfo("Imported Modules: ")
                 printInfo("--------")
-                vm.importedClasses.keys.forEach {
+                vm.moduleCache.keys.forEach {
                     printInfo(it)
                 }
                 printInfo("--------")
