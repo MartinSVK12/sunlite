@@ -2,7 +2,8 @@ program        → declaration* EOF ;
 
 // DECLARATIONS
 
-declaration    → classDecl
+declaration    → moduleDecl
+               | classDecl
                | annotationDecl
                | interfaceDecl
                | enumDecl
@@ -11,6 +12,7 @@ declaration    → classDecl
                | varDecl
                | statement ;
 
+moduleDecl     → "module" IDENTIFIER ";" | "module" IDENTIFIER "{" declaration* "}" ;
 annotationDecl → annotation ( funDecl | annotationDecl ) ;
 classDecl      → ( classModifier* )? "class" ( typeParam )? IDENTIFIER ( "extends" IDENTIFIER )? ( "implements" IDENTIFIER )?
                  "{" varDecl* method* initializer* ( staticInit )? "}" ;
@@ -52,7 +54,7 @@ block          → "{" declaration* "}" ;
 continueStmt   → "continue;" ;
 breakStmt      → "break;" ;
 includeStmt    → "include" ( "<" )? STRING ( ">" )? ";" ;
-importStmt     → "import" IDENTIFIER "from" STRING ( "as" IDENTIFIER )? ";" ;
+importStmt     → "import" IDENTIFIER | "(" IDENTIFIER ( "," IDENTIFIER )* ")" "from" STRING ";" ;
 tryCatchStmt   → "try" block "catch" "(" IDENTIFIER ")" block ;
 throwStmt      → "throw" expression ";" ;
 superInitStmt  → "super" "(" ( typeParam* )? arguments? ")" ";" ;
@@ -118,6 +120,6 @@ classModifier  → ( "abstract" )
 
 NUMBER         → DIGIT+ ( "." DIGIT+ )? ;
 STRING         → "\"" <any char except "\"">* "\"" ;
-IDENTIFIER     → ALPHA ( ALPHA | DIGIT )* ;
+IDENTIFIER     → ALPHA ( ALPHA | DIGIT | "::" )* ;
 ALPHA          → "a" ... "z" | "A" ... "Z" | "_" ;
 DIGIT          → "0" ... "9" ;
