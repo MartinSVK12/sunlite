@@ -244,6 +244,7 @@ class Sunlite(val args: Array<String>) {
             //printErr("Running compiled files is not supported yet!")
             DataInputStream(File(path).inputStream().buffered()).use { input ->
                 vm = VM(this, if (args.size == 4) args[3].split(";").toTypedArray() else arrayOf())
+                vm.compiled = true
                 uninitialized = false
                 collector = TypeCollector(this, vm)
                 val program: SLFunction = SLFunction.read(input)
@@ -431,15 +432,15 @@ class Sunlite(val args: Array<String>) {
                         ))
                     }
                 }
-                /*if(compileDeps) {
-                    val dir = Path(".", "out", importPath).toFile()
-                    val file = Path(".", "out", importPath, "$importName.slc").toFile()
+                if(compileDeps){
+                    val dir = Path(".", "out", path.replace("::","/"), name).toFile()
+                    val file = Path(".", "out", path.replace("::","/"), name, "$name.slc").toFile()
                     dir.mkdirs()
                     file.createNewFile()
                     val stream = DataOutputStream(file.outputStream())
-                    stream.use { s -> importFunc.write(s) }
+                    stream.use { s -> func.write(s) }
                     printInfo("Exported $file")
-                }*/
+                }
             }
 
             vm.globals.putAll(modules)
@@ -485,7 +486,7 @@ class Sunlite(val args: Array<String>) {
                         stream.use { program.write(it) }
                         //CompressUtils.compress(Path(compiledPath), Path(compiledPath.replace(".slc", ".slcc")))
                         //File(compiledPath).delete()
-                        printDebug("Exported $file")
+                        printInfo("Exported $file")
                         run = false
                     }
                 }
@@ -613,14 +614,6 @@ class Sunlite(val args: Array<String>) {
     fun printErr(message: Any? = "") {
         if (logToStdout) System.err.println(message)
         logEntryReceivers.forEach { it.err(message.toString()) }
-    }
-
-    open class A {
-
-    }
-
-    class B: A() {
-
     }
 
     /*inner class DebuggerServer(val port: Int = 24128): Thread() {

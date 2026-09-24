@@ -128,6 +128,6 @@ class Descriptor(private val source: String) {
     }
 
     private fun isAlphaNumeric(c: Char): Boolean {
-        return isAlpha(c) || c in '0'..'9'
+        return isAlpha(c) || c in '0'..'9' || c == ':'
     }
 }

@@ -80,19 +80,20 @@ class SLModule(
             vm.runtimeError("Could not load module '$name'!")
             return
         }
-        val stream: InputStream = vm.sunlite.readStreamFunction.apply(path.toString())
-        DataInputStream(stream.buffered()).use { s ->
-            try {
+        try {
+            val stream: InputStream = vm.sunlite.readStreamFunction.apply(Path(this.path.toString(), "$name.slc").toString())
+            DataInputStream(stream.buffered()).use { s ->
                 val program: SLFunction = SLFunction.read(s)
                 //vm.moduleCache[name] = program
                 program.chunk.debugInfo.classData.forEach { (string, data) ->
                     vm.classes[string] = data
                 }
                 initializer = SLClosureObj(SLClosure(program))
-            } catch (e: Exception){
-                vm.runtimeError("Could not load module '$name': ${e.message}")
-                return
             }
+        } catch (e: Exception){
+            //throw VMError("Could not load module '$name'", e)
+            vm.runtimeError("Could not load module '$name': ${e.message}")
+            return
         }
         if(initializer == null){
             vm.runtimeError("Could not load module '$name'!")
@@ -142,7 +143,7 @@ class SLModule(
             return null
         }
         val contents = if(path.isDirectory()) path.listDirectoryEntries().map { path.relativize(it) } else listOf<Path>()
-        return SLModule(name.toString(), path, path.isDirectory(), contents.toMutableList())
+        return SLModule(name.toString(), path, contents.map { it.nameWithoutExtension }.none{ it == name.toString() }, contents.toMutableList())
     }
 
     override fun equals(other: Any?): Boolean {

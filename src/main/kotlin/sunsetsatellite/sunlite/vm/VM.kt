@@ -42,6 +42,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : NativesContainer
 
     var noExceptions: Boolean = false
     var internal: Boolean = false
+    var compiled: Boolean = false
 
     var instCounter: BigInteger = BigInteger.ZERO
 
@@ -1261,22 +1262,28 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : NativesContainer
         if(paths.size <= 1) {
             if(moduleLoader != null){
                 //todo:
-                return null
-            } else return null
+                return noClassFound(path)
+            } else noClassFound(path)
         }
         val first = paths.removeFirst()
         val last = paths.removeLast()
-        var current: SLModule? = findModule(first)?.value ?: return null
+        var current: SLModule? = findModule(first)?.value ?: return noClassFound(path)
         paths.forEach {
-            current = (current!!.findModule(this,it) as? SLModuleObj)?.value ?: return null
+            current = (current!!.findModule(this,it) as? SLModuleObj)?.value ?: return noClassFound(path)
         }
         current?.loadModule(this)
         current?.runModule(this)
-        val clazz = globals[path] as? SLClassObj ?: return null
+        val clazz = globals[path] as? SLClassObj ?: return noClassFound(path)
         if(debug){
             sunlite.printDebug("Found class: '$path' -> ${clazz}.")
         }
         return clazz
+    }
+
+    private fun noClassFound(path: String): Nothing? {
+        runtimeError("Could not find class '$path'!")
+        return null
+        //throw VMError("Could not find class '$path'!")
     }
 
     fun findModule(name: String): SLModuleObj? {
@@ -1322,7 +1329,8 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : NativesContainer
     }
 
     fun getModuleNative(name: String): SLModule? {
-        val url = Sunlite::class.java.getResource("/$name")
+        var url = Sunlite::class.java.getResource("/$name")
+        if(compiled) url = null //todo: replace later
         var path: Path? = null
         val invalidPaths: MutableList<String> = mutableListOf()
         if(url == null){
@@ -1534,6 +1542,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : NativesContainer
             printStacktrace(message)
             throw VMError("Failed to create exception object.", e)
         } catch (e: NullPointerException){
+            printStacktrace(message)
             throw VMError("Failed to create exception object.", e)
         }
 
