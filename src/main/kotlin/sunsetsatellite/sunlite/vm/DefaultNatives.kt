@@ -31,7 +31,7 @@ object DefaultNatives : Natives {
         registerIO(consumer)
         registerString(consumer)
         registerMath(consumer)
-        //registerReflect(consumer)
+        registerReflect(consumer)
     }
 
     fun registerIO(natives: NativesContainer) {
@@ -43,7 +43,7 @@ object DefaultNatives : Natives {
             }
         })
 
-        /*natives.defineNative(object : SLNativeFunction("File#open", Type.ofObject("File"), 0) {
+        natives.defineNative(object : SLNativeFunction("sunlite::stdlib::file::File#open", Type.ofObject("sunlite::stdlib::file::File"), 0) {
             override fun call(
                 vm: VM,
                 args: Array<AnySLValue>,
@@ -51,7 +51,7 @@ object DefaultNatives : Natives {
                 receiver: AnySLValue?
             ): AnySLValue {
                 val slFile = receiver!!.value as SLClassInstance
-                vm.typeChecker.checkType(Type.ofObject("File"), Type.fromValue(slFile), true)
+                vm.typeChecker.checkType(Type.ofObject("sunlite::stdlib::file::File"), Type.fromValue(slFile), true)
                 val filename = (slFile.fields["filename"]?.value as SLString).value
                 val file = File(filename)
                 try {
@@ -65,7 +65,7 @@ object DefaultNatives : Natives {
             }
         })
 
-        natives.defineNative(object : SLNativeFunction("File#readBytes", Type.ofArray(Type.BYTE), 0) {
+        natives.defineNative(object : SLNativeFunction("sunlite::stdlib::file::File#readBytes", Type.ofArray(Type.BYTE), 0) {
             override fun call(
                 vm: VM,
                 args: Array<AnySLValue>,
@@ -77,7 +77,7 @@ object DefaultNatives : Natives {
             }
         })
 
-        natives.defineNative(object : SLNativeFunction("File#readText", Type.STRING, 0) {
+        natives.defineNative(object : SLNativeFunction("sunlite::stdlib::file::File#readText", Type.STRING, 0) {
             override fun call(
                 vm: VM,
                 args: Array<AnySLValue>,
@@ -87,7 +87,7 @@ object DefaultNatives : Natives {
                 val file = ((receiver!! as SLClassInstanceObj).value.fields["<foreign>fileHandle"]?.value as SLForeignObject).value as File
                 return SLString(file.readText())
             }
-        })*/
+        })
     }
 
     fun registerCore(natives: NativesContainer) {
@@ -101,20 +101,20 @@ object DefaultNatives : Natives {
                 var arg = args[0]
                 if(arg is SLNil){
                     vm.moduleLoader = null
-                    vm.sunlite.printInfo("Module loader set to null from '${vm.frameStack.peek()}'!")
+                    vm.sunlite.printDebug("Module loader set to null from '${vm.frameStack.peek()}'!")
                     return SLNil
                 }
                 val obj = arg.value
-                vm.typeChecker.checkType(Type.ofObject("ModuleLoader"), Type.fromValue(obj), true)
+                vm.typeChecker.checkType(Type.ofObject("sunlite::stdlib::loader::ModuleLoader"), Type.fromValue(obj), true)
                 vm.moduleLoader = obj as SLClassInstance
                 if(Sunlite.debug) {
-                    vm.sunlite.printInfo("Module loader set to '${Type.fromValue(obj)}' from '${vm.frameStack.peek()}'!")
+                    vm.sunlite.printDebug("Module loader set to '${Type.fromValue(obj)}' from '${vm.frameStack.peek()}'!")
                 }
                 return SLNil
             }
         })
 
-        natives.defineNative(object : SLNativeFunction("getModuleLoader", Type.Union(listOf(Type.ofObject("ModuleLoader"), Type.NIL)), 0) {
+        natives.defineNative(object : SLNativeFunction("getModuleLoader", Type.Union(listOf(Type.ofObject("sunlite::stdlib::loader::ModuleLoader"), Type.NIL)), 0) {
             override fun call(
                 vm: VM,
                 args: Array<AnySLValue>,
@@ -666,7 +666,7 @@ object DefaultNatives : Natives {
     }
 
     fun registerReflect(natives: NativesContainer) {
-        natives.defineNative(object : SLNativeFunction("Reflect#getMethodNames", Type.ofArray(Type.STRING), 1) {
+        natives.defineNative(object : SLNativeFunction("sunlite::stdlib::reflect::Reflect#getMethodNames", Type.ofArray(Type.STRING), 1) {
             override fun call(vm: VM, args: Array<AnySLValue>, typeArgs: Array<SLType>, receiver: AnySLValue?): AnySLValue {
                 val clazz = args[0]
                 val array: Array<AnySLValue>
@@ -681,7 +681,7 @@ object DefaultNatives : Natives {
                 return SLArrayObj(SLArray(array.size, vm, Type.STRING).overwrite(array))
             }
         })
-        natives.defineNative(object : SLNativeFunction("Reflect#getFieldNames", Type.ofArray(Type.STRING), 1) {
+        natives.defineNative(object : SLNativeFunction("sunlite::stdlib::reflect::Reflect#getFieldNames", Type.ofArray(Type.STRING), 1) {
             override fun call(vm: VM, args: Array<AnySLValue>, typeArgs: Array<SLType>, receiver: AnySLValue?): AnySLValue {
                 val clazz = args[0]
                 val array: Array<AnySLValue>
@@ -696,7 +696,7 @@ object DefaultNatives : Natives {
                 return SLArrayObj(SLArray(array.size, vm, Type.STRING).overwrite(array))
             }
         })
-        natives.defineNative(object : SLNativeFunction("Reflect#getAnnotations", Type.ofArray(Type.STRING), 1) {
+        natives.defineNative(object : SLNativeFunction("sunlite::stdlib::reflect::Reflect#getAnnotations", Type.ofArray(Type.STRING), 1) {
             override fun call(
                 vm: VM,
                 args: Array<AnySLValue>,
@@ -714,7 +714,7 @@ object DefaultNatives : Natives {
             }
         })
 
-        natives.defineNative(object : SLNativeFunction("Reflect#getMethod", Type.Union(listOf(Type.FUNCTION, Type.NIL)), 2) {
+        natives.defineNative(object : SLNativeFunction("sunlite::stdlib::reflect::Reflect#getMethod", Type.Union(listOf(Type.FUNCTION, Type.NIL)), 2) {
             override fun call(
                 vm: VM,
                 args: Array<AnySLValue>,
@@ -744,10 +744,10 @@ object DefaultNatives : Natives {
             }
         })
 
-        natives.defineNative(object : SLNativeFunction("Field#loadField", Type.NIL, 0) {
+        natives.defineNative(object : SLNativeFunction("sunlite::stdlib::reflect::Field#loadField", Type.NIL, 0) {
             override fun call(vm: VM, args: Array<AnySLValue>, typeArgs: Array<SLType>, receiver: AnySLValue?): AnySLValue {
                 val obj = receiver!!.value as SLClassInstance
-                vm.typeChecker.checkType(Type.ofObject("Field"), Type.fromValue(obj), true)
+                vm.typeChecker.checkType(Type.ofObject("sunlite::stdlib::reflect::Field"), Type.fromValue(obj), true)
                 val c = obj.fields["clazz"]!!.value.value
                 val name = obj.fields["name"]!!.value.value as String
                 val field: SLField
@@ -776,7 +776,7 @@ object DefaultNatives : Natives {
                 return SLNil
             }
         })
-        natives.defineNative(object : SLNativeFunction("Field#get", Type.NULLABLE_ANY,0,1) {
+        natives.defineNative(object : SLNativeFunction("sunlite::stdlib::reflect::Field#get", Type.NULLABLE_ANY,0,1) {
             override fun call(
                 vm: VM,
                 args: Array<AnySLValue>,
@@ -784,7 +784,7 @@ object DefaultNatives : Natives {
                 receiver: AnySLValue?
             ): AnySLValue {
                 val field = receiver!!.value as SLClassInstance
-                vm.typeChecker.checkType(Type.ofObject("Field"), Type.fromValue(field), true)
+                vm.typeChecker.checkType(Type.ofObject("sunlite::stdlib::reflect::Field"), Type.fromValue(field), true)
                 field.fields["<foreign>field"]?.let {
                     return it.value
                 }
@@ -792,7 +792,7 @@ object DefaultNatives : Natives {
                 return SLNil
             }
         })
-        natives.defineNative(object : SLNativeFunction("Field#set", Type.NIL,1,0) {
+        natives.defineNative(object : SLNativeFunction("sunlite::stdlib::reflect::Field#set", Type.NIL,1,0) {
             override fun call(
                 vm: VM,
                 args: Array<AnySLValue>,
@@ -801,7 +801,7 @@ object DefaultNatives : Natives {
             ): AnySLValue {
                 val field = receiver!!.value as SLClassInstance
                 val value = args[0]
-                vm.typeChecker.checkType(Type.ofObject("Field"), Type.fromValue(field), true)
+                vm.typeChecker.checkType(Type.ofObject("sunlite::stdlib::reflect::Field"), Type.fromValue(field), true)
                 field.fields["<foreign>field"]?.let {
                     vm.typeChecker.checkType(it.type, Type.fromValue(value.value), true)
                     it.value = value

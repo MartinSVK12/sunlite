@@ -1,4 +1,4 @@
-module sunlite::stdlib::string;
+module std::string;
 
 class Strings {
     static native func len(s: String): Int

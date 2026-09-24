@@ -4,7 +4,6 @@ import sunsetsatellite.sunlite.lang.Expr.*
 import sunsetsatellite.sunlite.lang.Expr.Set
 import sunsetsatellite.sunlite.lang.TokenType.*
 import java.io.IOException
-import kotlin.collections.addAll
 
 
 class Parser(
@@ -101,6 +100,7 @@ class Parser(
         return when {
             match(INCLUDE) -> includeStatement()
             match(IMPORT) -> importStatement()
+            match(USE) -> useStatement()
             match(VAR) -> {
                 if(match(LEFT_PAREN)){
                     val decl = destructDeclaration()
@@ -202,6 +202,16 @@ class Parser(
         return null
     }
 
+    private fun useStatement(): Stmt? {
+        val keyword = previous()
+        val path = consume(IDENTIFIER, "Expected fully qualified type name for use statement.")
+        consume(AS, "Expected 'as' after type name in use statement.")
+        val alias = consume(IDENTIFIER, "Expected identifier for use alias.")
+        consume(SEMICOLON, "Expected ';' after use statement.")
+        addAlias(alias, path)
+        return null
+    }
+
     private fun importStatement(): Stmt? {
         val keyword = previous()
         val aliases: MutableList<Token> = mutableListOf()
@@ -219,7 +229,7 @@ class Parser(
         if(aliases.isNotEmpty()) consume(FROM, "Expected 'from' after import aliases.")
         val path = consume(IDENTIFIER, "Expected module name for import statement.").lexeme
         consume(SEMICOLON, "Expected ';' after import statement.")
-        val last = path.split("::").last()
+        val last = "*"
         return doImport(path, Token.identifier(last,keyword), keyword, aliases)
     }
 
@@ -234,11 +244,11 @@ class Parser(
         //if(sunlite.compileStep >= Sunlite.MAX_COMPILE_STEP) System.err.println("$location.${what.lexeme}")
         val id = location //+ "::" + what.lexeme
         if (sunlite.imports.contains(id)) {
-            return Stmt.Import(keyword, what, location, aliases)
+            return null //Stmt.Import(keyword, what, location, aliases)
         }
         sunlite.imports[id] = includingDepth to null
         if (sunlite.collector == null || !allowIncluding) {
-            return Stmt.Import(keyword, what, location, aliases)
+            return null //Stmt.Import(keyword, what, location, aliases)
         }
 
         var data: String? = null
@@ -311,24 +321,24 @@ class Parser(
 
         sunlite.imports[id] = includingDepth to statements
 
-        if (Sunlite.showOtherAST) {
-            sunlite.printInfo("AST: ${location}")
-            sunlite.printInfo("-----")
+        if (Sunlite.showOtherAST && sunlite.compileStep >= Sunlite.MAX_COMPILE_STEP) {
+            sunlite.printDebug("AST: ${location}")
+            sunlite.printDebug("-----")
             statements.forEach {
-                sunlite.printInfo(AstPrinter.print(it))
+                sunlite.printDebug(AstPrinter.print(it))
             }
-            sunlite.printInfo("-----")
-            sunlite.printInfo()
+            sunlite.printDebug("-----")
+            sunlite.printDebug()
         }
 
         if (Sunlite.debug && sunlite.compileStep >= Sunlite.MAX_COMPILE_STEP) {
-            sunlite.printInfo("Imported ${what.lexeme} from ${location}.")
+            sunlite.printDebug("Imported ${what.lexeme} from ${location}.")
             //sunlite.printInfo()
         }
         /*if(currentModule != null){
             currentModule!!.importAliases.addAll(importAliases)
         }*/
-        return Stmt.Import(keyword, what, location, aliases)
+        return null//Stmt.Import(keyword, what, location, aliases)
     }
 
     private fun includeStatement(): Stmt? {
@@ -424,7 +434,7 @@ class Parser(
         }*/
 
         if (Sunlite.debug) {
-            sunlite.printInfo("Parsed and included '${what.literal}'.")
+            sunlite.printDebug("Parsed and included '${what.literal}'.")
         }
 
         return Stmt.Include(keyword, what)
@@ -450,12 +460,12 @@ class Parser(
         val rawName = name
         currentModule?.let { module -> name = Token.identifier("${module.path.lexeme}::${name.lexeme}",name) }
         currentClass = name
-        importAliases[rawName] = name
+        addAlias(rawName, name)
 
         var superclass: Variable? = null
         if (match(EXTENDS)) {
-            consume(IDENTIFIER, "Expected superclass name.")
-            superclass = Variable(previous())
+            val token = resolveAlias(consume(IDENTIFIER, "Expected superclass name."))
+            superclass = Variable(token)
         }
         if(superclass == null && name.lexeme != "sunlite::stdlib::object::Object"){
             superclass = Variable(Token.identifier("sunlite::stdlib::object::Object", previous()))
@@ -468,7 +478,8 @@ class Parser(
                     error(peek(), "Can't inherit more than 255 superinterfaces.")
                 }
 
-                val name = Variable(consume(IDENTIFIER, "Expected superinterface name."))
+                val nameToken = resolveAlias(consume(IDENTIFIER, "Expected superinterface name."))
+                val name = Variable(nameToken)
                 val specifiedTypeParams: MutableList<Type> = mutableListOf()
                 if (match(LESS)) {
                     do {
@@ -645,24 +656,12 @@ class Parser(
         return Stmt.Class(name, methods, fields, superclass, superinterfaces.map { it.first }, modifier, typeParameters, staticInit)
     }
 
-    private fun superInitStatement(): Stmt {
-        current--
-        val expr = call()
-        consume(SEMICOLON, "Expected ';' after super constructor call.")
-        if(expr is Call){
-            val desc = "init"+Type.ofFunction("init", Type.NIL, expr.arguments.map { Param((it as NamedExpr).getNameToken(), it.getExprType()) }).getDescriptor()
-            (expr.callee as Super).method = Token.identifier(desc, expr.callee.getNameToken())
-            return Stmt.SuperInit(expr)
-        }
-        throw error(peek(), "Expected '(' after 'super' in super constructor call.")
-    }
-
     private fun enumDeclaration(): Stmt? {
         var name = consume(IDENTIFIER, "Expected enum name.")
         val rawName = name
         currentModule?.let { module -> name = Token.identifier("${module.path.lexeme}::${name.lexeme}",name) }
         currentClass = name
-        importAliases[rawName] = name
+        addAlias(rawName, name)
 
         val superclass = Variable(Token.identifier("Enum", previous()))
 
@@ -844,7 +843,7 @@ class Parser(
         var name = consume(IDENTIFIER, "Expected interface name.")
         val rawName = name
         currentModule?.let { module -> name = Token.identifier("${module.path.lexeme}::${name.lexeme}",name) }
-        importAliases[rawName] = name
+        addAlias(rawName, name)
 
         val superinterfaces: MutableList<Variable> = mutableListOf()
         if (match(IMPLEMENTS)) {
@@ -854,7 +853,7 @@ class Parser(
                 }
 
                 superinterfaces.add(
-                    Variable(consume(IDENTIFIER, "Expected superinterface name."))
+                    Variable(resolveAlias(consume(IDENTIFIER, "Expected superinterface name.")))
                 )
             } while (match(COMMA))
         }
@@ -889,6 +888,18 @@ class Parser(
         if(!allowedToParse()) return null
 
         return Stmt.Interface(name, methods, superinterfaces, typeParameters)
+    }
+
+    private fun superInitStatement(): Stmt {
+        current--
+        val expr = call()
+        consume(SEMICOLON, "Expected ';' after super constructor call.")
+        if(expr is Call){
+            val desc = "init"+Type.ofFunction("init", Type.NIL, expr.arguments.map { Param((it as NamedExpr).getNameToken(), it.getExprType()) }).getDescriptor()
+            (expr.callee as Super).method = Token.identifier(desc, expr.callee.getNameToken())
+            return Stmt.SuperInit(expr)
+        }
+        throw error(peek(), "Expected '(' after 'super' in super constructor call.")
     }
 
     data class FuncSignature(val name: Token, val parameters: List<Param>, val type: Type, val receiver: Token? = null)
@@ -1525,9 +1536,7 @@ class Parser(
         }
 
         if(mainToken.type == IDENTIFIER){
-            importAliases.filter { it.key.lexeme == mainToken.lexeme }.firstNotNullOfOrNull { it.value }?.let {
-                mainToken = Token.identifier(it.lexeme, mainToken)
-            }
+            mainToken = resolveAlias(mainToken)
         }
 
         //there should be only one top most type (probably)
@@ -2195,11 +2204,7 @@ class Parser(
         }
 
         if (match(IDENTIFIER)) {
-            var varToken = previous()
-
-            importAliases.filter { it.key.lexeme == varToken.lexeme }.firstNotNullOfOrNull { it.value }?.let {
-                varToken = Token.identifier(it.lexeme, varToken)
-            }
+            val varToken = resolveAlias(previous())
 
             if (sunlite.collector != null && sunlite.compileStep > 0) {
                 if(currentClass != null){
@@ -2279,6 +2284,23 @@ class Parser(
             types.add(elseBranch.getExprType() as Type.Singular)
         }
         Type.Union(types)
+    }
+
+    private fun addAlias(alias: Token, path: Token) {
+        if(Sunlite.debug && sunlite.compileStep >= Sunlite.MAX_COMPILE_STEP){
+            sunlite.printDebug("Adding alias: ${path.lexeme} as ${alias.lexeme}")
+        }
+        importAliases[alias] = path
+    }
+
+    private fun resolveAlias(alias: Token): Token {
+        importAliases.filter { it.key.lexeme == alias.lexeme }.firstNotNullOfOrNull { it.value }?.let {
+            if(Sunlite.debug && sunlite.compileStep >= Sunlite.MAX_COMPILE_STEP){
+                sunlite.printDebug("Resolved alias: ${alias.lexeme} -> ${it.lexeme}")
+            }
+            return Token.identifier(it.lexeme, alias)
+        }
+        return alias
     }
 
     /*private fun subparser(): Parser {

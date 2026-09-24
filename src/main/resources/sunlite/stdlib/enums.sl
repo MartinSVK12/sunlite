@@ -1,4 +1,4 @@
-module sunlite::stdlib::enums;
+module std::enums;
 
 abstract class Enum {
     static native func entries(): Array<Enum>

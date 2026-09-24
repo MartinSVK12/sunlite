@@ -1,4 +1,4 @@
-module sunlite::stdlib::exception;
+module std::exception;
 
 class Exception {
     var message: String = "";

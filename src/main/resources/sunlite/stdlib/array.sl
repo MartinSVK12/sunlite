@@ -1,7 +1,7 @@
-import Iterator from "/sunlite/stdlib/iterable";
-import Iterable from "/sunlite/stdlib/iterable";
-import List from "/sunlite/stdlib/list";
-import ArrayList from "/sunlite/stdlib/list";
+module std::array;
+import (Iterator, Iterable) from std::iterable;
+import (List, ArrayList) from std::list;
+use std::array::ArrayIterator as ArrayIterator;
 
 class Arrays {
     static func forEach(arr: Array, block: Function<Any?, Nil>) {

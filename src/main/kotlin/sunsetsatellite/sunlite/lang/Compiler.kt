@@ -90,6 +90,9 @@ class Compiler(val sunlite: Sunlite, val vm: VM?, val enclosing: Compiler?) : Ex
                 compile(statement)
             }
         } catch (e: CompilationException){
+            if(Sunlite.stacktrace){
+                e.printStackTrace()
+            }
             if(e.token != null){
                 sunlite.error(e.token, e.message)
             } else {
@@ -114,7 +117,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM?, val enclosing: Compiler?) : Ex
         }
 
         if (Sunlite.showDisassembly && (currentFile == sunlite.args[0] || Sunlite.showOtherDisassembly)) {
-            sunlite.printInfo(Disassembler.disassembleChunk(chunk.toImmutable()))
+            sunlite.printDebug(Disassembler.disassembleChunk(chunk.toImmutable()))
         }
 
         incompleteBreaks.forEach {

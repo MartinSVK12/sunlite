@@ -1,10 +1,9 @@
-import Iterator from "/sunlite/stdlib/iterable";
-import Iterable from "/sunlite/stdlib/iterable";
-import Map from "/sunlite/stdlib/map";
-import HashMap from "/sunlite/stdlib/map";
-import List from "/sunlite/stdlib/list";
-import ArrayList from "/sunlite/stdlib/list";
-import MapIterator from "/sunlite/stdlib/map";
+module std::map;
+import (Iterator, Iterable) from std::iterable;
+import (List, ArrayList) from std::list;
+use std::map::Map as Map;
+use std::map::MapIterator as MapIterator;
+use std::map::HashMap as HashMap;
 
 //todo: unfinished
 

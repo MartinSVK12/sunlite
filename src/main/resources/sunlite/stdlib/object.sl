@@ -1,4 +1,4 @@
-module sunlite::stdlib::object;
+module std::object;
 
 class Object {
     func toString(): String {

@@ -77,7 +77,7 @@ class Sunlite(val args: Array<String>) {
         autoImported["sunlite::stdlib::exception"] = listOf("Exception")
         autoImported["sunlite::stdlib::string"] = listOf("Strings")
         autoImported["sunlite::stdlib::enums"] = listOf("Enum")
-        //autoImported["sunlite.stdlib.array"] = "*"
+        autoImported["sunlite::stdlib::array"] = listOf("Arrays", "ArrayIterator")
 
         when {
             args.size > 4 -> {
@@ -290,11 +290,11 @@ class Sunlite(val args: Array<String>) {
         }
 
         if(debug){
-            printInfo("Load path: ")
-            printInfo("-----")
-            this.path.forEach { printInfo(it) }
-            printInfo("-----")
-            printInfo()
+            printDebug("Load path: ")
+            printDebug("-----")
+            this.path.forEach { printDebug(it) }
+            printDebug("-----")
+            printDebug()
         }
 
         val program: SLFunction
@@ -306,11 +306,11 @@ class Sunlite(val args: Array<String>) {
             val tokens: List<Token> = scanner.scanTokens(path)
 
             if (showTokens) {
-                printInfo("Tokens: ")
-                printInfo("-----")
-                tokens.forEach { printInfo("${it.lexeme} ${it.type}") }
-                printInfo("-----")
-                printInfo()
+                printDebug("Tokens: ")
+                printDebug("-----")
+                tokens.forEach { printDebug("${it.lexeme} ${it.type}") }
+                printDebug("-----")
+                printDebug()
             }
 
             vm = VM(this, if (args.size == 4) args[3].split(";").toTypedArray() else arrayOf())
@@ -341,27 +341,26 @@ class Sunlite(val args: Array<String>) {
             allStatements.addAll(statements)
 
             if (showTypeCollection) {
-                printInfo("Type Collection: ")
-                printInfo("--------")
+                printDebug("Type Collection: ")
+                printDebug("--------")
                 collector?.typeScopes?.forEach { printTypeScopes(it, 0) }
-                printInfo("--------")
-                printInfo()
-                printInfo("Type Hierarchy: ")
-                printInfo("--------")
-                collector?.typeHierarchy?.forEach { printInfo("${it.key}<${it.value.typeParameters.joinToString()}> extends ${it.value.superclass} implements ${if (it.value.superinterfaces.isNotEmpty()) it.value.superinterfaces.joinToString() else "<nil>"}") }
-                printInfo("--------")
-                printInfo("--------")
-                printInfo()
+                printDebug("--------")
+                printDebug()
+                printDebug("Type Hierarchy: ")
+                printDebug("--------")
+                collector?.typeHierarchy?.forEach { printDebug("${it.key}<${it.value.typeParameters.joinToString()}> extends ${it.value.superclass} implements ${if (it.value.superinterfaces.isNotEmpty()) it.value.superinterfaces.joinToString() else "<nil>"}") }
+                printDebug("--------")
+                printDebug()
             }
 
             if (showAST) {
-                printInfo("AST: ${path}")
-                printInfo("-----")
+                printDebug("AST: ${path}")
+                printDebug("-----")
                 statements.forEach {
-                    printInfo(AstPrinter.print(it))
+                    printDebug(AstPrinter.print(it))
                 }
-                printInfo("-----")
-                printInfo()
+                printDebug("-----")
+                printDebug()
             }
 
             if (!noTypeChecks) {
@@ -391,9 +390,11 @@ class Sunlite(val args: Array<String>) {
                         path,
                         "<module '$path::$name'>"
                     )
+                func.chunk.debugInfo.classData.forEach { (string, data) ->
+                    vm.classes[string] = data
+                }
                 if(path.isEmpty()){
                     modules[name] = SLModuleObj(SLModule(
-                        vm,
                         name,
                         Path("."),
                         false,
@@ -404,7 +405,6 @@ class Sunlite(val args: Array<String>) {
                     val p = mutableListOf<String>()
                     var current: SLModule = modules.computeIfAbsent(paths.first()) {
                         SLModuleObj(SLModule(
-                            vm,
                             paths.first(),
                             Path("."),
                             true
@@ -415,7 +415,6 @@ class Sunlite(val args: Array<String>) {
                         p.add(it)
                         current = current.env.computeIfAbsent(it) {
                             SLModuleObj(SLModule(
-                                vm,
                                 it,
                                 Path(p.joinToString("/")),
                                 true
@@ -425,7 +424,6 @@ class Sunlite(val args: Array<String>) {
                     p.add(name)
                     current.env.computeIfAbsent(name) {
                         SLModuleObj(SLModule(
-                            vm,
                             name,
                             Path(p.joinToString("/")),
                             false,
@@ -447,13 +445,13 @@ class Sunlite(val args: Array<String>) {
             vm.globals.putAll(modules)
 
             if(debug){
-                printInfo()
-                printInfo("Imported Modules: ")
-                printInfo("--------")
+                printDebug()
+                printDebug("Imported Modules: ")
+                printDebug("--------")
                 imports.forEach {
-                    printInfo(it.key)
+                    printDebug(it.key)
                 }
-                printInfo("--------")
+                printDebug("--------")
             }
 
             program = compiler.compile(
@@ -487,7 +485,7 @@ class Sunlite(val args: Array<String>) {
                         stream.use { program.write(it) }
                         //CompressUtils.compress(Path(compiledPath), Path(compiledPath.replace(".slc", ".slcc")))
                         //File(compiledPath).delete()
-                        printInfo("Exported $file")
+                        printDebug("Exported $file")
                         run = false
                     }
                 }
@@ -495,7 +493,7 @@ class Sunlite(val args: Array<String>) {
         }
         if(debug){
             printInfo("Compilation completed after ${duration}.")
-            printInfo()
+            printDebug()
         }
 	    return if (run) run(program) else null
     }
@@ -522,7 +520,7 @@ class Sunlite(val args: Array<String>) {
                 }
             }
             if(debug){
-                printInfo()
+                printDebug()
                 printInfo("Execution finished after ${duration}, number of instructions ran: ${vm.instCounter}")
             }
             return null
@@ -541,12 +539,12 @@ class Sunlite(val args: Array<String>) {
             sb.append("\t".repeat(depth + 1))
             sb.append("${it.key.lexeme} = ${it.value}")
         }
-        printInfo(sb.toString())
+        printDebug(sb.toString())
         it.inner.forEach { printTypeScopes(it, depth + 1) }
         sb.clear()
         sb.append("\t".repeat(depth))
         sb.append("}")
-        printInfo(sb.toString())
+        printDebug(sb.toString())
     }
 
 
@@ -578,9 +576,9 @@ class Sunlite(val args: Array<String>) {
         val s = "[$file, line $line${if(position != null) ", $position" else ""}] Error$where: $message"
         printErr(s)
 
-        if (stacktrace) {
+        /*if (stacktrace) {
             CompilationException("sunlite compilation error:").printStackTrace()
-        }
+        }*/
 
         hadError = true
     }
@@ -592,24 +590,37 @@ class Sunlite(val args: Array<String>) {
         val s = "[$file, line $line] Warn$where: $message"
         printWarn(s)
 
-        if (warnStacktrace) {
+        /*if (warnStacktrace) {
             CompilationException("sunlite compilation warning stack trace").printStackTrace()
-        }
+        }*/
     }
 
     fun printInfo(message: Any? = "") {
-        if (logToStdout) println(message)
+        if (logToStdout) println("\u001b[39m$message\u001b[39m")
         logEntryReceivers.forEach { it.info(message.toString()) }
     }
 
+    fun printDebug(message: Any? = ""){
+        if (logToStdout) println("\u001b[90m$message\u001b[39m")
+        logEntryReceivers.forEach { it.debug(message.toString()) }
+    }
+
     fun printWarn(message: Any? = "") {
-        if (logToStdout) System.err.println(message)
+        if (logToStdout) println("\u001b[33m$message\u001b[39m")
         logEntryReceivers.forEach { it.warn(message.toString()) }
     }
 
     fun printErr(message: Any? = "") {
         if (logToStdout) System.err.println(message)
         logEntryReceivers.forEach { it.err(message.toString()) }
+    }
+
+    open class A {
+
+    }
+
+    class B: A() {
+
     }
 
     /*inner class DebuggerServer(val port: Int = 24128): Thread() {

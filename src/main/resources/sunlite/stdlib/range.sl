@@ -1,4 +1,6 @@
-import ArrayIterator from "/sunlite/stdlib/array";
+module std::range;
+import ArrayIterator from std::array;
+import (Iterator, Iterable) from std::iterable;
 
 class IntRange implements Iterable<Int> {
     

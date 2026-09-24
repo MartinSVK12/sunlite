@@ -14,7 +14,6 @@ import kotlin.io.path.nameWithoutExtension
 import kotlin.io.path.notExists
 
 class SLModule(
-    var vm: VM,
     val name: String,
     val path: Path,
     var empty: Boolean,
@@ -27,57 +26,56 @@ class SLModule(
 
     fun findModule(vm: VM, name: String): AnySLValue? {
         if(debug){
-            vm.sunlite.printInfo("Finding module: '$name' in '${this.name}'.")
+            vm.sunlite.printDebug("Finding module: '$name' in '${this.name}'.")
         }
-        this.vm = vm
-        loadModule()
-        runModule()
+        loadModule(vm)
+        runModule(vm)
         if(env.containsKey(name)){
             return env[name]
         }
         contents.find { it.fileName.nameWithoutExtension == name }?.let {
-            val module = getModule(it) ?: return null
+            val module = getModule(vm, it) ?: return null
             env[name] = module
             return module
         }
         return null
     }
 
-    fun runModule() {
+    fun runModule(vm: VM) {
         if(!initialized && !empty && initializer != null){
             initialized = true
-            vm.sunlite.printInfo("Activating module: '${this.name}'.")
+            vm.sunlite.printDebug("Activating module: '${this.name}'.")
             vm.internalCall(initializer!!)
         } else if(!initialized) {
             initialized = true
         }
     }
 
-    fun getModule(path: Path): SLModuleObj? {
+    fun getModule(vm: VM, path: Path): SLModuleObj? {
         if(loader != null){
             //todo:
             return null
         } else {
             val fullPath = this.path.resolve(path)
             if(fullPath.notExists()) return null
-            val module = getModuleNative(path) ?: return null
+            val module = getModuleNative(vm, path) ?: return null
             return SLModuleObj(module)
         }
     }
 
-    fun loadModule() {
-        vm.sunlite.printInfo("Loading module: '${this.name}'.")
+    fun loadModule(vm: VM) {
+        vm.sunlite.printDebug("Loading module: '${this.name}'.")
         if(initializer == null && !empty){
             if(loader != null){
                 //todo:
                 return
             } else {
-                loadModuleNative()
+                loadModuleNative(vm)
             }
         }
     }
 
-    fun loadModuleNative(){
+    fun loadModuleNative(vm: VM){
         if(path.notExists()){
             vm.runtimeError("Could not load module '$name'!")
             return
@@ -104,7 +102,7 @@ class SLModule(
         //vm.currentFrame = vm.frameStack.peek()
     }
 
-    fun getModuleNative(name: Path): SLModule? {
+    fun getModuleNative(vm: VM, name: Path): SLModule? {
         val modulePath = this.path.resolve(name)
         var url = Sunlite::class.java.getResource(modulePath.toString().replace("\\","/"))
         if(url == null){
@@ -144,7 +142,7 @@ class SLModule(
             return null
         }
         val contents = if(path.isDirectory()) path.listDirectoryEntries().map { path.relativize(it) } else listOf<Path>()
-        return SLModule(vm, name.toString(), path, path.isDirectory(), contents.toMutableList())
+        return SLModule(name.toString(), path, path.isDirectory(), contents.toMutableList())
     }
 
     override fun equals(other: Any?): Boolean {

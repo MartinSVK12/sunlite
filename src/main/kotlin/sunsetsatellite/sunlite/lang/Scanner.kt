@@ -79,6 +79,7 @@ class Scanner(private var source: String, val sunlite: Sunlite) {
             keywords["required"] = REQUIRED
             keywords["abstract"] = ABSTRACT
             keywords["enum"] = ENUM
+            keywords["use"] = USE
         }
     }
 
@@ -210,7 +211,10 @@ class Scanner(private var source: String, val sunlite: Sunlite) {
     }
 
     private fun addToken(type: TokenType, literal: Any?) {
-        val text = source.substring(start, current)
+        var text = source.substring(start, current)
+        if(type == TokenType.IDENTIFIER && text.startsWith("std::")){
+            text = "sunlite::stdlib::"+text.removePrefix("std::")
+        }
         tokens.add(Token(type, text, literal, line, currentFile, Token.Position(lineStart, lineCurrent)))
     }
 

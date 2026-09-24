@@ -1,4 +1,5 @@
-import Field from "/sunlite/stdlib/reflect";
+module std::reflect;
+use std::reflect::Field as Field;
 
 class Reflect {
     static native func getMethodNames(c: Class | Object): Array<String>
@@ -15,9 +16,9 @@ class Reflect {
         return arr;
     }
 
-    static func getMethods(c: Class | Object): Array<Function> {
+    static func getMethods(c: Class | Object): Array<Function?> {
         var names: Array<String> = Reflect.getMethodNames(c);
-        var arr: Array<Function> = emptyArray(<Function>sizeOf(names));
+        var arr: Array<Function?> = emptyArray(<Function>sizeOf(names));
         for (var i: Int = 0; i < sizeOf(names); i++) {
             arr[i] = Reflect.getMethod(c,names[i]);
         }

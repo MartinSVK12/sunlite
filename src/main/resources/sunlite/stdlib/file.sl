@@ -1,3 +1,5 @@
+module std::file;
+
 class File {
     var filename: String = "";
     

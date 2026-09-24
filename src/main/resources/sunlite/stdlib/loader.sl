@@ -1,29 +1,6 @@
-//class Module {
-//    var name: String = "";
-//    var path: String = "";
-//    var contents: Array<String>? = nil;
-//}
+module std::loader;
 
 interface ModuleLoader {
-    //func get(name: String, path: String): Module?
-    //func load(name: String, path: String): Function<Nil>
-    func parent(): ModuleLoader?
+    func findClass(name: String): Class?
+    func loadModule(name: String, path: String): Function<Nil>?
 }
-
-//class BaseModuleLoader implements ModuleLoader {
-//    override func get(name: String, path: String): Module? {
-//        return getNative(name, path, Module());
-//    }
-//
-//    override func load(name: String, path: String): Function<Nil> {
-//        return loadNative(name, path);
-//    }
-//
-//    native func getNative(name: String, path: String, m: Module): Module?
-//
-//    native func loadNative(name: String, path: String): Function<Nil>
-//
-//    override func parent(): ModuleLoader? {
-//        return nil;
-//    }
-//}
