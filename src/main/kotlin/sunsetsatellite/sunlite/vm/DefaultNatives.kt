@@ -59,7 +59,7 @@ object DefaultNatives : Natives {
                     slFile.fields["<foreign>fileHandle"] = SLField(Type.UNKNOWN, SLForeignObject(file))
                     return receiver
                 } catch (e: IOException) {
-                    vm.runtimeError(e.message ?: "null")
+                    vm.runtimeError(VMExceptions.IO_ERROR, e.message ?: "null")
                     return SLNil
                 }
             }

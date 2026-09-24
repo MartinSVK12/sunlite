@@ -21,7 +21,7 @@ class SLTuple(val vm: VM, val types: List<Type>) {
 
     fun set(index: Int, value: AnySLValue) {
         if (index >= size || index < -size) {
-            vm.runtimeError("Tuple index $index is out of bounds for an tuple of size $size.")
+            vm.runtimeError(VMExceptions.INVALID_ARGUMENTS, "Tuple index $index is out of bounds for an tuple of size $size.")
         }
         if(index < 0){
             array[array.size - abs(index)] = value
@@ -32,7 +32,7 @@ class SLTuple(val vm: VM, val types: List<Type>) {
 
     fun get(index: Int): AnySLValue {
         if (index >= size || index < -size) {
-            vm.runtimeError("Tuple index $index is out of bounds for an tuple of size $size.")
+            vm.runtimeError(VMExceptions.INVALID_ARGUMENTS, "Tuple index $index is out of bounds for an tuple of size $size.")
         }
         if(index < 0){
             return array[array.size - abs(index)]

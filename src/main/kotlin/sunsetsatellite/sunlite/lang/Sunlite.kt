@@ -517,7 +517,7 @@ class Sunlite(val args: Array<String>) {
                     if (stacktrace) {
                         e.printStackTrace()
                     }
-                    vm.runtimeError("InternalError: $e")
+                    vm.printStacktrace("InternalError: $e")
                 }
             }
             if(debug){

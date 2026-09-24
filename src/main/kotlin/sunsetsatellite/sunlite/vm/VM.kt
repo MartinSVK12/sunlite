@@ -12,6 +12,7 @@ import kotlin.io.path.Path
 import kotlin.io.path.exists
 import kotlin.io.path.isDirectory
 import kotlin.io.path.listDirectoryEntries
+import sunsetsatellite.sunlite.vm.VMExceptions.*
 
 // todo: more runtime checks
 // todo: check that the signature of overridden function has not changed
@@ -92,8 +93,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : NativesContainer
     fun tick() {
         try {
             if (currentFrame == null) {
-                runtimeError("VM uninitialized.")
-                return
+                throw VMError("VM uninitialized.")
             }
             var fr: CallFrame = currentFrame!!
             if (fr.pc < fr.closure.function.chunk.code.size) {
@@ -171,7 +171,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : NativesContainer
                     Opcodes.CONSTANT -> fr.push(readConstant(fr))
                     Opcodes.NEGATE -> {
                         if (fr.peek() !is SLNumber) {
-                            runtimeError("Operand must be a number.")
+                            runtimeError(INVALID_ARGUMENTS,"Operand must be a number.")
                             return
                         }
                         fr.push(-(fr.pop() as SLNumber))
@@ -187,14 +187,14 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : NativesContainer
                             val left = fr.pop() as SLNumber
                             fr.push(left + right)
                         } else {
-                            runtimeError("Operands must be numbers or strings.")
+                            runtimeError(INVALID_ARGUMENTS,"Operands must be numbers or strings.")
                             return
                         }
                     }
 
                     Opcodes.SUB -> {
                         if (fr.peek() !is SLNumber || fr.peek(1) !is SLNumber) {
-                            runtimeError("Operands must be a number.")
+                            runtimeError(INVALID_ARGUMENTS,"Operands must be a number.")
                             return
                         }
                         val right = fr.pop() as SLNumber
@@ -204,7 +204,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : NativesContainer
 
                     Opcodes.MULTIPLY -> {
                         if (fr.peek() !is SLNumber || fr.peek(1) !is SLNumber) {
-                            runtimeError("Operands must be a number.")
+                            runtimeError(INVALID_ARGUMENTS,"Operands must be a number.")
                             return
                         }
                         val right = fr.pop() as SLNumber
@@ -214,7 +214,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : NativesContainer
 
                     Opcodes.DIVIDE -> {
                         if (fr.peek() !is SLNumber || fr.peek(1) !is SLNumber) {
-                            runtimeError("Operands must be a number.")
+                            runtimeError(INVALID_ARGUMENTS,"Operands must be a number.")
                             return
                         }
                         val right = fr.pop() as SLNumber
@@ -224,7 +224,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : NativesContainer
 
                     Opcodes.REMAINDER -> {
                         if (fr.peek() !is SLNumber || fr.peek(1) !is SLNumber) {
-                            runtimeError("Operands must be a number.")
+                            runtimeError(INVALID_ARGUMENTS,"Operands must be a number.")
                             return
                         }
                         val right = fr.pop() as SLNumber
@@ -243,7 +243,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : NativesContainer
                         } else if(fr.peek() is SLString && fr.peek(1) is SLString){
                             fr.push(SLBool.of((fr.pop() as SLString).value < (fr.pop() as SLString).value))
                         } else {
-                            runtimeError("Operands must be numbers or strings.")
+                            runtimeError(INVALID_ARGUMENTS,"Operands must be numbers or strings.")
                             return
                         }
                     }
@@ -254,7 +254,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : NativesContainer
                         } else if(fr.peek() is SLString && fr.peek(1) is SLString){
                             fr.push(SLBool.of((fr.pop() as SLString).value > (fr.pop() as SLString).value))
                         } else {
-                            runtimeError("Operands must be numbers or strings.")
+                            runtimeError(INVALID_ARGUMENTS,"Operands must be numbers or strings.")
                             return
                         }
                     }
@@ -269,7 +269,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : NativesContainer
                     Opcodes.SET_GLOBAL -> {
                         val constant = readConstant(fr) as SLString
                         if (!globals.containsKey(constant.value)) {
-                            runtimeError("Undefined global variable '${constant.value}'.")
+                            runtimeError(UNDEFINED_VALUE,"Undefined global variable '${constant.value}'.")
                             return
                         }
                         globals[constant.value] = fr.peek()
@@ -279,7 +279,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : NativesContainer
                         val constant = readConstant(fr) as SLString
                         if (!globals.containsKey(constant.value)) {
                             if(findClass(constant.value) == null){
-                                runtimeError("Undefined global variable '${constant.value}'.")
+                                runtimeError(UNDEFINED_VALUE,"Undefined global variable '${constant.value}'.")
                                 return
                             }
                             fr.pc -= 3
@@ -350,8 +350,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : NativesContainer
                         val slot = readShort(fr)
                         val closedValue = fr.closure.upvalues[slot]?.closedValue
                         if(closedValue == null){
-                            runtimeError("Tried to get undefined upvalue in slot ${slot}.")
-                            return
+                            throw VMError("Tried to get undefined upvalue in slot ${slot}.")
                         }
                         fr.push(closedValue)
                     }
@@ -386,7 +385,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : NativesContainer
 
                     Opcodes.SET_PROP -> {
                         if (fr.peek(1) !is SLClassInstanceObj && fr.peek(1) !is SLClassObj) {
-                            runtimeError("Only classes or class instances have properties (got ${fr.peek(1)}).")
+                            runtimeError(INVALID_OPERATION,"Only classes or class instances have properties (got ${fr.peek(1)}).")
                             return
                         }
                         if (fr.peek(1) is SLClassObj) {
@@ -428,7 +427,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : NativesContainer
                                     fr.push(SLNil)
                                     return
                                 }
-                                runtimeError("Only classes or class instances have properties (got ${arg}).")
+                                runtimeError(INVALID_OPERATION,"Only classes or class instances have properties (got ${arg}).")
                                 return
                             }
                         }
@@ -461,7 +460,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : NativesContainer
                                 fr.pop()
                                 fr.push(clazz.methods[name]!!)
                             } else {
-                                runtimeError("Undefined static property '$name'.")
+                                runtimeError(UNDEFINED_VALUE,"Undefined static property '$name'.")
                                 return
                             }
                         } else if (arg is SLClassInstanceObj) {
@@ -473,7 +472,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : NativesContainer
                             } else if (bindMethod(fr, instance.clazz, name)) {
 
                             } else {
-                                runtimeError("Undefined property '$name'.")
+                                runtimeError(UNDEFINED_VALUE,"Undefined property '$name'.")
                                 return
                             }
                         } else if (arg is SLArrayObj) {
@@ -482,7 +481,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : NativesContainer
                             if (globals.containsKey("sunlite::stdlib::array::Arrays")) {
                                 val clazz = globals["sunlite::stdlib::array::Arrays"]!!.value as SLClass
                                 if (!clazz.methods.containsKey(name)) {
-                                    runtimeError("Undefined property '$name'.")
+                                    runtimeError(UNDEFINED_VALUE,"Undefined property '$name'.")
                                     return
                                 }
                                 fr.pop()
@@ -491,8 +490,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : NativesContainer
                                 fr.push(SLArrayObj(instance))
                             } else {
                                 if(findClass("sunlite::stdlib::array::Arrays") == null){
-                                    runtimeError("InternalError: Cannot find internal stdlib class 'Arrays'.")
-                                    return
+                                    throw VMError("Cannot find internal stdlib class 'Arrays'.")
                                 }
                                 fr.push(SLBool.of(safe))
                                 fr.pc = pc - 1
@@ -506,7 +504,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : NativesContainer
                                 fr.push(globals["${wrapperClassName}#${name}"]!!)
                                 fr.push(arg)
                             } else {
-                                runtimeError("Undefined property '$name'.")
+                                runtimeError(UNDEFINED_VALUE,"Undefined property '$name'.")
                                 return
                             }
                         }
@@ -517,14 +515,14 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : NativesContainer
                             fr.peek(0) !is SLTableObj &&
                             fr.peek(0) !is SLTupleObj &&
                             fr.peek(0) !is SLString) {
-                            runtimeError("Only arrays, tables, tuples and strings support getting with the indexing operator.")
+                            runtimeError(INVALID_OPERATION,"Only arrays, tables, tuples and strings support getting with the indexing operator.")
                             return
                         }
                         if(fr.peek(0) is SLString){
                             val s = (fr.pop() as SLString).value
                             val index = fr.pop()
                             if (index !is SLNumber || !index.isInteger()) {
-                                runtimeError("String index must be an integer.")
+                                runtimeError(INVALID_ARGUMENTS,"String index must be an integer.")
                                 return
                             }
                             fr.push(SLString(s[index.value.toInt()].toString()))
@@ -532,7 +530,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : NativesContainer
                             val arr = (fr.pop() as SLArrayObj).value
                             val index = fr.pop()
                             if (index !is SLNumber || !index.isInteger()) {
-                                runtimeError("Array index must be an integer.")
+                                runtimeError(INVALID_ARGUMENTS,"Array index must be an integer.")
                                 return
                             }
                             fr.push(arr.get(index.value.toInt()))
@@ -540,7 +538,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : NativesContainer
                             val arr = (fr.pop() as SLTupleObj).value
                             val index = fr.pop()
                             if (index !is SLNumber || !index.isInteger()) {
-                                runtimeError("Tuple index must be an integer.")
+                                runtimeError(INVALID_ARGUMENTS,"Tuple index must be an integer.")
                                 return
                             }
                             fr.push(arr.get(index.value.toInt()))
@@ -554,7 +552,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : NativesContainer
 
                     Opcodes.ARRAY_SET -> {
                         if (fr.peek(0) !is SLArrayObj && fr.peek(0) !is SLTableObj && fr.peek(0) !is SLTupleObj) {
-                            runtimeError("Only arrays, tables and tuples support setting with the indexing operator.")
+                            runtimeError(INVALID_OPERATION,"Only arrays, tables and tuples support setting with the indexing operator.")
                             return
                         }
                         if (fr.peek(0) is SLArrayObj) {
@@ -562,7 +560,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : NativesContainer
                             val index = fr.pop()
                             val value = fr.pop()
                             if (index !is SLNumber || !index.isInteger()) {
-                                runtimeError("Array index must be an integer.")
+                                runtimeError(INVALID_ARGUMENTS,"Array index must be an integer.")
                                 return
                             }
                             arr.set(index.value.toInt(), value)
@@ -572,7 +570,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : NativesContainer
                             val index = fr.pop()
                             val value = fr.pop()
                             if (index !is SLNumber || !index.isInteger()) {
-                                runtimeError("Tuple index must be an integer.")
+                                runtimeError(INVALID_ARGUMENTS,"Tuple index must be an integer.")
                                 return
                             }
                             arr.set(index.value.toInt(), value)
@@ -609,7 +607,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : NativesContainer
                     Opcodes.LOCK -> {
                         val clazz = (fr.peek(0) as SLClassObj).value
                         if(clazz.isLocked){
-                            runtimeError("Class '${clazz.name}' already locked.")
+                            runtimeError(INVALID_OPERATION,"Class '${clazz.name}' already locked.")
                             return
                         }
                         clazz.isLocked = true
@@ -623,22 +621,22 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : NativesContainer
                         val superclass = fr.peek(1)
 
                         if (superclass !is SLClassObj) {
-                            runtimeError("Superclass must be a class.")
+                            runtimeError(INVALID_OPERATION,"Superclass must be a class.")
                             return
                         }
 
                         val subclass = fr.peek(0)
 
                         if (subclass !is SLClassObj) {
-                            runtimeError("Only classes support inheritance.")
+                            runtimeError(INVALID_OPERATION,"Only classes support inheritance.")
                             return
                         }
                         if(superclass.value.isSealed){
-                            runtimeError("Cannot extend sealed class '${subclass.value.name}'.")
+                            runtimeError(INVALID_OPERATION,"Cannot extend sealed class '${subclass.value.name}'.")
                             return
                         }
                         if(superclass.value.isEnum){
-                            runtimeError("Cannot extend enum '${subclass.value.name}'.")
+                            runtimeError(INVALID_OPERATION,"Cannot extend enum '${subclass.value.name}'.")
                             return
                         }
                         subclass.value.methods.putAll(superclass.value.methods)
@@ -652,12 +650,12 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : NativesContainer
                         val superclass = fr.pop()
 
                         if (superclass !is SLClassObj) {
-                            runtimeError("Superclass must be a class, got ${superclass} instead.")
+                            runtimeError(INVALID_OPERATION,"Superclass must be a class, got ${superclass} instead.")
                             return
                         }
 
                         if (!bindMethod(fr, superclass.value, name.value)) {
-                            runtimeError("Cannot bind method '${name.value}' to class '$superclass'.")
+                            runtimeError(INVALID_OPERATION,"Cannot bind method '${name.value}' to class '$superclass'.")
                             return
                         }
 
@@ -714,7 +712,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : NativesContainer
             }
         } catch (e: Exception) {
             if (Sunlite.tickMode) {
-                runtimeError("InternalError: $e")
+                runtimeError(UNKNOWN,"InternalError: $e") //todo: should this be here?
                 if (stacktrace) {
                     e.printStackTrace()
                 }
@@ -796,12 +794,12 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : NativesContainer
         val function = method.value.function
         function.belongsTo = clazz.name
         if (!function.modifier.contains(FunctionModifier.ABSTRACT) && clazz.isInterface) {
-            runtimeError("Attempted to define a non-abstract method '$method' on interface '$clazz'.")
+            runtimeError(INVALID_OPERATION,"Attempted to define a non-abstract method '$method' on interface '$clazz'.")
             fr.pop()
             return
         }
         if (function.modifier.contains(FunctionModifier.ABSTRACT) && !clazz.isInterface && !clazz.isAbstract) {
-            runtimeError("Attempted to define a abstract method '$method' on non-abstract class '$clazz'.")
+            runtimeError(INVALID_OPERATION,"Attempted to define a abstract method '$method' on non-abstract class '$clazz'.")
             fr.pop()
             return
         }
@@ -928,7 +926,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : NativesContainer
         if(clazz.fieldDefaults[name]!!.value is SLUninitialized){
             clazz.fieldDefaults[name]!!.value = value
         } else {
-            runtimeError("Field '$name' already initialized.")
+            runtimeError(INVALID_OPERATION,"Field '$name' already initialized.")
             return
         }
         fr.pop()
@@ -946,7 +944,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : NativesContainer
                 value.value.fields["name"] = SLField(Type.STRING, SLString(name))
             }
         } else {
-            runtimeError("Static field '$name' already initialized.")
+            runtimeError(INVALID_OPERATION,"Static field '$name' already initialized.")
             return
         }
         fr.pop()
@@ -961,7 +959,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : NativesContainer
 
     private fun bindMethod(fr: CallFrame, clazz: SLClass, name: String): Boolean {
         if (!clazz.methods.containsKey(name)) {
-            runtimeError("Method '$name' not found in class '${clazz.name}'.")
+            runtimeError(NO_METHOD,"Method '$name' not found in class '${clazz.name}'.")
             return false
         }
         val receiver = fr.peek(0)
@@ -999,7 +997,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : NativesContainer
 
                 is SLBoundMethod -> {
                     if (callee.value.receiver !is SLClassInstanceObj && callee.value.receiver !is SLClassObj) {
-                        runtimeError("Invalid receiver '${callee.value.receiver}' for method '${callee.value.method.function.name}'.")
+                        runtimeError(INVALID_STATE,"Invalid receiver '${callee.value.receiver}' for method '${callee.value.method.function.name}'.")
                         return false
                     }
                     if (callee.value.receiver is SLClassInstanceObj) {
@@ -1007,11 +1005,11 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : NativesContainer
                             val methodName =
                                 "${callee.value.method.function.belongsTo}#${callee.value.method.function.name}"
                             if (!(globals.containsKey(methodName))) {
-                                runtimeError("Native method '$methodName' not bound to anything.")
+                                runtimeError(INVALID_STATE,"Native method '$methodName' not bound to anything.")
                                 return false
                             }
                             if (globals[methodName] !is SLNativeFuncObj) {
-                                runtimeError("Native method '$methodName' bound to invalid value '${globals[methodName]}'.")
+                                runtimeError(INVALID_STATE,"Native method '$methodName' bound to invalid value '${globals[methodName]}'.")
                                 return false
                             }
                             return callNative(globals[methodName] as SLNativeFuncObj, argCount, typeArgCount, callee.value.receiver)
@@ -1025,42 +1023,42 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : NativesContainer
                         if (modifier.contains(FunctionModifier.STATIC) && modifier.contains(FunctionModifier.NATIVE)) {
                             val methodName = "${callee.value.method.function.belongsTo}#${callee.value.method.function.name}"
                             if (!(globals.containsKey(methodName))) {
-                                runtimeError("Native method '$methodName' not bound to anything.")
+                                runtimeError(INVALID_STATE,"Native method '$methodName' not bound to anything.")
                                 return false
                             }
                             if (globals[methodName] !is SLNativeFuncObj) {
-                                runtimeError("Native method '$methodName' bound to invalid value '${globals[methodName]}'.")
+                                runtimeError(INVALID_STATE,"Native method '$methodName' bound to invalid value '${globals[methodName]}'.")
                                 return false
                             }
                             return callNative(globals[methodName] as SLNativeFuncObj, argCount, typeArgCount, callee.value.receiver)
                         } else {
-                            runtimeError("Can only call static methods on classes.")
+                            runtimeError(INVALID_OPERATION,"Can only call static methods on classes.")
                             return false
                         }
                     }
                 }
             }
         }
-        runtimeError("Can only call functions but tried to call '${Type.fromValue(callee.value)}'.")
+        runtimeError(INVALID_OPERATION,"Can only call functions but tried to call '${Type.fromValue(callee.value)}'.")
         return false
     }
 
     fun callConstructor(callee: SLClassObj, argCount: Int, typeArgCount: Int): Boolean {
         // instantiation checks
         if (callee.value.isAbstract) {
-            runtimeError("Can't instantiate abstract class '${callee.value.name}'.")
+            runtimeError(INVALID_OPERATION,"Can't instantiate abstract class '${callee.value.name}'.")
             return false
         }
         if (callee.value.isInterface) {
-            runtimeError("Can't instantiate interface '${callee.value.name}'.")
+            runtimeError(INVALID_OPERATION,"Can't instantiate interface '${callee.value.name}'.")
             return false
         }
         if(callee.value.isLocked){
             if(callee.value.isEnum){
-                runtimeError("Can't instantiate enum '${callee.value.name}'.")
+                runtimeError(INVALID_OPERATION,"Can't instantiate enum '${callee.value.name}'.")
                 return false
             }
-            runtimeError("Can't create more instances of class '${callee.value.name}' because it is locked.")
+            runtimeError(INVALID_OPERATION,"Can't create more instances of class '${callee.value.name}' because it is locked.")
             return false
         }
 
@@ -1141,7 +1139,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : NativesContainer
                     .filter { it.params.size == args.size }
                     .filter { it.params.zip(args).all { (p, a) -> Type.contains(a.type, p.type, this, this.sunlite) } }
             if(constructor.size > 1){
-                runtimeError("Multiple identical constructors defined.")
+                runtimeError(INVALID_STATE,"Multiple identical constructors defined.")
                 return null
             }
 
@@ -1151,14 +1149,14 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : NativesContainer
                         .filter { it.contains("init") }
                         .map{ it.replace("init","") }
                         .map{ Descriptor(it).getType() }.joinToString("\n\t")
-                runtimeError("Parameters do not match any defined constructor for class '${callee.name}'.\nGot ${type}, expected one of\n\t${availableConstructors}\n")
+                runtimeError(INVALID_ARGUMENTS,"Parameters do not match any defined constructor for class '${callee.name}'.\nGot ${type}, expected one of\n\t${availableConstructors}\n")
                 return null
             }
 
             return constructor.first()
 
         } else if (argCount != 0) {
-            runtimeError("Expected 0 arguments but got $argCount.")
+            runtimeError(INVALID_ARGUMENTS,"Expected 0 arguments but got $argCount.")
             return null
         }
         return null
@@ -1166,12 +1164,12 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : NativesContainer
 
     fun callNative(callee: SLNativeFuncObj, argCount: Int, typeArgCount: Int = 0, receiverObj: AnySLValue? = null): Boolean {
         if (callee.value.arity != -1 && argCount != callee.value.arity) {
-            runtimeError("Expected ${callee.value.arity} arguments but got ${argCount}.")
+            runtimeError(INVALID_ARGUMENTS,"Expected ${callee.value.arity} arguments but got ${argCount}.")
             return false
         }
 
         if (callee.value.typeArity != -1 && typeArgCount != callee.value.typeArity) {
-            runtimeError("Expected ${callee.value.typeArity} type arguments but got ${typeArgCount}.")
+            runtimeError(INVALID_ARGUMENTS,"Expected ${callee.value.typeArity} type arguments but got ${typeArgCount}.")
             return false
         }
 
@@ -1188,17 +1186,17 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : NativesContainer
     fun call(callee: SLClosureObj, argCount: Int, typeArgCount: Int = 0, receiverObj: AnySLValue? = null, internal: Boolean = false): Boolean {
         val receiver = (receiverObj as SLClassInstanceObj?)?.value
         if (callee.value.function.modifier.contains(FunctionModifier.ABSTRACT)) {
-            runtimeError("Can't call abstract method '${callee.value.function.name}'.")
+            runtimeError(INVALID_OPERATION,"Can't call abstract method '${callee.value.function.name}'.")
             return false
         }
 
         if (argCount != callee.value.function.arity && !internal) {
-            runtimeError("Expected ${callee.value.function.arity} arguments but got ${argCount}.")
+            runtimeError(INVALID_ARGUMENTS,"Expected ${callee.value.function.arity} arguments but got ${argCount}.")
             return false
         }
 
         if (frameStack.size == MAX_FRAMES) {
-            runtimeError("Stack overflow.")
+            runtimeError(STACK_OVERFLOW,"Stack overflow.")
             return false
         }
 
@@ -1281,7 +1279,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : NativesContainer
     }
 
     private fun noClassFound(path: String): Nothing? {
-        runtimeError("Could not find class '$path'!")
+        runtimeError(NO_CLASS,"Could not find class '$path'!")
         return null
         //throw VMError("Could not find class '$path'!")
     }
@@ -1359,7 +1357,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : NativesContainer
             }
         }
         if(path == null){
-            runtimeError("Could not find module '$name'!")
+            runtimeError(NO_MODULE,"Could not find module '$name'!")
             return null
         }
         val contents = if(path.isDirectory()) path.listDirectoryEntries().map { path.relativize(it) } else listOf<Path>()
@@ -1618,7 +1616,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : NativesContainer
         val trace = (e.value.fields["stacktrace"]?.value?.value as SLArray?)?.internal()
         val cause = e.value.fields["cause"]?.value
         val sb = StringBuilder()
-        sb.append(e.value.clazz.name).append(": ").append(message).append("\n")
+        sb/*.append(e.value.clazz.name).append(": ")*/.append(message).append("\n")
         trace?.forEach {
             sb
                 .append("\tat ")
@@ -1694,7 +1692,7 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : NativesContainer
         sunlite.printErr(getStacktrace(e))
     }
 
-    fun runtimeError(message: String) {
+    fun runtimeError(kind: VMExceptions, message: String) {
         /*if (stacktrace) {
             Exception("runtime error: $message").printStackTrace()
         }*/
@@ -1705,6 +1703,6 @@ class VM(val sunlite: Sunlite, val launchArgs: Array<String>) : NativesContainer
 
         sunlite.hadRuntimeError = true
 
-        throwException(message)
+        throwException(kind.name.lowercase().split("_").joinToString("") { it.capitalize() }+": "+message)
     }
 }

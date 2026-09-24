@@ -77,7 +77,7 @@ class SLModule(
 
     fun loadModuleNative(vm: VM){
         if(path.notExists()){
-            vm.runtimeError("Could not load module '$name'!")
+            vm.runtimeError(VMExceptions.NO_MODULE,"Could not load module '$name'!")
             return
         }
         try {
@@ -92,11 +92,11 @@ class SLModule(
             }
         } catch (e: Exception){
             //throw VMError("Could not load module '$name'", e)
-            vm.runtimeError("Could not load module '$name': ${e.message}")
+            vm.runtimeError(VMExceptions.NO_MODULE,"Could not load module '$name': ${e.message}")
             return
         }
         if(initializer == null){
-            vm.runtimeError("Could not load module '$name'!")
+            vm.runtimeError(VMExceptions.NO_MODULE,"Could not load module '$name'!")
             return
         }
         //vm.call(initializer!!,0)
@@ -139,7 +139,7 @@ class SLModule(
             }
         }
         if(path == null){
-            vm.runtimeError("Could not find module '$name'!")
+            vm.runtimeError(VMExceptions.NO_MODULE,"Could not find module '$name'!")
             return null
         }
         val contents = if(path.isDirectory()) path.listDirectoryEntries().map { path.relativize(it) } else listOf<Path>()

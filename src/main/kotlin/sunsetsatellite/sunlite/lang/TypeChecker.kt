@@ -1,6 +1,7 @@
 package sunsetsatellite.sunlite.lang
 
 import sunsetsatellite.sunlite.vm.VM
+import sunsetsatellite.sunlite.vm.VMExceptions
 import java.util.*
 
 class TypeChecker(val sunlite: Sunlite, val vm: VM?) : Expr.Visitor<Unit>, Stmt.Visitor<Unit> {
@@ -34,7 +35,7 @@ class TypeChecker(val sunlite: Sunlite, val vm: VM?) : Expr.Visitor<Unit>, Stmt.
         if(expected is Type.Parameter && actual != Type.UNKNOWN && runtime) return true
         if (!valid) {
             if (runtime && vm != null) {
-                vm.throwException("TypeError: Expected '$expected' but got '$actual'.")
+                vm.runtimeError(VMExceptions.TYPE_ERROR,"Expected '$expected' but got '$actual'.")
                 return false
             } else {
                 sunlite.error(token!!, "Expected '$expected' but got '$actual'.")

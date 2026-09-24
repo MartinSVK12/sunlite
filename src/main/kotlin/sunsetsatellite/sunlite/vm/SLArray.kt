@@ -17,7 +17,7 @@ class SLArray(var size: Int, val vm: VM, val type: Type) {
 
     fun set(index: Int, value: AnySLValue) {
         if (index >= size || index < -size) {
-            vm.runtimeError("Array index $index is out of bounds for an array of size $size.")
+            vm.runtimeError(VMExceptions.INDEX_OUT_OF_BOUNDS,"Array index $index is out of bounds for an array of size $size.")
         }
         if(index < 0){
             array[array.size - abs(index)] = value
@@ -28,7 +28,7 @@ class SLArray(var size: Int, val vm: VM, val type: Type) {
 
     fun get(index: Int): AnySLValue {
         if (index >= size || index < -size) {
-            vm.runtimeError("Array index $index is out of bounds for an array of size $size.")
+            vm.runtimeError(VMExceptions.INDEX_OUT_OF_BOUNDS,"Array index $index is out of bounds for an array of size $size.")
         }
         if(index < 0){
             return array[array.size - abs(index)]

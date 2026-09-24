@@ -1020,7 +1020,7 @@ class Compiler(val sunlite: Sunlite, val vm: VM?, val enclosing: Compiler?) : Ex
         }
     }
 
-    fun getInheritedMethods(name: String, methods: MutableList<Pair<String,Token>> = mutableListOf(), token: Token? = null): List<Pair<String,Token>> {
+    fun getInheritedMethods(name: String, methods: MutableList<Pair<String,Token>> = mutableListOf(), token: Token? = null, inherited: MutableList<String> = mutableListOf()): List<Pair<String,Token>> {
         val classPrototype = sunlite.collector!!.typeHierarchy[name] ?: throw CompilationException("Class '$name' not found.", token)
         if(classPrototype.superclass != "<nil>"){
             sunlite.collector?.typeHierarchy[classPrototype.superclass]?.let { type ->
@@ -1032,11 +1032,14 @@ class Compiler(val sunlite: Sunlite, val vm: VM?, val enclosing: Compiler?) : Ex
                 }?.map { classPrototype.superclass to it.key }?.toMutableList() ?: mutableListOf()
                 methods.addAll(list)
             }
-            getInheritedMethods(classPrototype.superclass, methods, token)
+            if(classPrototype.superclass in inherited) {
+                throw CompilationException("Circular inheritance detected.", token)
+            }
+            getInheritedMethods(classPrototype.superclass, methods, token, mutableListOf(*inherited.toTypedArray(), classPrototype.superclass))
         }
         return methods
     }
-    fun getInheritedMethodsFromInterfaces(name: String, methods: MutableList<Pair<String,Token>> = mutableListOf(), token: Token? = null): List<Pair<String,Token>> {
+    fun getInheritedMethodsFromInterfaces(name: String, methods: MutableList<Pair<String,Token>> = mutableListOf(), token: Token? = null, inherited: MutableList<String> = mutableListOf()): List<Pair<String,Token>> {
         val classPrototype = sunlite.collector!!.typeHierarchy[name] ?: throw CompilationException("Class '$name' not found.", token)
         classPrototype.superinterfaces.forEach { intf ->
             sunlite.collector?.typeHierarchy[intf]?.let { type ->
@@ -1048,7 +1051,10 @@ class Compiler(val sunlite: Sunlite, val vm: VM?, val enclosing: Compiler?) : Ex
                 }?.map { intf to it.key }?.toMutableList() ?: mutableListOf()
                 methods.addAll(list)
             }
-            getInheritedMethodsFromInterfaces(intf, methods, token)
+            if(intf in inherited) {
+                throw CompilationException("Circular inheritance detected.", token)
+            }
+            getInheritedMethodsFromInterfaces(intf, methods, token, mutableListOf(*inherited.toTypedArray(), intf))
         }
         return methods
     }
